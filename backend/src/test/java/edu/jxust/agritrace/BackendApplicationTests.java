@@ -1,4 +1,4 @@
-package edu.jxust.agritrace;
+package edu.jxust.agritrace.module;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -8,6 +8,7 @@ class BackendApplicationTests {
 
     @Test
     void contextLoads() {
+
     }
 
 }
