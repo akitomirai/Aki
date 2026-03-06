@@ -1,4 +1,4 @@
-package edu.jxust.agritrace.module;
+package edu.jxust.agritrace;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

@@ -1,0 +1,9 @@
+Redis启动：
+    进入目录：cd /d E:\redis-x64-5.0.14.1
+    运行配置：redis-server.exe redis.windows.conf
+    登录（切换新cmd）：进入目录：cd /d E:\redis-x64-5.0.14.1
+        启动：redis-cli
+        输密码：auth 1154228715
+
+    查询：keys *
+       ：get trace(溯源模块):qr(二维码模块):pv(计数):二维码ID(qrID)
