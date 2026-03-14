@@ -1,0 +1,23 @@
+0 verbose cli D:\Program Files\nodejs\node.exe D:\Program Files\nodejs\node_global\node_modules\npm\bin\npm-cli.js
+1 info using npm@11.2.0
+2 info using node@v22.14.0
+3 silly config load:file:D:\Program Files\nodejs\node_global\node_modules\npm\npmrc
+4 silly config load:file:C:\Users\Lenovo\Desktop\traceability-system\.npmrc
+5 silly config load:file:C:\Users\Lenovo\.npmrc
+6 silly config load:file:D:\Program Files\nodejs\node_global\etc\npmrc
+7 verbose title npm exec @playwright/cli -s=platform2 click e82
+8 verbose argv "exec" "--yes" "--" "@playwright/cli" "-s=platform2" "click" "e82"
+9 verbose logfile logs-max:10 dir:C:\Users\Lenovo\Desktop\traceability-system\output\runtime\npm-cache\_logs\2026-03-14T07_34_29_075Z-
+10 verbose logfile C:\Users\Lenovo\Desktop\traceability-system\output\runtime\npm-cache\_logs\2026-03-14T07_34_29_075Z-debug-0.log
+11 silly logfile start cleaning logs, removing 2 files
+12 silly logfile done cleaning log files
+13 silly packumentCache heap:4345298944 maxSize:1086324736 maxEntrySize:543162368
+14 http fetch GET 200 https://registry.npmmirror.com/@playwright%2fcli 360ms (cache revalidated)
+15 silly packumentCache heap:4345298944 maxSize:1086324736 maxEntrySize:543162368
+16 silly packumentCache heap:4345298944 maxSize:1086324736 maxEntrySize:543162368
+17 verbose cwd C:\Users\Lenovo\Desktop\traceability-system
+18 verbose os Windows_NT 10.0.26200
+19 verbose node v22.14.0
+20 verbose npm  v11.2.0
+21 verbose exit 0
+22 info ok

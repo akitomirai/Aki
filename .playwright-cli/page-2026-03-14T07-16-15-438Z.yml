@@ -1,0 +1,27 @@
+- generic [ref=e1]:
+  - generic [ref=e5]:
+    - generic [ref=e7]:
+      - generic [ref=e8]: 农产品溯源系统后台登录
+      - generic [ref=e9]: Agricultural Traceability Admin
+    - generic [ref=e11]:
+      - generic [ref=e12]:
+        - generic [ref=e13]: 用户名
+        - textbox "用户名" [ref=e17]:
+          - /placeholder: 请输入用户名
+          - text: 123456testuser1
+      - generic [ref=e18]:
+        - generic [ref=e19]: 密码
+        - textbox "密码" [ref=e23]:
+          - /placeholder: 请输入密码
+      - generic [ref=e25] [cursor=pointer]:
+        - generic [ref=e26]:
+          - checkbox "记住用户名" [checked]
+        - generic [ref=e28]: 记住用户名
+      - generic [ref=e29]:
+        - button "登录" [active] [ref=e30] [cursor=pointer]:
+          - generic [ref=e31]: 登录
+        - button "注册" [ref=e32] [cursor=pointer]:
+          - generic [ref=e33]: 注册
+  - alert [ref=e39]:
+    - img [ref=e41]
+    - paragraph [ref=e43]: 请输入用户名和密码

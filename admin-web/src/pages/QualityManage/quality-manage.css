@@ -2,16 +2,26 @@
   width: 100%;
 }
 
+.quality-upload-card,
+.quality-form-card {
+  border-radius: 16px;
+}
+
 .list-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
 }
 
 .list-ops {
   display: flex;
   gap: 10px;
   align-items: center;
+}
+
+.query-input {
+  width: 220px;
 }
 
 .upload-box {
@@ -25,8 +35,9 @@
 .result-box {
   margin-top: 16px;
   padding: 12px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.18);
+  border-radius: 12px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
 }
 
 .url-text {
@@ -38,21 +49,83 @@
   width: 100%;
 }
 
-.json-tool-row {
-  display: flex;
-  gap: 8px;
-  margin-top: 6px;
+.quality-json-panel {
+  width: 100%;
+  padding: 16px;
+  border-radius: 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
 }
 
+.quality-json-panel__intro {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.quality-json-panel__intro h4 {
+  margin: 4px 0 0;
+  font-size: 16px;
+  color: #111827;
+}
+
+.panel-eyebrow {
+  margin: 0;
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.template-card-group {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.template-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+  text-align: left;
+  border-radius: 12px;
+  border: 1px solid #dbeafe;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.template-card.is-active {
+  border-color: #2563eb;
+  background: #eff6ff;
+  box-shadow: 0 0 0 1px #2563eb inset;
+}
+
+.template-card__title {
+  color: #1f2937;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.template-card__desc {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.json-tool-row,
 .json-template-row {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
-  margin-bottom: 8px;
+  flex-wrap: wrap;
 }
 
 .json-valid-row {
-  margin-top: 4px;
+  margin-top: 8px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -63,8 +136,28 @@
   font-size: 12px;
 }
 
-.json-tip {
-  margin-top: 4px;
-  color: #6b7280;
-  font-size: 12px;
+.json-advanced {
+  margin-top: 14px;
+}
+
+.json-preview {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 960px) {
+  .template-card-group {
+    grid-template-columns: 1fr;
+  }
+
+  .list-header,
+  .list-ops,
+  .quality-json-panel__intro {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .query-input {
+    width: 100%;
+  }
 }

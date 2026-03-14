@@ -3,32 +3,35 @@
     <el-card shadow="never" class="table-card">
       <template #header>
         <div class="card-header">
-          <span>产品管理</span>
+          <div>
+            <div class="header-title">产品管理</div>
+            <div class="header-subtitle">统一补齐空值兜底与列宽展示，提升答辩观感。</div>
+          </div>
           <div class="header-ops">
-            <el-button @click="loadProducts" :loading="loading">刷新</el-button>
-            <el-button v-if="canManage" type="primary" @click="openCreateDialog">新增产品</el-button>
+            <el-button class="header-btn" @click="loadProducts" :loading="loading">刷新</el-button>
+            <el-button v-if="canManage" class="header-btn" type="primary" @click="openCreateDialog">新增产品</el-button>
           </div>
         </div>
       </template>
 
-      <el-table :data="productList" v-loading="loading" border stripe empty-text="暂无产品数据，可点击右上角新增产品">
+      <el-table :data="productList" v-loading="loading" border stripe empty-text="暂无产品数据">
         <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column label="产品名称" min-width="180">
+        <el-table-column label="产品名称" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">
-            {{ formatProductName(row.name) }}
+            <span class="cell-main">{{ formatProductName(row.name) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="分类" width="160">
+        <el-table-column label="分类" min-width="160" show-overflow-tooltip>
           <template #default="{ row }">
             <el-tag effect="plain" size="small">{{ formatCategory(row.category) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="规格" width="140">
+        <el-table-column label="规格" min-width="160" show-overflow-tooltip>
           <template #default="{ row }">
-            {{ formatText(row.spec, '未设置') }}
+            {{ formatText(row.spec, '未设置规格') }}
           </template>
         </el-table-column>
-        <el-table-column label="单位" width="120">
+        <el-table-column label="单位" width="120" show-overflow-tooltip>
           <template #default="{ row }">
             {{ formatUnit(row.unit) }}
           </template>
@@ -82,7 +85,7 @@ import { onMounted, ref, reactive, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../../stores/auth'
 import { listProductApi, createProductApi, updateProductApi } from '../../api/product'
-import { formatDateTime } from '../../utils/display'
+import { formatDateTime, normalizeDisplayText } from '../../utils/display'
 import { extractErrorMessage } from '../../utils/feedback'
 
 const authStore = useAuthStore()
@@ -120,10 +123,10 @@ const openCreateDialog = () => {
 const openEditDialog = (row) => {
   dialogMode.value = 'edit'
   editingId.value = row.id
-  form.name = row.name || ''
-  form.category = row.category || ''
-  form.spec = row.spec || ''
-  form.unit = row.unit || ''
+  form.name = normalizeDisplayText(row.name, '')
+  form.category = normalizeDisplayText(row.category, '')
+  form.spec = normalizeDisplayText(row.spec, '')
+  form.unit = normalizeDisplayText(row.unit, '')
   showDialog.value = true
 }
 
@@ -134,7 +137,7 @@ const loadProducts = async () => {
     if (res.code === 0) {
       productList.value = res.data || []
       if (!productList.value.length) {
-        ElMessage.info('未查询到数据')
+        ElMessage.info('暂无产品数据')
       }
     } else {
       ElMessage.error(`查询失败：${res.message || '产品列表加载失败'}`)
@@ -178,14 +181,7 @@ onMounted(() => {
   loadProducts()
 })
 
-const formatText = (value, fallback = '-') => {
-  if (value == null) return fallback
-  const text = String(value).trim()
-  if (!text) return fallback
-  if (text.includes('????') || text.includes('�')) return fallback
-  return text
-}
-
+const formatText = (value, fallback = '-') => normalizeDisplayText(value, fallback)
 const formatProductName = (value) => formatText(value, '未命名产品')
 const formatCategory = (value) => formatText(value, '未分类')
 const formatUnit = (value) => formatText(value, '未设置')
@@ -198,12 +194,40 @@ const formatUnit = (value) => formatText(value, '未设置')
 
 .card-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  gap: 16px;
+}
+
+.header-title {
+  color: #111827;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.header-subtitle {
+  margin-top: 4px;
+  color: #6b7280;
+  font-size: 12px;
 }
 
 .header-ops {
   display: flex;
   gap: 10px;
+}
+
+.header-btn {
+  min-width: 88px;
+}
+
+.cell-main {
+  color: #111827;
+  font-weight: 600;
+}
+
+@media (max-width: 960px) {
+  .card-header {
+    flex-direction: column;
+  }
 }
 </style>

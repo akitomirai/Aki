@@ -1,0 +1,2 @@
+
+5b5cd2759ca822347ab0fe94e6a8a10fd7294c67	{"key":"make-fetch-happen:request-cache:https://registry.npm.taobao.org/fsevents","integrity":null,"time":1773469924042,"size":"262","metadata":{"time":1773469924042,"url":"https://registry.npm.taobao.org/fsevents","reqHeaders":{"accept":"application/json"},"resHeaders":{"content-type":"text/html","date":"Sat, 14 Mar 2026 06:32:04 GMT","location":"https://registry.npmmirror.com/fsevents"},"options":{"compress":true},"status":301}}

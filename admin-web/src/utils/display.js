@@ -55,6 +55,28 @@ export const nodeTypeTextMap = {
   SYSTEM: '系统'
 }
 
+export function normalizeDisplayText(value, fallback = '-') {
+  if (value == null) return fallback
+  const text = String(value).trim()
+  if (!text) return fallback
+
+  const normalized = text.toLowerCase()
+  const invalidValues = ['null', 'undefined', 'nan']
+  if (invalidValues.includes(normalized)) return fallback
+
+  const invalidFragments = ['????', '锟', '�']
+  if (invalidFragments.some((item) => text.includes(item))) return fallback
+
+  return text
+}
+
+export function normalizeDisplayNumber(value, fallback = '0') {
+  if (value == null || value === '') return fallback
+  const num = Number(value)
+  if (Number.isNaN(num)) return fallback
+  return String(num)
+}
+
 export function getRoleText(roleCode) {
   if (!roleCode) return '-'
   return roleTextMap[roleCode] || '未知角色'
@@ -109,15 +131,15 @@ export function getNodeTypeText(type) {
 
 export function getQualityResultText(result) {
   const normalized = String(result || '').toUpperCase()
-  if (['PASS', 'PASSED', 'QUALIFIED', 'NORMAL'].includes(normalized)) return '合格'
-  if (['FAIL', 'FAILED', 'UNQUALIFIED', 'RISK'].includes(normalized)) return '不合格'
-  return result ? '未知结果' : '-'
+  if (['合格', 'PASS', 'PASSED', 'QUALIFIED', 'NORMAL'].includes(normalized)) return '合格'
+  if (['不合格', 'FAIL', 'FAILED', 'UNQUALIFIED', 'RISK'].includes(normalized)) return '不合格'
+  return result ? String(result) : '-'
 }
 
 export function getQualityResultTagType(result) {
   const normalized = String(result || '').toUpperCase()
-  if (['PASS', 'PASSED', 'QUALIFIED', 'NORMAL'].includes(normalized)) return 'success'
-  if (['FAIL', 'FAILED', 'UNQUALIFIED', 'RISK'].includes(normalized)) return 'danger'
+  if (['合格', 'PASS', 'PASSED', 'QUALIFIED', 'NORMAL'].includes(normalized)) return 'success'
+  if (['不合格', 'FAIL', 'FAILED', 'UNQUALIFIED', 'RISK'].includes(normalized)) return 'danger'
   return 'info'
 }
 
@@ -137,17 +159,17 @@ export function getLogResultTagType(resultStatus) {
 
 export function getLogModuleText(module) {
   const map = {
-    AUTH: '认证',
-    USER: '用户',
-    PRODUCT: '产品',
-    BATCH: '批次',
+    AUTH: '认证登录',
+    USER: '用户管理',
+    PRODUCT: '产品管理',
+    BATCH: '批次管理',
     TRACE_EVENT: '业务节点',
-    QUALITY: '质检',
-    QR: '追溯码',
-    FEEDBACK: '反馈',
-    COMPANY: '企业',
-    REGULATION: '监管',
-    LOG: '日志'
+    QUALITY: '质检管理',
+    QR: '追溯码管理',
+    FEEDBACK: '用户反馈',
+    COMPANY: '企业管理',
+    REGULATION: '监管记录',
+    LOG: '操作日志'
   }
   if (!module) return '-'
   return map[module] || '未知模块'
@@ -162,7 +184,7 @@ export function getLogActionText(action) {
     SAVE_BATCH_PARTICIPANTS: '维护参与主体',
     CREATE_TRACE_EVENT: '新增业务节点',
     GENERATE_QR: '生成追溯码',
-    DISABLE_QR: '禁用追溯码',
+    DISABLE_QR: '停用追溯码',
     CREATE_REPORT: '新增质检报告',
     UPDATE_REPORT: '修改质检报告',
     DELETE_REPORT: '删除质检报告',
@@ -176,10 +198,15 @@ export function getLogActionText(action) {
 }
 
 export function getTraceOrigin() {
-  if (import.meta.env.VITE_TRACE_WEB_ORIGIN) {
-    return String(import.meta.env.VITE_TRACE_WEB_ORIGIN).replace(/\/$/, '')
+  const envOrigin = String(import.meta.env.VITE_TRACE_WEB_ORIGIN || '').trim()
+  if (envOrigin) {
+    return envOrigin.replace(/\/$/, '')
   }
-  return 'http://localhost:5173'
+  if (typeof window !== 'undefined' && window.location?.hostname) {
+    const { protocol, hostname } = window.location
+    return `${protocol}//${hostname}:5173`
+  }
+  return 'http://127.0.0.1:5173'
 }
 
 export function buildTraceLink(qrToken) {
@@ -188,6 +215,7 @@ export function buildTraceLink(qrToken) {
 }
 
 export function formatDateTime(value) {
-  if (!value) return '-'
-  return String(value).replace('T', ' ')
+  const text = normalizeDisplayText(value, '-')
+  if (text === '-') return text
+  return text.replace('T', ' ')
 }

@@ -1,0 +1,424 @@
+- generic [ref=e4]:
+  - complementary [ref=e5]:
+    - generic [ref=e6]: 农产品溯源后台
+    - menubar [ref=e7]:
+      - menuitem "首页" [ref=e8] [cursor=pointer]
+      - menuitem "批次管理" [ref=e9] [cursor=pointer]
+      - menuitem "产品管理" [ref=e10] [cursor=pointer]
+      - menuitem "企业管理" [ref=e11] [cursor=pointer]
+      - menuitem "质检报告" [ref=e12] [cursor=pointer]
+      - menuitem "消费者反馈" [ref=e13] [cursor=pointer]
+      - menuitem "用户管理" [ref=e14] [cursor=pointer]
+      - menuitem "操作日志" [ref=e15] [cursor=pointer]
+  - generic [ref=e16]:
+    - banner [ref=e17]:
+      - generic [ref=e18]: 管理后台 (平台管理员)
+      - button "退出登录" [ref=e19] [cursor=pointer]:
+        - generic [ref=e20]: 退出登录
+    - main [ref=e21]:
+      - generic [ref=e23]:
+        - generic [ref=e25]:
+          - generic [ref=e26]:
+            - generic [ref=e27]: 系统操作日志
+            - generic [ref=e28]: 面向答辩展示优化：中文主展示，代码值保留为辅助信息。
+          - generic [ref=e29]:
+            - textbox "模块代码" [ref=e32]
+            - textbox "操作人" [ref=e35]
+            - generic [ref=e37] [cursor=pointer]:
+              - generic:
+                - combobox [ref=e39]
+                - generic [ref=e40]: 结果
+              - img [ref=e43]
+            - button "搜索" [ref=e45] [cursor=pointer]:
+              - generic [ref=e46]: 搜索
+            - button "重置" [ref=e47] [cursor=pointer]:
+              - generic [ref=e48]: 重置
+        - generic [ref=e49]:
+          - generic [ref=e50]:
+            - generic [ref=e51]:
+              - table [ref=e53]:
+                - rowgroup [ref=e66]:
+                  - row "ID 操作人 角色 模块 操作 请求路径 方法 结果 IP 地址 操作时间 操作" [ref=e67]:
+                    - columnheader "ID" [ref=e68]:
+                      - generic [ref=e69]: ID
+                    - columnheader "操作人" [ref=e70]:
+                      - generic [ref=e71]: 操作人
+                    - columnheader "角色" [ref=e72]:
+                      - generic [ref=e73]: 角色
+                    - columnheader "模块" [ref=e74]:
+                      - generic [ref=e75]: 模块
+                    - columnheader "操作" [ref=e76]:
+                      - generic [ref=e77]: 操作
+                    - columnheader "请求路径" [ref=e78]:
+                      - generic [ref=e79]: 请求路径
+                    - columnheader "方法" [ref=e80]:
+                      - generic [ref=e81]: 方法
+                    - columnheader "结果" [ref=e82]:
+                      - generic [ref=e83]: 结果
+                    - columnheader "IP 地址" [ref=e84]:
+                      - generic [ref=e85]: IP 地址
+                    - columnheader "操作时间" [ref=e86]:
+                      - generic [ref=e87]: 操作时间
+                    - columnheader "操作" [ref=e88]:
+                      - generic [ref=e89]: 操作
+              - table [ref=e94]:
+                - rowgroup [ref=e107]:
+                  - row "120 testuser1 企业用户 ENTERPRISE_USER 质检管理 QUALITY 新增质检报告 CREATE_QUALITY_REPORT /api/admin/quality/create POST 失败 0:0:0:0:0:0:0:1 2026-03-14T01:43:14 查看详情" [ref=e108]:
+                    - cell "120" [ref=e109]:
+                      - generic [ref=e110]: "120"
+                    - cell "testuser1" [ref=e111]:
+                      - generic [ref=e112]: testuser1
+                    - cell "企业用户 ENTERPRISE_USER" [ref=e113]:
+                      - generic [ref=e115]:
+                        - generic [ref=e116]: 企业用户
+                        - generic [ref=e117]: ENTERPRISE_USER
+                    - cell "质检管理 QUALITY" [ref=e118]:
+                      - generic [ref=e120]:
+                        - generic [ref=e121]: 质检管理
+                        - generic [ref=e122]: QUALITY
+                    - cell "新增质检报告 CREATE_QUALITY_REPORT" [ref=e123]:
+                      - generic [ref=e125]:
+                        - generic [ref=e126]: 新增质检报告
+                        - generic [ref=e127]: CREATE_QUALITY_REPORT
+                    - cell "/api/admin/quality/create" [ref=e128]:
+                      - generic [ref=e130]: /api/admin/quality/create
+                    - cell "POST" [ref=e131]:
+                      - generic [ref=e132]:
+                        - generic:
+                          - generic: POST
+                    - cell "失败" [ref=e133]:
+                      - generic [ref=e134]:
+                        - generic:
+                          - generic: 失败
+                    - cell "0:0:0:0:0:0:0:1" [ref=e135]:
+                      - generic [ref=e136]: 0:0:0:0:0:0:0:1
+                    - cell "2026-03-14T01:43:14" [ref=e137]:
+                      - generic [ref=e138]: 2026-03-14T01:43:14
+                    - cell "查看详情" [ref=e139]:
+                      - button "查看详情" [ref=e141] [cursor=pointer]:
+                        - generic [ref=e142]: 查看详情
+                  - row "119 testuser1 企业用户 ENTERPRISE_USER 质检管理 QUALITY 新增质检报告 CREATE_QUALITY_REPORT /api/admin/quality/create POST 失败 0:0:0:0:0:0:0:1 2026-03-14T01:40:25 查看详情" [ref=e143]:
+                    - cell "119" [ref=e144]:
+                      - generic [ref=e145]: "119"
+                    - cell "testuser1" [ref=e146]:
+                      - generic [ref=e147]: testuser1
+                    - cell "企业用户 ENTERPRISE_USER" [ref=e148]:
+                      - generic [ref=e150]:
+                        - generic [ref=e151]: 企业用户
+                        - generic [ref=e152]: ENTERPRISE_USER
+                    - cell "质检管理 QUALITY" [ref=e153]:
+                      - generic [ref=e155]:
+                        - generic [ref=e156]: 质检管理
+                        - generic [ref=e157]: QUALITY
+                    - cell "新增质检报告 CREATE_QUALITY_REPORT" [ref=e158]:
+                      - generic [ref=e160]:
+                        - generic [ref=e161]: 新增质检报告
+                        - generic [ref=e162]: CREATE_QUALITY_REPORT
+                    - cell "/api/admin/quality/create" [ref=e163]:
+                      - generic [ref=e165]: /api/admin/quality/create
+                    - cell "POST" [ref=e166]:
+                      - generic [ref=e167]:
+                        - generic:
+                          - generic: POST
+                    - cell "失败" [ref=e168]:
+                      - generic [ref=e169]:
+                        - generic:
+                          - generic: 失败
+                    - cell "0:0:0:0:0:0:0:1" [ref=e170]:
+                      - generic [ref=e171]: 0:0:0:0:0:0:0:1
+                    - cell "2026-03-14T01:40:25" [ref=e172]:
+                      - generic [ref=e173]: 2026-03-14T01:40:25
+                    - cell "查看详情" [ref=e174]:
+                      - button "查看详情" [ref=e176] [cursor=pointer]:
+                        - generic [ref=e177]: 查看详情
+                  - row "118 entA_admin 企业管理员 ENTERPRISE_ADMIN 批次管理 BATCH 维护参与主体 SAVE_BATCH_PARTICIPANTS /api/enterprise/batch/participant/save POST 成功 127.0.0.1 2026-03-14T00:51:10 查看详情" [ref=e178]:
+                    - cell "118" [ref=e179]:
+                      - generic [ref=e180]: "118"
+                    - cell "entA_admin" [ref=e181]:
+                      - generic [ref=e182]: entA_admin
+                    - cell "企业管理员 ENTERPRISE_ADMIN" [ref=e183]:
+                      - generic [ref=e185]:
+                        - generic [ref=e186]: 企业管理员
+                        - generic [ref=e187]: ENTERPRISE_ADMIN
+                    - cell "批次管理 BATCH" [ref=e188]:
+                      - generic [ref=e190]:
+                        - generic [ref=e191]: 批次管理
+                        - generic [ref=e192]: BATCH
+                    - cell "维护参与主体 SAVE_BATCH_PARTICIPANTS" [ref=e193]:
+                      - generic [ref=e195]:
+                        - generic [ref=e196]: 维护参与主体
+                        - generic [ref=e197]: SAVE_BATCH_PARTICIPANTS
+                    - cell "/api/enterprise/batch/participant/save" [ref=e198]:
+                      - generic [ref=e200]: /api/enterprise/batch/participant/save
+                    - cell "POST" [ref=e201]:
+                      - generic [ref=e202]:
+                        - generic:
+                          - generic: POST
+                    - cell "成功" [ref=e203]:
+                      - generic [ref=e204]:
+                        - generic:
+                          - generic: 成功
+                    - cell "127.0.0.1" [ref=e205]:
+                      - generic [ref=e206]: 127.0.0.1
+                    - cell "2026-03-14T00:51:10" [ref=e207]:
+                      - generic [ref=e208]: 2026-03-14T00:51:10
+                    - cell "查看详情" [ref=e209]:
+                      - button "查看详情" [ref=e211] [cursor=pointer]:
+                        - generic [ref=e212]: 查看详情
+                  - row "117 entA_admin 企业管理员 ENTERPRISE_ADMIN 批次管理 BATCH 修改批次 UPDATE_BATCH /api/enterprise/batch/update PUT 成功 127.0.0.1 2026-03-14T00:50:58 查看详情" [ref=e213]:
+                    - cell "117" [ref=e214]:
+                      - generic [ref=e215]: "117"
+                    - cell "entA_admin" [ref=e216]:
+                      - generic [ref=e217]: entA_admin
+                    - cell "企业管理员 ENTERPRISE_ADMIN" [ref=e218]:
+                      - generic [ref=e220]:
+                        - generic [ref=e221]: 企业管理员
+                        - generic [ref=e222]: ENTERPRISE_ADMIN
+                    - cell "批次管理 BATCH" [ref=e223]:
+                      - generic [ref=e225]:
+                        - generic [ref=e226]: 批次管理
+                        - generic [ref=e227]: BATCH
+                    - cell "修改批次 UPDATE_BATCH" [ref=e228]:
+                      - generic [ref=e230]:
+                        - generic [ref=e231]: 修改批次
+                        - generic [ref=e232]: UPDATE_BATCH
+                    - cell "/api/enterprise/batch/update" [ref=e233]:
+                      - generic [ref=e235]: /api/enterprise/batch/update
+                    - cell "PUT" [ref=e236]:
+                      - generic [ref=e237]:
+                        - generic:
+                          - generic: PUT
+                    - cell "成功" [ref=e238]:
+                      - generic [ref=e239]:
+                        - generic:
+                          - generic: 成功
+                    - cell "127.0.0.1" [ref=e240]:
+                      - generic [ref=e241]: 127.0.0.1
+                    - cell "2026-03-14T00:50:58" [ref=e242]:
+                      - generic [ref=e243]: 2026-03-14T00:50:58
+                    - cell "查看详情" [ref=e244]:
+                      - button "查看详情" [ref=e246] [cursor=pointer]:
+                        - generic [ref=e247]: 查看详情
+                  - row "116 entA_admin 企业管理员 ENTERPRISE_ADMIN 批次管理 BATCH 维护参与主体 SAVE_BATCH_PARTICIPANTS /api/enterprise/batch/participant/save POST 成功 127.0.0.1 2026-03-14T00:33:10 查看详情" [ref=e248]:
+                    - cell "116" [ref=e249]:
+                      - generic [ref=e250]: "116"
+                    - cell "entA_admin" [ref=e251]:
+                      - generic [ref=e252]: entA_admin
+                    - cell "企业管理员 ENTERPRISE_ADMIN" [ref=e253]:
+                      - generic [ref=e255]:
+                        - generic [ref=e256]: 企业管理员
+                        - generic [ref=e257]: ENTERPRISE_ADMIN
+                    - cell "批次管理 BATCH" [ref=e258]:
+                      - generic [ref=e260]:
+                        - generic [ref=e261]: 批次管理
+                        - generic [ref=e262]: BATCH
+                    - cell "维护参与主体 SAVE_BATCH_PARTICIPANTS" [ref=e263]:
+                      - generic [ref=e265]:
+                        - generic [ref=e266]: 维护参与主体
+                        - generic [ref=e267]: SAVE_BATCH_PARTICIPANTS
+                    - cell "/api/enterprise/batch/participant/save" [ref=e268]:
+                      - generic [ref=e270]: /api/enterprise/batch/participant/save
+                    - cell "POST" [ref=e271]:
+                      - generic [ref=e272]:
+                        - generic:
+                          - generic: POST
+                    - cell "成功" [ref=e273]:
+                      - generic [ref=e274]:
+                        - generic:
+                          - generic: 成功
+                    - cell "127.0.0.1" [ref=e275]:
+                      - generic [ref=e276]: 127.0.0.1
+                    - cell "2026-03-14T00:33:10" [ref=e277]:
+                      - generic [ref=e278]: 2026-03-14T00:33:10
+                    - cell "查看详情" [ref=e279]:
+                      - button "查看详情" [ref=e281] [cursor=pointer]:
+                        - generic [ref=e282]: 查看详情
+                  - row "115 entA_admin 企业管理员 ENTERPRISE_ADMIN 批次管理 BATCH 维护参与主体 SAVE_BATCH_PARTICIPANTS /api/enterprise/batch/participant/save POST 成功 127.0.0.1 2026-03-14T00:33:01 查看详情" [ref=e283]:
+                    - cell "115" [ref=e284]:
+                      - generic [ref=e285]: "115"
+                    - cell "entA_admin" [ref=e286]:
+                      - generic [ref=e287]: entA_admin
+                    - cell "企业管理员 ENTERPRISE_ADMIN" [ref=e288]:
+                      - generic [ref=e290]:
+                        - generic [ref=e291]: 企业管理员
+                        - generic [ref=e292]: ENTERPRISE_ADMIN
+                    - cell "批次管理 BATCH" [ref=e293]:
+                      - generic [ref=e295]:
+                        - generic [ref=e296]: 批次管理
+                        - generic [ref=e297]: BATCH
+                    - cell "维护参与主体 SAVE_BATCH_PARTICIPANTS" [ref=e298]:
+                      - generic [ref=e300]:
+                        - generic [ref=e301]: 维护参与主体
+                        - generic [ref=e302]: SAVE_BATCH_PARTICIPANTS
+                    - cell "/api/enterprise/batch/participant/save" [ref=e303]:
+                      - generic [ref=e305]: /api/enterprise/batch/participant/save
+                    - cell "POST" [ref=e306]:
+                      - generic [ref=e307]:
+                        - generic:
+                          - generic: POST
+                    - cell "成功" [ref=e308]:
+                      - generic [ref=e309]:
+                        - generic:
+                          - generic: 成功
+                    - cell "127.0.0.1" [ref=e310]:
+                      - generic [ref=e311]: 127.0.0.1
+                    - cell "2026-03-14T00:33:01" [ref=e312]:
+                      - generic [ref=e313]: 2026-03-14T00:33:01
+                    - cell "查看详情" [ref=e314]:
+                      - button "查看详情" [ref=e316] [cursor=pointer]:
+                        - generic [ref=e317]: 查看详情
+                  - row "114 entA_admin 企业管理员 ENTERPRISE_ADMIN 业务节点 TRACE_EVENT 新增业务节点 CREATE_TRACE_EVENT /api/enterprise/trace-event/create POST 成功 127.0.0.1 2026-03-14T00:32:46 查看详情" [ref=e318]:
+                    - cell "114" [ref=e319]:
+                      - generic [ref=e320]: "114"
+                    - cell "entA_admin" [ref=e321]:
+                      - generic [ref=e322]: entA_admin
+                    - cell "企业管理员 ENTERPRISE_ADMIN" [ref=e323]:
+                      - generic [ref=e325]:
+                        - generic [ref=e326]: 企业管理员
+                        - generic [ref=e327]: ENTERPRISE_ADMIN
+                    - cell "业务节点 TRACE_EVENT" [ref=e328]:
+                      - generic [ref=e330]:
+                        - generic [ref=e331]: 业务节点
+                        - generic [ref=e332]: TRACE_EVENT
+                    - cell "新增业务节点 CREATE_TRACE_EVENT" [ref=e333]:
+                      - generic [ref=e335]:
+                        - generic [ref=e336]: 新增业务节点
+                        - generic [ref=e337]: CREATE_TRACE_EVENT
+                    - cell "/api/enterprise/trace-event/create" [ref=e338]:
+                      - generic [ref=e340]: /api/enterprise/trace-event/create
+                    - cell "POST" [ref=e341]:
+                      - generic [ref=e342]:
+                        - generic:
+                          - generic: POST
+                    - cell "成功" [ref=e343]:
+                      - generic [ref=e344]:
+                        - generic:
+                          - generic: 成功
+                    - cell "127.0.0.1" [ref=e345]:
+                      - generic [ref=e346]: 127.0.0.1
+                    - cell "2026-03-14T00:32:46" [ref=e347]:
+                      - generic [ref=e348]: 2026-03-14T00:32:46
+                    - cell "查看详情" [ref=e349]:
+                      - button "查看详情" [ref=e351] [cursor=pointer]:
+                        - generic [ref=e352]: 查看详情
+                  - row "113 entA_admin 企业管理员 ENTERPRISE_ADMIN 业务节点 TRACE_EVENT 新增业务节点 CREATE_TRACE_EVENT /api/enterprise/trace-event/create POST 成功 127.0.0.1 2026-03-14T00:32:21 查看详情" [ref=e353]:
+                    - cell "113" [ref=e354]:
+                      - generic [ref=e355]: "113"
+                    - cell "entA_admin" [ref=e356]:
+                      - generic [ref=e357]: entA_admin
+                    - cell "企业管理员 ENTERPRISE_ADMIN" [ref=e358]:
+                      - generic [ref=e360]:
+                        - generic [ref=e361]: 企业管理员
+                        - generic [ref=e362]: ENTERPRISE_ADMIN
+                    - cell "业务节点 TRACE_EVENT" [ref=e363]:
+                      - generic [ref=e365]:
+                        - generic [ref=e366]: 业务节点
+                        - generic [ref=e367]: TRACE_EVENT
+                    - cell "新增业务节点 CREATE_TRACE_EVENT" [ref=e368]:
+                      - generic [ref=e370]:
+                        - generic [ref=e371]: 新增业务节点
+                        - generic [ref=e372]: CREATE_TRACE_EVENT
+                    - cell "/api/enterprise/trace-event/create" [ref=e373]:
+                      - generic [ref=e375]: /api/enterprise/trace-event/create
+                    - cell "POST" [ref=e376]:
+                      - generic [ref=e377]:
+                        - generic:
+                          - generic: POST
+                    - cell "成功" [ref=e378]:
+                      - generic [ref=e379]:
+                        - generic:
+                          - generic: 成功
+                    - cell "127.0.0.1" [ref=e380]:
+                      - generic [ref=e381]: 127.0.0.1
+                    - cell "2026-03-14T00:32:21" [ref=e382]:
+                      - generic [ref=e383]: 2026-03-14T00:32:21
+                    - cell "查看详情" [ref=e384]:
+                      - button "查看详情" [ref=e386] [cursor=pointer]:
+                        - generic [ref=e387]: 查看详情
+                  - row "112 entA_admin 企业管理员 ENTERPRISE_ADMIN 业务节点 TRACE_EVENT 新增业务节点 CREATE_TRACE_EVENT /api/enterprise/trace-event/create POST 成功 127.0.0.1 2026-03-14T00:32:16 查看详情" [ref=e388]:
+                    - cell "112" [ref=e389]:
+                      - generic [ref=e390]: "112"
+                    - cell "entA_admin" [ref=e391]:
+                      - generic [ref=e392]: entA_admin
+                    - cell "企业管理员 ENTERPRISE_ADMIN" [ref=e393]:
+                      - generic [ref=e395]:
+                        - generic [ref=e396]: 企业管理员
+                        - generic [ref=e397]: ENTERPRISE_ADMIN
+                    - cell "业务节点 TRACE_EVENT" [ref=e398]:
+                      - generic [ref=e400]:
+                        - generic [ref=e401]: 业务节点
+                        - generic [ref=e402]: TRACE_EVENT
+                    - cell "新增业务节点 CREATE_TRACE_EVENT" [ref=e403]:
+                      - generic [ref=e405]:
+                        - generic [ref=e406]: 新增业务节点
+                        - generic [ref=e407]: CREATE_TRACE_EVENT
+                    - cell "/api/enterprise/trace-event/create" [ref=e408]:
+                      - generic [ref=e410]: /api/enterprise/trace-event/create
+                    - cell "POST" [ref=e411]:
+                      - generic [ref=e412]:
+                        - generic:
+                          - generic: POST
+                    - cell "成功" [ref=e413]:
+                      - generic [ref=e414]:
+                        - generic:
+                          - generic: 成功
+                    - cell "127.0.0.1" [ref=e415]:
+                      - generic [ref=e416]: 127.0.0.1
+                    - cell "2026-03-14T00:32:16" [ref=e417]:
+                      - generic [ref=e418]: 2026-03-14T00:32:16
+                    - cell "查看详情" [ref=e419]:
+                      - button "查看详情" [ref=e421] [cursor=pointer]:
+                        - generic [ref=e422]: 查看详情
+                  - row "111 entA_admin 企业管理员 ENTERPRISE_ADMIN 批次管理 BATCH 新建批次 CREATE_BATCH /api/enterprise/batch/create POST 成功 127.0.0.1 2026-03-14T00:31:58 查看详情" [ref=e423]:
+                    - cell "111" [ref=e424]:
+                      - generic [ref=e425]: "111"
+                    - cell "entA_admin" [ref=e426]:
+                      - generic [ref=e427]: entA_admin
+                    - cell "企业管理员 ENTERPRISE_ADMIN" [ref=e428]:
+                      - generic [ref=e430]:
+                        - generic [ref=e431]: 企业管理员
+                        - generic [ref=e432]: ENTERPRISE_ADMIN
+                    - cell "批次管理 BATCH" [ref=e433]:
+                      - generic [ref=e435]:
+                        - generic [ref=e436]: 批次管理
+                        - generic [ref=e437]: BATCH
+                    - cell "新建批次 CREATE_BATCH" [ref=e438]:
+                      - generic [ref=e440]:
+                        - generic [ref=e441]: 新建批次
+                        - generic [ref=e442]: CREATE_BATCH
+                    - cell "/api/enterprise/batch/create" [ref=e443]:
+                      - generic [ref=e445]: /api/enterprise/batch/create
+                    - cell "POST" [ref=e446]:
+                      - generic [ref=e447]:
+                        - generic:
+                          - generic: POST
+                    - cell "成功" [ref=e448]:
+                      - generic [ref=e449]:
+                        - generic:
+                          - generic: 成功
+                    - cell "127.0.0.1" [ref=e450]:
+                      - generic [ref=e451]: 127.0.0.1
+                    - cell "2026-03-14T00:31:58" [ref=e452]:
+                      - generic [ref=e453]: 2026-03-14T00:31:58
+                    - cell "查看详情" [ref=e454]:
+                      - button "查看详情" [ref=e456] [cursor=pointer]:
+                        - generic [ref=e457]: 查看详情
+            - img [ref=e461]
+          - generic [ref=e464]:
+            - generic [ref=e465]: Total 120
+            - button "Go to previous page" [disabled] [ref=e466]:
+              - generic:
+                - img
+            - list [ref=e467]:
+              - listitem "page 1" [ref=e468]: "1"
+              - listitem "page 2" [ref=e469] [cursor=pointer]: "2"
+              - listitem "page 3" [ref=e470] [cursor=pointer]: "3"
+              - listitem "page 4" [ref=e471] [cursor=pointer]: "4"
+              - listitem "page 5" [ref=e472] [cursor=pointer]: "5"
+              - listitem "page 6" [ref=e473] [cursor=pointer]: "6"
+              - listitem "Next 5 pages" [ref=e474] [cursor=pointer]:
+                - img
+              - listitem "page 12" [ref=e475] [cursor=pointer]: "12"
+            - button "Go to next page" [ref=e476] [cursor=pointer]:
+              - generic:
+                - img

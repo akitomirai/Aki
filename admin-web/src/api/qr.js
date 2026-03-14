@@ -6,8 +6,11 @@ import http from './http'
 /**
  * 按批次查询二维码列表（含 PV/UV）
  */
-export function listQrApi(batchId) {
-    return http.get(`/api/admin/qr/list/${batchId}`)
+export function listQrApi(batchId, role) {
+    const url = role === 'PLATFORM_ADMIN'
+        ? `/api/platform/qr/list/${batchId}`
+        : `/api/admin/qr/list/${batchId}`
+    return http.get(url)
 }
 
 /**

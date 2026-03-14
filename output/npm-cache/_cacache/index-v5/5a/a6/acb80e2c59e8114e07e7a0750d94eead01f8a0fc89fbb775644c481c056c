@@ -1,0 +1,2 @@
+
+05d2f5b85ca37b6f37fdf2b5045178320eff7dbe	{"key":"make-fetch-happen:request-cache:https://registry.npm.taobao.org/playwright","integrity":null,"time":1773469922284,"size":"262","metadata":{"time":1773469922284,"url":"https://registry.npm.taobao.org/playwright","reqHeaders":{"accept":"application/json"},"resHeaders":{"content-type":"text/html","date":"Sat, 14 Mar 2026 06:32:03 GMT","location":"https://registry.npmmirror.com/playwright"},"options":{"compress":true},"status":301}}

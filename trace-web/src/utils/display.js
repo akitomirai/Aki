@@ -47,6 +47,18 @@ export const nodeTypeTextMap = {
   SYSTEM: '系统记录'
 }
 
+export function normalizeDisplayText(value, fallback = '-') {
+  if (value == null) return fallback
+  const text = String(value).trim()
+  if (!text) return fallback
+
+  const normalized = text.toLowerCase()
+  if (['null', 'undefined', 'nan'].includes(normalized)) return fallback
+  if (['????', '锟', '�'].some((item) => text.includes(item))) return fallback
+
+  return text
+}
+
 export function getStatusText(status) {
   if (!status) return '-'
   if (status in batchStatusTextMap) return batchStatusTextMap[status]
@@ -100,15 +112,15 @@ export function getStageText(stage) {
 
 export function getQualityResultText(result) {
   const normalized = String(result || '').toUpperCase()
-  if (['PASS', 'PASSED', 'QUALIFIED', 'NORMAL'].includes(normalized)) return '合格'
-  if (['FAIL', 'FAILED', 'UNQUALIFIED', 'RISK'].includes(normalized)) return '不合格'
-  return result ? '未知结果' : '-'
+  if (['合格', 'PASS', 'PASSED', 'QUALIFIED', 'NORMAL'].includes(normalized)) return '合格'
+  if (['不合格', 'FAIL', 'FAILED', 'UNQUALIFIED', 'RISK'].includes(normalized)) return '不合格'
+  return result ? String(result) : '-'
 }
 
 export function getQualityResultTagType(result) {
   const normalized = String(result || '').toUpperCase()
-  if (['PASS', 'PASSED', 'QUALIFIED', 'NORMAL'].includes(normalized)) return 'success'
-  if (['FAIL', 'FAILED', 'UNQUALIFIED', 'RISK'].includes(normalized)) return 'danger'
+  if (['合格', 'PASS', 'PASSED', 'QUALIFIED', 'NORMAL'].includes(normalized)) return 'success'
+  if (['不合格', 'FAIL', 'FAILED', 'UNQUALIFIED', 'RISK'].includes(normalized)) return 'danger'
   return 'info'
 }
 
@@ -121,6 +133,7 @@ export function getRegulationResultTagType(result) {
 }
 
 export function formatShortDate(time) {
-  if (!time) return '-'
-  return String(time).replace('T', ' ').slice(0, 16)
+  const text = normalizeDisplayText(time, '-')
+  if (text === '-') return text
+  return text.replace('T', ' ').slice(0, 16)
 }

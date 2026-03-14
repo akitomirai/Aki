@@ -3,10 +3,13 @@
     <div class="trace-container">
       <header class="trace-header">
         <div>
-          <p class="trace-header__eyebrow">Public Traceability</p>
-          <h1 class="trace-header__title">农产品溯源详情</h1>
-          <p class="trace-header__desc">扫码后可查看批次、过程记录、质检情况与监管信息。</p>
-          <el-tag v-if="qrToken" size="small" effect="plain">追溯码：{{ qrToken }}</el-tag>
+          <p class="trace-header__eyebrow">公开追溯档案</p>
+          <h1 class="trace-header__title">{{ pageTitle }}</h1>
+          <p class="trace-header__desc">{{ pageDescription }}</p>
+        </div>
+        <div class="trace-header__token">
+          <span class="trace-header__token-label">当前追溯码</span>
+          <el-tag size="large" effect="dark">{{ qrToken || '未提供' }}</el-tag>
         </div>
       </header>
 
@@ -17,13 +20,19 @@
       <el-card v-else-if="errorMessage" class="trace-card trace-card--error" shadow="never">
         <el-result icon="error" title="查询失败" :sub-title="errorMessage">
           <template #extra>
-            <el-button type="primary" @click="loadTraceDetail">重新查询</el-button>
+            <div class="trace-error-actions">
+              <el-button type="primary" @click="loadTraceDetail">重新查询</el-button>
+              <el-button @click="goHome">返回首页</el-button>
+            </div>
+            <div class="trace-retry-box">
+              <el-input v-model="retryToken" placeholder="重新输入追溯码" />
+              <el-button type="primary" plain @click="retryWithToken">打开该追溯码</el-button>
+            </div>
           </template>
         </el-result>
       </el-card>
 
       <template v-else-if="detail">
-        <!-- 风险提示区 -->
         <el-alert
           v-if="detail.riskMessage"
           :title="riskTitle"
@@ -34,17 +43,16 @@
           class="trace-alert"
         />
 
-        <!-- 顶部产品核心信息 -->
         <section class="trace-section">
           <el-card class="trace-card trace-hero" shadow="never">
             <div class="trace-hero__content">
               <div class="trace-hero__main">
-                <span class="trace-hero__tag">溯源档案</span>
-                <h2 class="trace-hero__title">{{ detail.productName || '未命名产品' }}</h2>
+                <span class="trace-hero__tag">本档案对应产品/批次</span>
+                <h2 class="trace-hero__title">{{ normalizeText(detail.productName, '未命名产品') }}</h2>
                 <div class="trace-hero__meta">
-                  <span><i class="el-icon-office-building"></i> {{ detail.companyName || '-' }}</span>
+                  <span>{{ normalizeText(detail.companyName, '暂无企业信息') }}</span>
                   <el-divider direction="vertical" />
-                  <span><i class="el-icon-location"></i> {{ detail.originPlace || '-' }}</span>
+                  <span>{{ normalizeText(detail.originPlace, '未填写产地') }}</span>
                 </div>
               </div>
               <div class="trace-hero__status">
@@ -56,13 +64,11 @@
           </el-card>
         </section>
 
-        <!-- 批次基础信息与状态 -->
         <section class="trace-section">
           <div class="trace-grid">
             <el-card class="trace-card" shadow="never">
               <template #header>
                 <div class="trace-card__header">
-                  <i class="el-icon-info"></i>
                   <span>基础信息</span>
                 </div>
               </template>
@@ -77,7 +83,6 @@
             <el-card class="trace-card" shadow="never">
               <template #header>
                 <div class="trace-card__header">
-                  <i class="el-icon-set-up"></i>
                   <span>状态说明</span>
                 </div>
               </template>
@@ -96,17 +101,15 @@
           </div>
         </section>
 
-        <!-- 生产全过程（时间轴） -->
         <section class="trace-section">
           <el-card class="trace-card" shadow="never">
             <template #header>
               <div class="trace-card__header">
-                <i class="el-icon-time"></i>
-                <span>全流程追溯记录</span>
+                <span>关键业务节点</span>
               </div>
             </template>
 
-            <el-empty v-if="eventList.length === 0" :image-size="60" description="暂无过程记录" />
+            <el-empty v-if="eventList.length === 0" :image-size="60" description="暂无关键节点" />
 
             <el-timeline v-else class="trace-timeline">
               <el-timeline-item
@@ -119,11 +122,9 @@
                 <div class="trace-event-item">
                   <div class="trace-event-item__header">
                     <span class="trace-event-item__stage">{{ getStageText(item.stage) }}</span>
-                    <h4 class="trace-event-item__title">{{ item.title }}</h4>
+                    <h4 class="trace-event-item__title">{{ normalizeText(item.title, '记录节点') }}</h4>
                   </div>
-                  <div v-if="item.location" class="trace-event-item__loc">
-                    <i class="el-icon-location-outline"></i> {{ item.location }}
-                  </div>
+                  <div v-if="item.location" class="trace-event-item__loc">{{ item.location }}</div>
                   <div v-if="getEventFields(item).length > 0" class="trace-event-fields">
                     <div v-for="field in getEventFields(item)" :key="field.key" class="trace-event-field">
                       <span class="label">{{ field.label }}:</span>
@@ -136,17 +137,44 @@
           </el-card>
         </section>
 
-        <!-- 关键业务节点 -->
         <section class="trace-section">
           <el-card class="trace-card" shadow="never">
             <template #header>
               <div class="trace-card__header">
-                <i class="el-icon-connection"></i>
-                <span>关键节点摘要</span>
+                <span>参与主体信息</span>
               </div>
             </template>
 
-            <el-empty v-if="nodeList.length === 0" :image-size="60" description="暂无关键环节记录" />
+            <el-empty v-if="participantList.length === 0" :image-size="60" description="暂无参与主体信息" />
+
+            <div v-else class="trace-participant-grid">
+              <div v-for="(item, index) in participantList" :key="index" class="trace-participant-card">
+                <div class="trace-participant-card__body">
+                  <div class="trace-participant-card__info">
+                    <div class="name-row">
+                      <span class="name">{{ normalizeText(item.companyName, '未命名企业') }}</span>
+                      <el-tag v-if="item.isCreator" type="success" size="small" effect="plain">创建方</el-tag>
+                    </div>
+                    <div class="role-row">
+                      <span class="role-tag">{{ getBizRoleText(item.bizRole) }}</span>
+                      <span v-if="item.stageOrder !== null" class="order">环节顺序：{{ item.stageOrder }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </el-card>
+        </section>
+
+        <section class="trace-section">
+          <el-card class="trace-card" shadow="never">
+            <template #header>
+              <div class="trace-card__header">
+                <span>业务节点详情</span>
+              </div>
+            </template>
+
+            <el-empty v-if="nodeList.length === 0" :image-size="60" description="暂无关键节点" />
 
             <div v-else class="trace-node-list">
               <div v-for="(item, index) in nodeList" :key="index" class="trace-node-item">
@@ -157,62 +185,41 @@
                 <div class="trace-node-item__main">
                   <div class="trace-node-item__header">
                     <span class="trace-node-item__type">{{ getNodeTypeText(item.nodeType) }}</span>
-                    <span class="trace-node-item__time">{{ item.eventTime }}</span>
+                    <span class="trace-node-item__time">{{ formatShortDate(item.eventTime) }}</span>
                   </div>
-                  <h4 class="trace-node-item__title">{{ item.title || '记录节点' }}</h4>
-                  <p class="trace-node-item__corp">责任企业：{{ item.companyName }} ({{ getBizRoleText(item.bizRole) }})</p>
-                  <p v-if="item.content" class="trace-node-item__content">
-                    内容摘要：{{ parseNodeContent(item.content) }}
+                  <h4 class="trace-node-item__title">{{ normalizeText(item.title, '记录节点') }}</h4>
+                  <p class="trace-node-item__corp">
+                    负责主体：{{ normalizeText(item.companyName, '暂无企业信息') }} / {{ getBizRoleText(item.bizRole) }}
                   </p>
+                  <div class="trace-node-item__fields">
+                    <div v-for="field in (isNodeExpanded(item) ? parseNodeContent(item.content) : parseNodeContent(item.content).slice(0, 2))" :key="field.key" class="trace-node-field">
+                      <span class="trace-node-field__label">{{ field.label }}</span>
+                      <el-tooltip v-if="field.shortValue !== field.fullValue" :content="field.fullValue" placement="top">
+                        <span class="trace-node-field__value">{{ field.shortValue }}</span>
+                      </el-tooltip>
+                      <span v-else class="trace-node-field__value">{{ field.fullValue }}</span>
+                    </div>
+                  </div>
+                  <el-button
+                    v-if="parseNodeContent(item.content).length > 2"
+                    type="primary"
+                    link
+                    @click="toggleNodeExpanded(item)"
+                  >
+                    {{ isNodeExpanded(item) ? '收起完整内容' : '展开查看完整内容' }}
+                  </el-button>
                 </div>
               </div>
             </div>
           </el-card>
         </section>
 
-        <!-- 参与企业列表 -->
-        <section class="trace-section">
-          <el-card class="trace-card" shadow="never">
-            <template #header>
-              <div class="trace-card__header">
-                <i class="el-icon-user"></i>
-                <span>参与主体信息</span>
-              </div>
-            </template>
-
-            <el-empty v-if="participantList.length === 0" :image-size="60" description="暂无参与主体信息" />
-
-            <div v-else class="trace-participant-grid">
-              <div v-for="(item, index) in participantList" :key="index" class="trace-participant-card">
-                <div class="trace-participant-card__body">
-                  <div class="trace-participant-card__icon">
-                    <i class="el-icon-office-building"></i>
-                  </div>
-                  <div class="trace-participant-card__info">
-                    <div class="name-row">
-                      <span class="name">{{ item.companyName }}</span>
-                      <el-tag v-if="item.isCreator" type="success" size="mini" effect="plain">创建方</el-tag>
-                    </div>
-                    <div class="role-row">
-                      <span class="role-tag">{{ getBizRoleText(item.bizRole) }}</span>
-                      <span v-if="item.stageOrder !== null" class="order">环节顺序: {{ item.stageOrder }}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </el-card>
-        </section>
-
-        <!-- 质检与监管 -->
         <section class="trace-section">
           <div class="trace-grid">
-            <!-- 质检报告 -->
             <el-card class="trace-card" shadow="never">
               <template #header>
                 <div class="trace-card__header">
-                  <i class="el-icon-document-checked"></i>
-                  <span>质检报告</span>
+                  <span>质检信息</span>
                 </div>
               </template>
 
@@ -221,25 +228,23 @@
               <div v-else class="trace-mini-list">
                 <div v-for="(item, index) in qualityReportList" :key="index" class="trace-mini-item">
                   <div class="trace-mini-item__head">
-                    <el-tag :type="getQualityResultTagType(item.result)" size="mini">
+                    <el-tag :type="getQualityResultTagType(item.result)" size="small">
                       {{ getQualityResultText(item.result) }}
                     </el-tag>
-                    <span class="no">#{{ item.reportNo }}</span>
+                    <span class="no">#{{ normalizeText(item.reportNo, '未编号') }}</span>
                   </div>
                   <div class="trace-mini-item__body">
-                    <p>检测机构：{{ item.agency }}</p>
+                    <p>检测机构：{{ normalizeText(item.agency, '暂无机构信息') }}</p>
                     <p>检测日期：{{ formatShortDate(item.reportDate) }}</p>
                   </div>
-                  <el-button v-if="item.reportFileUrl" type="text" size="mini" @click="openReport(item)">查看报告原文</el-button>
+                  <el-button v-if="item.reportFileUrl" type="primary" link @click="openReport(item)">查看报告原文</el-button>
                 </div>
               </div>
             </el-card>
 
-            <!-- 监管记录 -->
             <el-card class="trace-card" shadow="never">
               <template #header>
                 <div class="trace-card__header">
-                  <i class="el-icon-view"></i>
                   <span>监管记录</span>
                 </div>
               </template>
@@ -249,14 +254,14 @@
               <div v-else class="trace-mini-list">
                 <div v-for="(item, index) in regulationRecordList" :key="index" class="trace-mini-item">
                   <div class="trace-mini-item__head">
-                    <el-tag :type="getRegulationResultTagType(item.inspectResult)" size="mini">
-                      {{ getStatusText(item.inspectResult) }}
+                    <el-tag :type="getRegulationResultTagType(item.inspectResult)" size="small">
+                      {{ normalizeText(item.inspectResult, '待确认') }}
                     </el-tag>
                     <span class="time">{{ formatShortDate(item.inspectTime) }}</span>
                   </div>
                   <div class="trace-mini-item__body">
-                    <p>处理措施：{{ item.actionTaken || '常规检查' }}</p>
-                    <p>监管人员：{{ item.inspectorName }}</p>
+                    <p>处理措施：{{ normalizeText(item.actionTaken, '常规检查') }}</p>
+                    <p>监管人员：{{ normalizeText(item.inspectorName, '未填写') }}</p>
                   </div>
                 </div>
               </div>
@@ -264,13 +269,11 @@
           </div>
         </section>
 
-        <!-- 消费者反馈 -->
         <section class="trace-section">
           <el-card class="trace-card trace-feedback" shadow="never">
             <template #header>
               <div class="trace-card__header">
-                <i class="el-icon-message"></i>
-                <span>我要反馈</span>
+                <span>意见反馈</span>
               </div>
             </template>
 
@@ -288,7 +291,7 @@
                   v-model="feedbackForm.content"
                   type="textarea"
                   :rows="3"
-                  placeholder="您的意见对我们很重要..."
+                  placeholder="请输入您看到的问题、建议或风险线索"
                 />
               </el-form-item>
 
@@ -301,12 +304,7 @@
                 </el-form-item>
               </div>
 
-              <el-button
-                type="primary"
-                class="w-full"
-                :loading="submittingFeedback"
-                @click="submitFeedback"
-              >
+              <el-button type="primary" class="w-full" :loading="submittingFeedback" @click="submitFeedback">
                 提交反馈
               </el-button>
             </el-form>
@@ -326,21 +324,25 @@ const {
   errorMessage,
   detail,
   qrToken,
+  retryToken,
   riskType,
   riskTitle,
   riskText,
+  pageTitle,
+  pageDescription,
   productInfoList,
   statusInfoList,
   eventList,
   participantList,
   nodeList,
   qualityReportList,
-  pesticideRecordList,
   regulationRecordList,
   feedbackForm,
   submittingFeedback,
   submitFeedback,
   loadTraceDetail,
+  goHome,
+  retryWithToken,
   getStatusText,
   getStatusTagType,
   getQualityResultText,
@@ -352,7 +354,9 @@ const {
   getNodeTypeText,
   getEventFields,
   parseNodeContent,
+  isNodeExpanded,
+  toggleNodeExpanded,
   openReport,
-  formatJson
+  normalizeText
 } = useTraceDetail()
 </script>

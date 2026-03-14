@@ -27,6 +27,8 @@ public interface QrService {
      */
     List<QrCodeVO> listByBatchId(Long batchId);
 
+    List<QrCodeVO> listByBatchIdForPlatform(Long batchId);
+
     /**
      * 查询二维码详情
      *

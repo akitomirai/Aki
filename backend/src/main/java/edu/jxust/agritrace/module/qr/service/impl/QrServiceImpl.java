@@ -1,6 +1,5 @@
 package edu.jxust.agritrace.module.qr.service.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import edu.jxust.agritrace.common.exception.BizException;
 import edu.jxust.agritrace.common.security.SecurityUtils;
 import edu.jxust.agritrace.module.batch.entity.TraceBatch;
@@ -28,9 +27,6 @@ import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.List;
 
-/**
- * 二维码服务实现
- */
 @Service
 public class QrServiceImpl implements QrService {
 
@@ -87,6 +83,16 @@ public class QrServiceImpl implements QrService {
         Long companyId = SecurityUtils.getCompanyId();
         if (companyId == null || !companyId.equals(batch.getCompanyId())) {
             throw new BizException("无权查看该批次二维码");
+        }
+
+        return qrCodeMapper.selectByBatchId(batchId);
+    }
+
+    @Override
+    public List<QrCodeVO> listByBatchIdForPlatform(Long batchId) {
+        TraceBatch batch = traceBatchMapper.selectById(batchId);
+        if (batch == null) {
+            throw new BizException("批次不存在");
         }
 
         return qrCodeMapper.selectByBatchId(batchId);
@@ -161,15 +167,11 @@ public class QrServiceImpl implements QrService {
             throw new BizException("批次不存在或已删除");
         }
 
-        // 更新二维码统计
         qrCode.setPv(qrCode.getPv() == null ? 1L : qrCode.getPv() + 1);
         qrCode.setLastQueryAt(LocalDateTime.now());
         qrCodeMapper.updateById(qrCode);
 
-        // 写扫码日志
         saveQueryLog(qrCode);
-
-        // 更新日统计
         increaseDailyStat(qrCode.getId());
 
         PublicQrScanVO vo = new PublicQrScanVO();
@@ -180,17 +182,11 @@ public class QrServiceImpl implements QrService {
         return vo;
     }
 
-    /**
-     * 生成二维码 token
-     */
     private String generateToken(Long batchId) {
         String raw = batchId + "." + System.currentTimeMillis() + "." + java.util.UUID.randomUUID();
         return Base64.getUrlEncoder().withoutPadding().encodeToString(raw.getBytes());
     }
 
-    /**
-     * 保存扫码日志
-     */
     private void saveQueryLog(QrCode qrCode) {
         HttpServletRequest request = currentRequest();
 
@@ -208,9 +204,6 @@ public class QrServiceImpl implements QrService {
         qrQueryLogMapper.insert(log);
     }
 
-    /**
-     * 增加日统计
-     */
     private void increaseDailyStat(Long qrId) {
         LocalDate today = LocalDate.now();
         QrQueryStatDay stat = qrQueryStatDayMapper.selectByQrIdAndDay(qrId, today);
@@ -229,9 +222,6 @@ public class QrServiceImpl implements QrService {
         }
     }
 
-    /**
-     * 获取当前请求对象
-     */
     private HttpServletRequest currentRequest() {
         ServletRequestAttributes attributes =
                 (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
