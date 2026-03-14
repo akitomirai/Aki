@@ -3,6 +3,7 @@ package edu.jxust.agritrace.controller.platform;
 import edu.jxust.agritrace.common.api.Result;
 import edu.jxust.agritrace.module.qr.service.QrService;
 import edu.jxust.agritrace.module.qr.vo.QrCodeVO;
+import edu.jxust.agritrace.module.qr.vo.QrDashboardStatsVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -29,5 +30,11 @@ public class QrPlatformController {
     @GetMapping("/list/{batchId}")
     public Result<List<QrCodeVO>> list(@PathVariable Long batchId) {
         return Result.ok(qrService.listByBatchIdForPlatform(batchId));
+    }
+
+    @Operation(summary = "首页二维码统计总览")
+    @GetMapping("/stats/overview")
+    public Result<QrDashboardStatsVO> overview() {
+        return Result.ok(qrService.dashboardStatsForPlatform());
     }
 }

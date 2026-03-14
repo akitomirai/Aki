@@ -1,0 +1,8 @@
+- banner [ref=e5]:
+  - generic [ref=e6]:
+    - paragraph [ref=e7]: 公开追溯档案
+    - heading "该批次产品追溯档案" [level=1] [ref=e8]
+    - paragraph [ref=e9]: 这是该产品/批次的公开追溯档案，当前可查看批次、关键节点、质检和监管信息。批次编码：未提供批次编码
+  - generic [ref=e10]:
+    - generic [ref=e11]: 当前追溯码
+    - generic [ref=e13]: test-token-2026

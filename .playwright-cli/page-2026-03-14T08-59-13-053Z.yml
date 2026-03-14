@@ -1,0 +1,23 @@
+- generic [ref=e4]:
+  - banner [ref=e5]:
+    - generic [ref=e6]:
+      - paragraph [ref=e7]: 公开追溯档案
+      - heading "该批次产品追溯档案" [level=1] [ref=e8]
+      - paragraph [ref=e9]: 这是该产品/批次的公开追溯档案，当前可查看批次、关键节点、质检和监管信息。批次编码：未提供批次编码
+    - generic [ref=e10]:
+      - generic [ref=e11]: 当前追溯码
+      - generic [ref=e13]: invalid-token
+  - generic [ref=e16]:
+    - img [ref=e18]
+    - paragraph [ref=e21]: 查询失败
+    - paragraph [ref=e23]: 追溯码不存在或已失效
+    - generic [ref=e24]:
+      - generic [ref=e25]:
+        - button "重新查询" [ref=e26] [cursor=pointer]:
+          - generic [ref=e27]: 重新查询
+        - button "返回首页" [ref=e28] [cursor=pointer]:
+          - generic [ref=e29]: 返回首页
+      - generic [ref=e30]:
+        - textbox "重新输入追溯码" [ref=e33]: invalid-token
+        - button "打开该追溯码" [ref=e34] [cursor=pointer]:
+          - generic [ref=e35]: 打开该追溯码

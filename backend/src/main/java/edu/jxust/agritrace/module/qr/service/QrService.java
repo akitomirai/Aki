@@ -3,6 +3,7 @@ package edu.jxust.agritrace.module.qr.service;
 import edu.jxust.agritrace.module.qr.dto.QrGenerateDTO;
 import edu.jxust.agritrace.module.qr.vo.PublicQrScanVO;
 import edu.jxust.agritrace.module.qr.vo.QrCodeVO;
+import edu.jxust.agritrace.module.qr.vo.QrDashboardStatsVO;
 
 import java.util.List;
 
@@ -51,4 +52,8 @@ public interface QrService {
      * @return 扫码结果
      */
     PublicQrScanVO scan(String token);
+
+    QrDashboardStatsVO dashboardStatsForPlatform();
+
+    QrDashboardStatsVO dashboardStatsForEnterprise(Long companyId);
 }

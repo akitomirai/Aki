@@ -136,6 +136,13 @@
   font-weight: 600;
 }
 
+.trace-shortcut__value {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .tip-icon {
   color: #909399;
   font-size: 14px;

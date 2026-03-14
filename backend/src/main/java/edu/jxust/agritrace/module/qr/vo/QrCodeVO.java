@@ -21,4 +21,5 @@ public class QrCodeVO {
     private Long generatedBy;
     private LocalDateTime lastQueryAt;
     private Long pv;
+    private Long uv;
 }

@@ -1,0 +1,140 @@
+- generic [ref=e4]:
+  - complementary [ref=e5]:
+    - generic [ref=e6]: 农产品溯源后台
+    - menubar [ref=e7]:
+      - menuitem "首页" [ref=e8] [cursor=pointer]
+      - menuitem "批次管理" [ref=e9] [cursor=pointer]
+      - menuitem "产品管理" [ref=e10] [cursor=pointer]
+      - menuitem "企业管理" [ref=e11] [cursor=pointer]
+      - menuitem "质检报告" [ref=e12] [cursor=pointer]
+      - menuitem "消费者反馈" [ref=e13] [cursor=pointer]
+      - menuitem "用户管理" [ref=e14] [cursor=pointer]
+      - menuitem "操作日志" [ref=e15] [cursor=pointer]
+  - generic [ref=e16]:
+    - banner [ref=e17]:
+      - generic [ref=e18]: 管理后台 (平台管理员)
+      - button "退出登录" [ref=e19] [cursor=pointer]:
+        - generic [ref=e20]: 退出登录
+    - main [ref=e21]:
+      - generic [ref=e22]:
+        - generic [ref=e23]:
+          - generic [ref=e25]:
+            - generic [ref=e26]:
+              - generic [ref=e27]: 产品管理
+              - generic [ref=e28]: 统一管理产品基础信息，支持快速筛选与编辑。
+            - generic [ref=e29]:
+              - button "刷新" [ref=e30] [cursor=pointer]:
+                - generic [ref=e31]: 刷新
+              - button "新增产品" [ref=e32] [cursor=pointer]:
+                - generic [ref=e33]: 新增产品
+          - generic [ref=e34]:
+            - generic [ref=e35]:
+              - textbox "搜索产品名称 / 分类 / 规格 / 单位" [ref=e38]
+              - generic [ref=e40] [cursor=pointer]:
+                - generic:
+                  - combobox [ref=e42]
+                  - generic [ref=e43]: 按分类筛选
+                - img [ref=e46]
+              - button "查询" [ref=e48] [cursor=pointer]:
+                - generic [ref=e49]: 查询
+              - button "重置" [ref=e50] [cursor=pointer]:
+                - generic [ref=e51]: 重置
+            - generic [ref=e53]:
+              - table [ref=e55]:
+                - rowgroup [ref=e63]:
+                  - row "产品信息 分类 规格 单位 创建时间 操作" [ref=e64]:
+                    - columnheader "产品信息" [ref=e65]:
+                      - generic [ref=e66]: 产品信息
+                    - columnheader "分类" [ref=e67]:
+                      - generic [ref=e68]: 分类
+                    - columnheader "规格" [ref=e69]:
+                      - generic [ref=e70]: 规格
+                    - columnheader "单位" [ref=e71]:
+                      - generic [ref=e72]: 单位
+                    - columnheader "创建时间" [ref=e73]:
+                      - generic [ref=e74]: 创建时间
+                    - columnheader "操作" [ref=e75]:
+                      - generic [ref=e76]: 操作
+              - table [ref=e81]:
+                - rowgroup [ref=e89]:
+                  - row "未命名产品 产品ID：5 ?? 1kg ? 2026-03-12 14:56:05 编辑" [ref=e90]:
+                    - cell "未命名产品 产品ID：5" [ref=e91]:
+                      - generic [ref=e93]:
+                        - generic "未命名产品" [ref=e94]
+                        - generic [ref=e95]: 产品ID：5
+                    - cell "??" [ref=e96]:
+                      - generic [ref=e186]: "??"
+                    - cell "1kg" [ref=e98]:
+                      - generic [ref=e99]: 1kg
+                    - cell "?" [ref=e100]:
+                      - generic [ref=e101]: "?"
+                    - cell "2026-03-12 14:56:05" [ref=e102]:
+                      - generic [ref=e103]: 2026-03-12 14:56:05
+                    - cell "编辑" [ref=e104]:
+                      - button "编辑" [active] [ref=e106] [cursor=pointer]:
+                        - generic [ref=e107]: 编辑
+                  - row "未命名产品 产品ID：4 ?? 2kg ? 2026-03-12 13:52:32 编辑" [ref=e108]:
+                    - cell "未命名产品 产品ID：4" [ref=e109]:
+                      - generic [ref=e111]:
+                        - generic "未命名产品" [ref=e112]
+                        - generic [ref=e113]: 产品ID：4
+                    - cell "??" [ref=e114]:
+                      - generic [ref=e188]: "??"
+                    - cell "2kg" [ref=e116]:
+                      - generic [ref=e117]: 2kg
+                    - cell "?" [ref=e118]:
+                      - generic [ref=e119]: "?"
+                    - cell "2026-03-12 13:52:32" [ref=e120]:
+                      - generic [ref=e121]: 2026-03-12 13:52:32
+                    - cell "编辑" [ref=e122]:
+                      - button "编辑" [ref=e124] [cursor=pointer]:
+                        - generic [ref=e125]: 编辑
+                  - row "未命名产品 产品ID：3 ?? 1kg ? 2026-03-12 13:52:06 编辑" [ref=e126]:
+                    - cell "未命名产品 产品ID：3" [ref=e127]:
+                      - generic [ref=e129]:
+                        - generic "未命名产品" [ref=e130]
+                        - generic [ref=e131]: 产品ID：3
+                    - cell "??" [ref=e132]:
+                      - generic [ref=e190]: "??"
+                    - cell "1kg" [ref=e134]:
+                      - generic [ref=e135]: 1kg
+                    - cell "?" [ref=e136]:
+                      - generic [ref=e137]: "?"
+                    - cell "2026-03-12 13:52:06" [ref=e138]:
+                      - generic [ref=e139]: 2026-03-12 13:52:06
+                    - cell "编辑" [ref=e140]:
+                      - button "编辑" [ref=e142] [cursor=pointer]:
+                        - generic [ref=e143]: 编辑
+                  - row "未命名产品 产品ID：2 ?? 2kg ? 2026-03-12 13:48:09 编辑" [ref=e144]:
+                    - cell "未命名产品 产品ID：2" [ref=e145]:
+                      - generic [ref=e147]:
+                        - generic "未命名产品" [ref=e148]
+                        - generic [ref=e149]: 产品ID：2
+                    - cell "??" [ref=e150]:
+                      - generic [ref=e192]: "??"
+                    - cell "2kg" [ref=e152]:
+                      - generic [ref=e153]: 2kg
+                    - cell "?" [ref=e154]:
+                      - generic [ref=e155]: "?"
+                    - cell "2026-03-12 13:48:09" [ref=e156]:
+                      - generic [ref=e157]: 2026-03-12 13:48:09
+                    - cell "编辑" [ref=e158]:
+                      - button "编辑" [ref=e160] [cursor=pointer]:
+                        - generic [ref=e161]: 编辑
+                  - row "Gannan Navel Orange 产品ID：1 Fruit 10kg/Box Box 2026-03-11 22:30:03 编辑" [ref=e162]:
+                    - cell "Gannan Navel Orange 产品ID：1" [ref=e163]:
+                      - generic [ref=e165]:
+                        - generic "Gannan Navel Orange" [ref=e166]
+                        - generic [ref=e167]: 产品ID：1
+                    - cell "Fruit" [ref=e168]:
+                      - generic [ref=e194]: Fruit
+                    - cell "10kg/Box" [ref=e170]:
+                      - generic [ref=e171]: 10kg/Box
+                    - cell "Box" [ref=e172]:
+                      - generic [ref=e173]: Box
+                    - cell "2026-03-11 22:30:03" [ref=e174]:
+                      - generic [ref=e175]: 2026-03-11 22:30:03
+                    - cell "编辑" [ref=e176]:
+                      - button "编辑" [ref=e178] [cursor=pointer]:
+                        - generic [ref=e179]: 编辑
+        - text: "*"

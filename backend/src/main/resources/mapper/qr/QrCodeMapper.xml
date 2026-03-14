@@ -40,6 +40,13 @@
         LIMIT 1
     </select>
 
+    <select id="countByCompanyId" resultType="java.lang.Long">
+        SELECT COUNT(1)
+        FROM qr_code q
+                 INNER JOIN trace_batch tb ON q.batch_id = tb.id
+        WHERE tb.company_id = #{companyId}
+    </select>
+
     <select id="selectPublicBatchSimple" resultType="edu.jxust.agritrace.module.qr.vo.PublicBatchSimpleVO">
         SELECT
             tb.id,

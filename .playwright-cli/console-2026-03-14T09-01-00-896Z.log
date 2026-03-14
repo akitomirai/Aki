@@ -1,0 +1,5 @@
+[     126ms] [WARNING] [Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`. @ http://127.0.0.1:5174/node_modules/.vite/deps/vue-router.js?v=cb8cf32c:3806
+[   17391ms] [WARNING] [Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`. @ http://127.0.0.1:5174/node_modules/.vite/deps/vue-router.js?v=cb8cf32c:3806
+[   30206ms] [WARNING] [Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`. @ http://127.0.0.1:5174/node_modules/.vite/deps/vue-router.js?v=cb8cf32c:3806
+[  103802ms] [WARNING] [Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`. @ http://127.0.0.1:5174/node_modules/.vite/deps/vue-router.js?v=cb8cf32c:3806
+[  121409ms] [WARNING] [Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`. @ http://127.0.0.1:5174/node_modules/.vite/deps/vue-router.js?v=cb8cf32c:3806

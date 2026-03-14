@@ -31,6 +31,25 @@ public interface ProductMapper extends BaseMapper<BaseProduct> {
             """)
     List<ProductVO> selectProductList();
 
+    @Select("""
+            SELECT
+                p.id,
+                p.name,
+                p.category,
+                p.spec,
+                p.unit,
+                p.created_at
+            FROM base_product p
+            WHERE EXISTS (
+                SELECT 1
+                FROM trace_batch tb
+                WHERE tb.product_id = p.id
+                  AND tb.company_id = #{companyId}
+            )
+            ORDER BY p.created_at DESC, p.id DESC
+            """)
+    List<ProductVO> selectProductListByCompanyId(@Param("companyId") Long companyId);
+
     /**
      * 根据名称、规格、单位查询产品ID（用于唯一性校验）
      */

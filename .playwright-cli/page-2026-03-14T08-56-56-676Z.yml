@@ -1,0 +1,115 @@
+- generic [ref=e43]:
+  - complementary [ref=e44]:
+    - generic [ref=e45]: 农产品溯源后台
+    - menubar [ref=e46]:
+      - menuitem "首页" [ref=e47] [cursor=pointer]
+      - menuitem "批次管理" [active] [ref=e48] [cursor=pointer]
+      - menuitem "产品管理" [ref=e49] [cursor=pointer]
+      - menuitem "企业管理" [ref=e50] [cursor=pointer]
+      - menuitem "质检报告" [ref=e51] [cursor=pointer]
+      - menuitem "消费者反馈" [ref=e52] [cursor=pointer]
+      - menuitem "用户管理" [ref=e53] [cursor=pointer]
+      - menuitem "操作日志" [ref=e54] [cursor=pointer]
+  - generic [ref=e55]:
+    - banner [ref=e56]:
+      - generic [ref=e57]: 管理后台 (平台管理员)
+      - button "退出登录" [ref=e58] [cursor=pointer]:
+        - generic [ref=e59]: 退出登录
+    - main [ref=e60]:
+      - generic [ref=e320]:
+        - generic [ref=e321]: 批次列表
+        - generic [ref=e322]:
+          - generic [ref=e324]:
+            - table [ref=e326]:
+              - rowgroup [ref=e335]:
+                - row "ID 批次编码 产品名称 企业ID 产地 状态 操作" [ref=e336]:
+                  - columnheader "ID" [ref=e337]:
+                    - generic [ref=e338]: ID
+                  - columnheader "批次编码" [ref=e339]:
+                    - generic [ref=e340]: 批次编码
+                  - columnheader "产品名称" [ref=e341]:
+                    - generic [ref=e342]: 产品名称
+                  - columnheader "企业ID" [ref=e343]:
+                    - generic [ref=e344]: 企业ID
+                  - columnheader "产地" [ref=e345]:
+                    - generic [ref=e346]: 产地
+                  - columnheader "状态" [ref=e347]:
+                    - generic [ref=e348]: 状态
+                  - columnheader "操作" [ref=e349]:
+                    - generic [ref=e350]: 操作
+            - table [ref=e355]:
+              - rowgroup [ref=e364]:
+                - row "10 B20260314003157558 Gannan Navel Orange 2 广东省 · 惠州市 · 惠城区 正常 查看详情" [ref=e365]:
+                  - cell "10" [ref=e366]:
+                    - generic [ref=e367]: "10"
+                  - cell "B20260314003157558" [ref=e368]:
+                    - generic [ref=e369]: B20260314003157558
+                  - cell "Gannan Navel Orange" [ref=e370]:
+                    - generic [ref=e371]: Gannan Navel Orange
+                  - cell "2" [ref=e372]:
+                    - generic [ref=e373]: "2"
+                  - cell "广东省 · 惠州市 · 惠城区" [ref=e374]:
+                    - generic [ref=e375]: 广东省 · 惠州市 · 惠城区
+                  - cell "正常" [ref=e376]:
+                    - generic [ref=e379]: 正常
+                  - cell "查看详情" [ref=e380]:
+                    - button "查看详情" [ref=e382] [cursor=pointer]:
+                      - generic [ref=e383]: 查看详情
+                - row "9 B20260312145702149 ????2-20260312-135232 2 ?? 正常 查看详情" [ref=e384]:
+                  - cell "9" [ref=e385]:
+                    - generic [ref=e386]: "9"
+                  - cell "B20260312145702149" [ref=e387]:
+                    - generic [ref=e388]: B20260312145702149
+                  - cell "????2-20260312-135232" [ref=e389]:
+                    - generic [ref=e390]: "????2-20260312-135232"
+                  - cell "2" [ref=e391]:
+                    - generic [ref=e392]: "2"
+                  - cell "??" [ref=e393]:
+                    - generic [ref=e394]: "??"
+                  - cell "正常" [ref=e395]:
+                    - generic [ref=e398]: 正常
+                  - cell "查看详情" [ref=e399]:
+                    - button "查看详情" [ref=e401] [cursor=pointer]:
+                      - generic [ref=e402]: 查看详情
+                - row "8 B20260312142405958 ????2-20260312-135232 2 ?? 已召回 查看详情" [ref=e403]:
+                  - cell "8" [ref=e404]:
+                    - generic [ref=e405]: "8"
+                  - cell "B20260312142405958" [ref=e406]:
+                    - generic [ref=e407]: B20260312142405958
+                  - cell "????2-20260312-135232" [ref=e408]:
+                    - generic [ref=e409]: "????2-20260312-135232"
+                  - cell "2" [ref=e410]:
+                    - generic [ref=e411]: "2"
+                  - cell "??" [ref=e412]:
+                    - generic [ref=e413]: "??"
+                  - cell "已召回" [ref=e414]:
+                    - generic [ref=e417]: 已召回
+                  - cell "查看详情" [ref=e418]:
+                    - button "查看详情" [ref=e420] [cursor=pointer]:
+                      - generic [ref=e421]: 查看详情
+                - row "1 BATCH20260311001 Gannan Navel Orange 1 Xinfeng, Ganzhou, Jiangxi 正常 查看详情" [ref=e422]:
+                  - cell "1" [ref=e423]:
+                    - generic [ref=e424]: "1"
+                  - cell "BATCH20260311001" [ref=e425]:
+                    - generic [ref=e426]: BATCH20260311001
+                  - cell "Gannan Navel Orange" [ref=e427]:
+                    - generic [ref=e428]: Gannan Navel Orange
+                  - cell "1" [ref=e429]:
+                    - generic [ref=e430]: "1"
+                  - cell "Xinfeng, Ganzhou, Jiangxi" [ref=e431]:
+                    - generic [ref=e432]: Xinfeng, Ganzhou, Jiangxi
+                  - cell "正常" [ref=e433]:
+                    - generic [ref=e436]: 正常
+                  - cell "查看详情" [ref=e437]:
+                    - button "查看详情" [ref=e439] [cursor=pointer]:
+                      - generic [ref=e440]: 查看详情
+          - generic [ref=e443]:
+            - generic [ref=e444]: Total 4
+            - button "Go to previous page" [disabled] [ref=e445]:
+              - generic:
+                - img
+            - list [ref=e446]:
+              - listitem "page 1" [ref=e447]: "1"
+            - button "Go to next page" [disabled] [ref=e448]:
+              - generic:
+                - img

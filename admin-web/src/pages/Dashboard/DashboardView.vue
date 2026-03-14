@@ -26,7 +26,7 @@
           <div class="trace-shortcut__title-row">
             <div>
               <p class="trace-shortcut__eyebrow">公开追溯页快捷入口</p>
-              <h3 class="trace-shortcut__title">输入追溯码后，直接打开消费者查看页面</h3>
+              <h3 class="trace-shortcut__title">输入追溯码后，直接打开消费者可见页面</h3>
             </div>
             <el-tag type="success" effect="dark">答辩演示入口</el-tag>
           </div>
@@ -45,7 +45,9 @@
           </div>
           <div class="trace-shortcut__link">
             <span class="trace-shortcut__label">当前链接</span>
-            <span class="trace-shortcut__value">{{ traceLink || '请输入追溯码后生成链接' }}</span>
+            <el-tooltip :content="traceLink || '请输入追溯码后生成链接'" placement="top">
+              <span class="trace-shortcut__value">{{ traceLink || '请输入追溯码后生成链接' }}</span>
+            </el-tooltip>
           </div>
         </div>
       </div>

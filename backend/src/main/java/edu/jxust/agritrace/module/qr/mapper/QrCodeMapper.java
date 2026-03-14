@@ -23,6 +23,8 @@ public interface QrCodeMapper extends BaseMapper<QrCode> {
      */
     List<QrCodeVO> selectByBatchId(@Param("batchId") Long batchId);
 
+    Long countByCompanyId(@Param("companyId") Long companyId);
+
     /**
      * 根据 token 查询二维码
      *

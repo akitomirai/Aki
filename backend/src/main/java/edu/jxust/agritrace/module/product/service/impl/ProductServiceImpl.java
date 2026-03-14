@@ -65,6 +65,11 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    public List<ProductVO> listByCompanyId(Long companyId) {
+        return productMapper.selectProductListByCompanyId(companyId);
+    }
+
+    @Override
     public ProductVO getById(Long id) {
         BaseProduct product = productMapper.selectById(id);
         if (product == null) {

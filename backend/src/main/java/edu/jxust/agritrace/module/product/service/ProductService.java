@@ -21,6 +21,8 @@ public interface ProductService {
      */
     List<ProductVO> list();
 
+    List<ProductVO> listByCompanyId(Long companyId);
+
     /**
      * 查询产品详情
      */
