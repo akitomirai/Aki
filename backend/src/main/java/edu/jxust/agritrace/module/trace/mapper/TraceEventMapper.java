@@ -1,27 +1,40 @@
 package edu.jxust.agritrace.module.trace.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import edu.jxust.agritrace.module.trace.entity.TraceEvent;
+import edu.jxust.agritrace.module.trace.vo.PublicTraceTimelineVO;
+import edu.jxust.agritrace.module.trace.vo.TraceEventItemVO;
+import edu.jxust.agritrace.module.trace.vo.TraceNodeVO;
 import org.apache.ibatis.annotations.Mapper;
-import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
 
 /**
- * 溯源事件 Mapper（trace_event）
+ * 溯源事件 Mapper
  */
 @Mapper
-public interface TraceEventMapper extends BaseMapper<TraceEvent> {
+public interface TraceEventMapper extends BaseMapper<edu.jxust.agritrace.module.trace.entity.TraceEvent> {
 
     /**
-     * 按时间升序查询某批次的所有事件（用于时间轴展示）
+     * 查询后台事件列表
+     *
+     * @param batchId 批次ID
+     * @param stage 阶段
+     * @param sourceType 来源类型
+     * @return 事件列表
      */
-    @Select("""
-        SELECT id, batch_id, stage, event_time, operator_id, location,
-               content_json AS contentJson, attachments_json AS attachmentsJson, created_at
-        FROM trace_event
-        WHERE batch_id = #{batchId}
-        ORDER BY event_time ASC
-    """)
-    List<TraceEvent> selectByBatchIdOrderByTime(Long batchId);
+    List<TraceEventItemVO> selectAdminList(@Param("batchId") Long batchId,
+                                           @Param("stage") String stage,
+                                           @Param("sourceType") String sourceType);
+
+    /**
+     * 查询前台时间轴
+     *
+     * @param batchId 批次ID
+     * @return 前台可见事件列表
+     */
+    List<PublicTraceTimelineVO> selectPublicTimeline(@Param("batchId") Long batchId);
+
+    List<TraceNodeVO> selectNodeList(@Param("batchId") Long batchId,
+                                     @Param("publicOnly") Boolean publicOnly);
 }

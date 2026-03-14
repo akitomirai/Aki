@@ -1,10 +1,14 @@
 <template>
-  <!-- 根组件：只保留路由出口 -->
-  <router-view />
+  <div class="app-shell">
+    <router-view />
+  </div>
 </template>
 
 <script setup>
-/**
- * App 根组件
- */
 </script>
+
+<style scoped>
+.app-shell {
+  min-height: 100vh;
+}
+</style>

@@ -1,23 +1,23 @@
 package edu.jxust.agritrace.module.quality.service;
 
-import edu.jxust.agritrace.module.quality.dto.QualityReportCreateRequest;
-import edu.jxust.agritrace.module.quality.entity.QualityReport;
+import edu.jxust.agritrace.module.quality.dto.QualityReportCreateDTO;
+import edu.jxust.agritrace.module.quality.dto.QualityReportUpdateDTO;
+import edu.jxust.agritrace.module.quality.vo.QualityReportVO;
+import edu.jxust.agritrace.module.quality.vo.QualityVerifyVO;
 
-/**
- * 质检报告服务
- */
+import java.util.List;
+
 public interface QualityReportService {
 
-    /**
-     * 新增质检报告，并生成哈希存证
-     */
-    QualityReport createWithNotary(QualityReportCreateRequest req);
+    Long create(QualityReportCreateDTO dto);
 
-    /**
-     * 校验最新质检报告是否与存证一致
-     */
-    boolean verifyLatest(long batchId);
+    void update(QualityReportUpdateDTO dto);
 
-    boolean reNotary(long reportId);
+    List<QualityReportVO> listByBatchId(Long batchId);
 
+    QualityReportVO detail(Long id);
+
+    QualityVerifyVO verifyLatestByBatchId(Long batchId);
+
+    void delete(Long id);
 }

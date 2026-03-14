@@ -1,0 +1,83 @@
+.layout {
+  min-height: 100vh;
+  display: flex;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sidebar {
+  width: 220px;
+  background: rgba(10, 34, 58, 0.88);
+  color: #fff;
+  backdrop-filter: blur(2px);
+  box-shadow: 2px 0 20px rgba(0, 0, 0, 0.2);
+}
+
+.logo {
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 16px;
+  color: #fff;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.menu {
+  border-right: none;
+  background: transparent;
+  padding: 12px 10px;
+}
+
+.menu :deep(.el-menu-item) {
+  height: 48px;
+  line-height: 48px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.06);
+  transition: all 0.25s ease;
+}
+
+.menu :deep(.el-menu-item:hover) {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  transform: translateX(6px);
+}
+
+.menu :deep(.el-menu-item.is-active) {
+  background: linear-gradient(135deg, rgba(64, 158, 255, 0.95), rgba(90, 181, 255, 0.85));
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 8px 18px rgba(64, 158, 255, 0.22);
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.header {
+  height: 60px;
+  background: rgba(255, 255, 255, 0.15);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+}
+
+.header-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.content {
+  flex: 1;
+  padding: 20px;
+  overflow: auto;
+}

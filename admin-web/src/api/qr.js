@@ -7,9 +7,7 @@ import http from './http'
  * 按批次查询二维码列表（含 PV/UV）
  */
 export function listQrApi(batchId) {
-    return http.get('/api/admin/qr/list', {
-        params: { batchId }
-    })
+    return http.get(`/api/admin/qr/list/${batchId}`)
 }
 
 /**

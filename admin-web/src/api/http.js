@@ -1,13 +1,13 @@
 /**
  * Axios 实例：
- * - 统一 baseURL
+ * - 开发环境走 Vite 代理，避免跨域
  * - 请求时自动带 Authorization
  * - 401 时跳回登录页
  */
 import axios from 'axios'
 
 const http = axios.create({
-    baseURL: 'http://localhost:8080',
+    baseURL: '',
     timeout: 10000
 })
 

@@ -1,25 +1,28 @@
 /**
  * 认证状态仓库：
- * - 保存 token
- * - 登录成功后持久化到 localStorage
- * - 退出登录时清理
+ * - 保存 token 和 用户信息
  */
 import { defineStore } from 'pinia'
 
 export const useAuthStore = defineStore('auth', {
     state: () => ({
-        token: localStorage.getItem('admin_token') || ''
+        token: localStorage.getItem('admin_token') || '',
+        user: JSON.parse(localStorage.getItem('admin_user') || '{}')
     }),
 
     actions: {
-        setToken(token) {
+        setAuth(token, user) {
             this.token = token
+            this.user = user
             localStorage.setItem('admin_token', token)
+            localStorage.setItem('admin_user', JSON.stringify(user))
         },
 
         logout() {
             this.token = ''
+            this.user = {}
             localStorage.removeItem('admin_token')
+            localStorage.removeItem('admin_user')
         }
     }
 })

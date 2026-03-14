@@ -1,0 +1,53 @@
+.batch-manage-page {
+  width: 100%;
+}
+
+.full-width {
+  width: 100%;
+}
+
+.batch-table {
+  width: 100%;
+}
+
+.origin-place-wrap {
+  width: 100%;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.origin-place-wrap .el-input {
+  flex: 1;
+}
+
+.mini-map-wrap {
+  width: 100%;
+  height: 180px;
+  border: 1px solid #dcdfe6;
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.75);
+}
+
+.mini-map-frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.mini-map-empty {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #909399;
+  font-size: 14px;
+}
+
+.pagination-wrap {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+}

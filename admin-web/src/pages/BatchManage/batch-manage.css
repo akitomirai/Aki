@@ -1,0 +1,62 @@
+.batch-manage-page {
+    width: 100%;
+}
+
+.full-width {
+    width: 100%;
+}
+
+.batch-table {
+    width: 100%;
+}
+
+.origin-place-wrap {
+    width: 100%;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.origin-place-wrap .el-input {
+    flex: 1;
+}
+
+.pagination-wrap {
+    margin-top: 16px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.map-container {
+    width: 100%;
+    height: 350px;
+    border: 1px solid #dcdfe6;
+    border-radius: 10px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.82);
+    margin-top: 10px;
+    margin-bottom: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.map-image {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+}
+
+.map-empty {
+    width: 100%;
+    height: 350px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #909399;
+    font-size: 14px;
+    background: rgba(255, 255, 255, 0.65);
+    border: 1px solid #dcdfe6;
+    border-radius: 10px;
+    margin-top: 10px;
+    margin-bottom: 12px;
+}

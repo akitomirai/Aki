@@ -7,14 +7,13 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * MyBatis-Plus 配置：
- * - 启用分页插件
+ * MyBatis-Plus 配置
  */
 @Configuration
 public class MybatisPlusConfig {
 
     /**
-     * 分页拦截器
+     * 注册分页插件
      */
     @Bean
     public MybatisPlusInterceptor mybatisPlusInterceptor() {

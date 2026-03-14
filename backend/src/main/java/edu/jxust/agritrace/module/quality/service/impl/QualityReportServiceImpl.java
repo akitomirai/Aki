@@ -1,175 +1,321 @@
 package edu.jxust.agritrace.module.quality.service.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import edu.jxust.agritrace.common.util.HashUtil;
-import edu.jxust.agritrace.module.quality.dto.QualityReportCreateRequest;
-import edu.jxust.agritrace.module.quality.entity.HashNotary;
+import edu.jxust.agritrace.common.exception.BizException;
+import edu.jxust.agritrace.common.security.SecurityUtils;
+import edu.jxust.agritrace.common.util.NotarySnapshotBuilder;
+import edu.jxust.agritrace.module.batch.entity.TraceBatch;
+import edu.jxust.agritrace.module.batch.mapper.TraceBatchMapper;
+import edu.jxust.agritrace.module.notary.constant.NotaryBizType;
+import edu.jxust.agritrace.module.notary.service.HashNotaryService;
+import edu.jxust.agritrace.module.quality.dto.QualityReportCreateDTO;
+import edu.jxust.agritrace.module.quality.dto.QualityReportUpdateDTO;
 import edu.jxust.agritrace.module.quality.entity.QualityReport;
-import edu.jxust.agritrace.module.quality.mapper.HashNotaryMapper;
 import edu.jxust.agritrace.module.quality.mapper.QualityReportMapper;
 import edu.jxust.agritrace.module.quality.service.QualityReportService;
-import edu.jxust.agritrace.module.trace.entity.TraceEvent;
-import edu.jxust.agritrace.module.trace.mapper.TraceEventMapper;
+import edu.jxust.agritrace.module.quality.vo.QualityReportVO;
+import edu.jxust.agritrace.module.quality.vo.QualityVerifyVO;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * 质检报告服务实现
- */
+import java.util.List;
+
 @Service
 public class QualityReportServiceImpl implements QualityReportService {
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    private final QualityReportMapper reportMapper;
-    private final HashNotaryMapper notaryMapper;
-    private final ObjectMapper objectMapper;
-    private final TraceEventMapper traceEventMapper;
-    private final ObjectMapper jsonMapper;
+    private final QualityReportMapper qualityReportMapper;
+    private final TraceBatchMapper traceBatchMapper;
+    private final HashNotaryService hashNotaryService;
 
-    public QualityReportServiceImpl(QualityReportMapper reportMapper,
-                                    HashNotaryMapper notaryMapper,
-                                    ObjectMapper objectMapper,
-                                    TraceEventMapper traceEventMapper,
-                                    ObjectMapper jsonMapper) {
-        this.reportMapper = reportMapper;
-        this.notaryMapper = notaryMapper;
-        this.objectMapper = objectMapper;
-        this.traceEventMapper = traceEventMapper;
-        this.jsonMapper = jsonMapper;
+    public QualityReportServiceImpl(QualityReportMapper qualityReportMapper,
+                                    TraceBatchMapper traceBatchMapper,
+                                    HashNotaryService hashNotaryService) {
+        this.qualityReportMapper = qualityReportMapper;
+        this.traceBatchMapper = traceBatchMapper;
+        this.hashNotaryService = hashNotaryService;
     }
 
-    private String normalize(JsonNode node) {
-        try {
-            return node == null ? "" : objectMapper.writeValueAsString(node);
-        } catch (Exception e) {
-            throw new IllegalArgumentException("reportJson 序列化失败", e);
-        }
-    }
-    private String normalize(String json) {
-        if (json == null || json.isBlank()) return "";
-        try {
-            JsonNode node = objectMapper.readTree(json);
-            return objectMapper.writeValueAsString(node); // 统一成紧凑规范格式
-        } catch (Exception e) {
-            return json; // 理论上不该发生
-        }
-    }
     /**
-     * 生成报告哈希的规则（毕业设计版）：
-     * batchId + reportNo + agency + result + reportFileUrl + reportJson
-     *
-     * 说明：如果你未来要更严谨，可把“文件字节sha256”也拼进去（后面可升级）。
+     * 新增质检报告
+     * 规则：
+     * 1. 批次必须存在
+     * 2. 只能给自己企业的批次新增
+     * 3. 冻结/召回批次不允许企业侧继续新增质检报告
+     * 4. 报告编号、检测机构、检测结果不能为空
+     * 5. 新增成功后写入摘要存证
      */
-    private String buildRaw(QualityReport r) {
-        return safe(r.getBatchId())
-                + "|" + safe(r.getReportNo())
-                + "|" + safe(r.getAgency())
-                + "|" + safe(r.getResult())
-                + "|" + safe(r.getReportFileUrl())
-                + "|" + normalize(r.getReportJson()); // 这里已经是规范 JSON 字符串
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Long create(QualityReportCreateDTO dto) {
+        if (dto.getBatchId() == null) {
+            throw new BizException("批次ID不能为空");
+        }
+        if (isBlank(dto.getReportNo())) {
+            throw new BizException("报告编号不能为空");
+        }
+        if (isBlank(dto.getAgency())) {
+            throw new BizException("检测机构不能为空");
+        }
+        if (isBlank(dto.getResult())) {
+            throw new BizException("检测结果不能为空");
+        }
+
+        TraceBatch batch = traceBatchMapper.selectById(dto.getBatchId());
+        if (batch == null) {
+            throw new BizException("批次不存在或已删除");
+        }
+
+        Long companyId = SecurityUtils.getCompanyId();
+        Long userId = SecurityUtils.getUserId();
+
+        if (companyId == null || !companyId.equals(batch.getCompanyId())) {
+            throw new BizException("无权为该批次新增质检报告");
+        }
+
+        if ("FROZEN".equals(batch.getStatus())) {
+            throw new BizException("批次已冻结，不能新增质检报告");
+        }
+        if ("RECALLED".equals(batch.getStatus())) {
+            throw new BizException("批次已召回，不能新增质检报告");
+        }
+        validateReportJson(dto.getReportJson());
+
+        QualityReport report = new QualityReport();
+        BeanUtils.copyProperties(dto, report);
+
+        qualityReportMapper.insert(report);
+
+        hashNotaryService.notarize(
+                NotaryBizType.QUALITY_REPORT,
+                report.getId(),
+                NotarySnapshotBuilder.buildQualitySnapshot(report),
+                userId,
+                "质检报告存证"
+        );
+
+        return report.getId();
     }
 
-    private String safe(Object o) { return o == null ? "" : String.valueOf(o); }
-
+    /**
+     * 修改质检报告
+     * 规则：
+     * 1. 报告必须存在
+     * 2. 关联批次必须存在
+     * 3. 只能修改自己企业批次下的质检报告
+     * 4. 冻结/召回批次不允许企业侧继续修改质检报告
+     * 5. 仅在字段不为 null 时更新
+     */
     @Override
-    @Transactional
-    public QualityReport createWithNotary(QualityReportCreateRequest req) {
-        QualityReport r = new QualityReport();
-        r.setBatchId(req.getBatchId());
-        r.setReportNo(req.getReportNo());
-        r.setAgency(req.getAgency());
-        r.setResult(req.getResult());
-        r.setReportFileUrl(req.getReportFileUrl());
+    @Transactional(rollbackFor = Exception.class)
+    public void update(QualityReportUpdateDTO dto) {
+        if (dto.getId() == null) {
+            throw new BizException("质检报告ID不能为空");
+        }
 
-        // ✅ 规整点：JsonNode -> 规范 JSON 字符串，再入库
-        r.setReportJson(normalize(req.getReportJson()));
+        QualityReport report = qualityReportMapper.selectById(dto.getId());
+        if (report == null) {
+            throw new BizException("质检报告不存在");
+        }
 
-        reportMapper.insert(r);
+        TraceBatch batch = traceBatchMapper.selectById(report.getBatchId());
+        if (batch == null) {
+            throw new BizException("批次不存在或已删除");
+        }
 
-        String sha = HashUtil.sha256Hex(buildRaw(r));
-        HashNotary n = new HashNotary();
-        n.setBizType("QUALITY_REPORT");
-        n.setBizId(r.getId());
-        n.setSha256(sha);
-        n.setRemark("quality report notary");
-        notaryMapper.insert(n);
+        Long companyId = SecurityUtils.getCompanyId();
+        if (companyId == null || !companyId.equals(batch.getCompanyId())) {
+            throw new BizException("无权修改该质检报告");
+        }
 
-        // 3) 自动补一条 INSPECT 事件，串到时间轴里
-        TraceEvent e = new TraceEvent();
+        if ("FROZEN".equals(batch.getStatus())) {
+            throw new BizException("批次已冻结，不能修改质检报告");
+        }
+        if ("RECALLED".equals(batch.getStatus())) {
+            throw new BizException("批次已召回，不能修改质检报告");
+        }
 
-        e.setBatchId(r.getBatchId());
-        e.setStage("INSPECT");
-        e.setEventTime(java.time.LocalDateTime.now());
-        e.setLocation(r.getAgency());
+        if (dto.getReportNo() != null) {
+            if (isBlank(dto.getReportNo())) {
+                throw new BizException("报告编号不能为空");
+            }
+            report.setReportNo(dto.getReportNo());
+        }
+        if (dto.getAgency() != null) {
+            if (isBlank(dto.getAgency())) {
+                throw new BizException("检测机构不能为空");
+            }
+            report.setAgency(dto.getAgency());
+        }
+        if (dto.getResult() != null) {
+            if (isBlank(dto.getResult())) {
+                throw new BizException("检测结果不能为空");
+            }
+            report.setResult(dto.getResult());
+        }
+        if (dto.getReportFileUrl() != null) {
+            report.setReportFileUrl(dto.getReportFileUrl());
+        }
+        if (dto.getReportJson() != null) {
+            validateReportJson(dto.getReportJson());
+            report.setReportJson(dto.getReportJson());
+        }
 
+        qualityReportMapper.updateById(report);
+    }
+
+    /**
+     * 按批次查询质检报告列表
+     * 规则：
+     * 1. 批次必须存在
+     * 2. 企业端只能查看自己企业批次下的质检报告
+     */
+    @Override
+    public List<QualityReportVO> listByBatchId(Long batchId) {
+        if (batchId == null) {
+            throw new BizException("批次ID不能为空");
+        }
+
+        TraceBatch batch = traceBatchMapper.selectById(batchId);
+        if (batch == null) {
+            throw new BizException("批次不存在或已删除");
+        }
+
+        // 仅在已登录且角色为企业用户时校验企业 ID
         try {
-            String contentJson = objectMapper.writeValueAsString(java.util.Map.of(
-                    "fields", java.util.Map.of(
-                            "reportId", r.getId(),
-                            "reportNo", r.getReportNo(),
-                            "agency", r.getAgency(),
-                            "result", r.getResult(),
-                            "reportFileUrl", r.getReportFileUrl()
-                    )
-            ));
-            e.setContentJson(contentJson);
-        } catch (Exception ex) {
-            throw new RuntimeException("生成检验事件JSON失败", ex);
+            Long companyId = SecurityUtils.getCompanyId();
+            if (companyId != null && !companyId.equals(batch.getCompanyId())) {
+                throw new BizException("无权查看该批次的质检报告");
+            }
+        } catch (Exception e) {
+            // 未登录或公开访问，跳过企业校验 (由 Controller 层控制公开访问权限)
         }
 
-        e.setAttachmentsJson(null);
-        e.setOperatorId(null);
-
-        traceEventMapper.insert(e);
-
-        return r;
+        return qualityReportMapper.selectByBatchId(batchId);
     }
 
+    /**
+     * 质检报告详情
+     * 规则：
+     * 1. 报告必须存在
+     * 2. 企业端只能查看自己企业的质检报告
+     */
     @Override
-    public boolean verifyLatest(long batchId) {
-        QualityReport r = reportMapper.selectOne(new LambdaQueryWrapper<QualityReport>()
-                .eq(QualityReport::getBatchId, batchId)
-                .orderByDesc(QualityReport::getId)
-                .last("limit 1"));
-        if (r == null) return true;
-
-        HashNotary n = notaryMapper.selectOne(new LambdaQueryWrapper<HashNotary>()
-                .eq(HashNotary::getBizType, "QUALITY_REPORT")
-                .eq(HashNotary::getBizId, r.getId())
-                .last("limit 1"));
-        if (n == null) return false;
-
-        String sha = HashUtil.sha256Hex(buildRaw(r));
-
-        return sha.equalsIgnoreCase(n.getSha256());
-    }
-
-    @Override
-    @Transactional
-    public boolean reNotary(long reportId) {
-        QualityReport r = reportMapper.selectById(reportId);
-        if (r == null) return false;
-
-        String sha = HashUtil.sha256Hex(buildRaw(r)); // buildRaw 内已 normalize
-
-        HashNotary n = notaryMapper.selectOne(new LambdaQueryWrapper<HashNotary>()
-                .eq(HashNotary::getBizType, "QUALITY_REPORT")
-                .eq(HashNotary::getBizId, reportId)
-                .last("limit 1"));
-
-        if (n == null) {
-            HashNotary nn = new HashNotary();
-            nn.setBizType("QUALITY_REPORT");
-            nn.setBizId(reportId);
-            nn.setSha256(sha);
-            nn.setRemark("quality report re-notary");
-            notaryMapper.insert(nn);
-            return true;
+    public QualityReportVO detail(Long id) {
+        if (id == null) {
+            throw new BizException("质检报告ID不能为空");
         }
 
-        n.setSha256(sha);
-        notaryMapper.updateById(n);
-        return true;
+        QualityReport report = qualityReportMapper.selectById(id);
+        if (report == null) {
+            throw new BizException("质检报告不存在");
+        }
+
+        TraceBatch batch = traceBatchMapper.selectById(report.getBatchId());
+        if (batch == null) {
+            throw new BizException("批次不存在或已删除");
+        }
+
+        Long companyId = SecurityUtils.getCompanyId();
+        if (companyId != null && !companyId.equals(batch.getCompanyId())) {
+            throw new BizException("无权查看该质检报告");
+        }
+
+        QualityReportVO vo = new QualityReportVO();
+        BeanUtils.copyProperties(report, vo);
+        return vo;
+    }
+
+    /**
+     * 查询批次最新质检结论
+     * 规则：
+     * 1. batchId 不能为空
+     * 2. 批次必须存在
+     * 3. 企业侧（companyId 非空）必须校验该批次属于当前企业
+     * 4. 平台/监管（companyId 为空）按只读规则放行
+     */
+    @Override
+    public QualityVerifyVO verifyLatestByBatchId(Long batchId) {
+        if (batchId == null) {
+            throw new BizException("批次ID不能为空");
+        }
+
+        TraceBatch batch = traceBatchMapper.selectById(batchId);
+        if (batch == null) {
+            throw new BizException("批次不存在或已删除");
+        }
+
+        // 仅在已登录且角色为企业用户时校验企业 ID
+        try {
+            Long companyId = SecurityUtils.getCompanyId();
+            if (companyId != null && !companyId.equals(batch.getCompanyId())) {
+                throw new BizException("无权查看该批次的最新质检结论");
+            }
+        } catch (Exception e) {
+            // 未登录或公开访问，跳过企业校验
+        }
+
+        QualityReportVO latest = qualityReportMapper.selectLatestByBatchId(batchId);
+
+        QualityVerifyVO vo = new QualityVerifyVO();
+        vo.setBatchId(batchId);
+        if (latest == null) {
+            vo.setHasReport(false);
+            vo.setLatestReportId(null);
+            vo.setLatestResult(null);
+        } else {
+            vo.setHasReport(true);
+            vo.setLatestReportId(latest.getId());
+            vo.setLatestResult(latest.getResult());
+        }
+        return vo;
+    }
+
+    /**
+     * 删除质检报告
+     * 规则：
+     * 1. 报告必须存在
+     * 2. 关联批次必须存在
+     * 3. 企业端只能删除自己企业的质检报告
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void delete(Long id) {
+        if (id == null) {
+            throw new BizException("质检报告ID不能为空");
+        }
+
+        QualityReport report = qualityReportMapper.selectById(id);
+        if (report == null) {
+            throw new BizException("质检报告不存在");
+        }
+
+        TraceBatch batch = traceBatchMapper.selectById(report.getBatchId());
+        if (batch == null) {
+            throw new BizException("批次不存在或已删除");
+        }
+
+        Long companyId = SecurityUtils.getCompanyId();
+        if (companyId == null || !companyId.equals(batch.getCompanyId())) {
+            throw new BizException("无权删除该质检报告");
+        }
+
+        qualityReportMapper.deleteById(id);
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
+    }
+
+    private void validateReportJson(String reportJson) {
+        if (isBlank(reportJson)) {
+            return;
+        }
+        try {
+            OBJECT_MAPPER.readTree(reportJson);
+        } catch (Exception e) {
+            throw new BizException("扩展信息格式不正确");
+        }
     }
 }

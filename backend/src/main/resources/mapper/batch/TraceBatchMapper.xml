@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="edu.jxust.agritrace.module.batch.mapper.TraceBatchMapper">
+
+    <!-- ===================== -->
+    <!-- 批次详情 -->
+    <!-- ===================== -->
+    <select id="selectDetailById"
+            resultType="edu.jxust.agritrace.module.batch.vo.BatchDetailVO">
+
+        SELECT
+            tb.id,
+            tb.batch_code,
+            tb.product_id,
+            bp.name AS product_name,
+            bp.category AS product_category,
+            bp.spec AS product_spec,
+            bp.unit AS product_unit,
+            tb.company_id,
+            oc.name AS creator_company_name,
+            tb.origin_place,
+            tb.start_date,
+            tb.status,
+            tb.regulation_status,
+            tb.remark,
+            tb.public_remark,
+            tb.internal_remark,
+            tb.status_reason,
+            tb.published_at,
+            tb.frozen_at,
+            tb.recalled_at,
+            tb.created_at,
+            tb.updated_at,
+            tb.created_by,
+            tb.updated_by
+        FROM trace_batch tb
+                 LEFT JOIN base_product bp ON tb.product_id = bp.id
+                 LEFT JOIN org_company oc ON tb.company_id = oc.id
+        WHERE tb.id = #{id}
+        LIMIT 1
+
+    </select>
+
+
+    <!-- ===================== -->
+    <!-- 批次分页 -->
+    <!-- ===================== -->
+    <select id="selectPageList"
+            resultType="edu.jxust.agritrace.module.batch.vo.BatchPageItemVO">
+
+        SELECT
+        tb.id,
+        tb.batch_code,
+        tb.product_id,
+        bp.name AS product_name,
+        tb.company_id,
+        tb.origin_place,
+        tb.start_date,
+        tb.status,
+        tb.regulation_status,
+        tb.public_remark,
+        tb.created_at
+        FROM trace_batch tb
+        LEFT JOIN base_product bp ON tb.product_id = bp.id
+
+        <where>
+
+            <if test="companyId != null">
+                AND tb.company_id = #{companyId}
+            </if>
+
+            <if test="q.batchCode != null and q.batchCode != ''">
+                AND tb.batch_code LIKE CONCAT('%',#{q.batchCode},'%')
+            </if>
+
+            <if test="q.status != null and q.status != ''">
+                AND tb.status = #{q.status}
+            </if>
+
+            <if test="q.regulationStatus != null and q.regulationStatus != ''">
+                AND tb.regulation_status = #{q.regulationStatus}
+            </if>
+
+            <if test="q.productName != null and q.productName != ''">
+                AND bp.name LIKE CONCAT('%',#{q.productName},'%')
+            </if>
+
+        </where>
+
+        ORDER BY tb.id DESC
+
+    </select>
+
+</mapper>

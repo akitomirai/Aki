@@ -1,0 +1,73 @@
+.dashboard-cards {
+    margin-bottom: 20px;
+}
+
+.stat-card {
+    cursor: default;
+    min-height: 140px;
+}
+
+.clickable-card {
+    cursor: pointer;
+}
+
+.dashboard-section {
+    margin-top: 20px;
+}
+
+.card-title {
+    font-size: 14px;
+    color: #666;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.card-value {
+    font-size: 28px;
+    font-weight: 600;
+    margin-top: 8px;
+    color: #1f2937;
+}
+
+.card-desc {
+    margin-top: 8px;
+    color: #6b7280;
+    font-size: 12px;
+    min-height: 18px;
+}
+
+.dashboard-list {
+    margin: 0;
+    padding-left: 20px;
+    line-height: 2;
+    color: #1f2937;
+}
+
+.section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.trace-entry {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.trace-token-input {
+    flex: 1;
+}
+
+.trace-link-tip {
+    margin-top: 8px;
+    color: #6b7280;
+    font-size: 13px;
+    word-break: break-all;
+}
+
+.tip-icon {
+    color: #909399;
+    font-size: 14px;
+}

@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="edu.jxust.agritrace.module.trace.mapper.TraceEventMapper">
+
+    <!-- 后台事件列表 -->
+    <select id="selectAdminList" resultType="edu.jxust.agritrace.module.trace.vo.TraceEventItemVO">
+        SELECT
+        id,
+        batch_id,
+        stage,
+        title,
+        event_time,
+        operator_id,
+        operator_name,
+        location,
+        source_type,
+        is_public,
+        content_json,
+        attachments_json,
+        created_at
+        FROM trace_event
+        <where>
+            <if test="batchId != null">
+                AND batch_id = #{batchId}
+            </if>
+            <if test="stage != null and stage != ''">
+                AND stage = #{stage}
+            </if>
+            <if test="sourceType != null and sourceType != ''">
+                AND source_type = #{sourceType}
+            </if>
+        </where>
+        ORDER BY event_time DESC, id DESC
+    </select>
+
+    <!-- 前台时间轴 -->
+    <select id="selectPublicTimeline" resultType="edu.jxust.agritrace.module.trace.vo.PublicTraceTimelineVO">
+        SELECT
+            id,
+            stage,
+            title,
+            event_time,
+            operator_name,
+            location,
+            source_type,
+            content_json,
+            attachments_json
+        FROM trace_event
+        WHERE batch_id = #{batchId}
+          AND is_public = 1
+        ORDER BY event_time ASC, id ASC
+    </select>
+
+    <select id="selectNodeList" resultType="edu.jxust.agritrace.module.trace.vo.TraceNodeVO">
+        SELECT
+            e.id,
+            e.batch_id,
+            COALESCE(e.company_id, u.company_id, b.company_id) AS company_id,
+            c.name AS company_name,
+            COALESCE(e.biz_role,
+                CASE
+                    WHEN e.stage = 'PRODUCE' THEN 'PRODUCER'
+                    WHEN e.stage = 'TRANSPORT' THEN 'TRANSPORTER'
+                    WHEN e.stage = 'PROCESS' THEN 'PROCESSOR'
+                    WHEN e.stage = 'WAREHOUSE' THEN 'WAREHOUSE'
+                    WHEN e.stage = 'SALE' THEN 'SELLER'
+                    WHEN e.stage = 'INSPECT' AND e.source_type = 'REGULATOR' THEN 'REGULATOR'
+                    WHEN e.stage = 'INSPECT' THEN 'INSPECTOR'
+                    WHEN e.stage = 'SYSTEM' THEN 'SYSTEM'
+                    ELSE NULL
+                END
+            ) AS biz_role,
+            CASE
+                WHEN e.stage = 'PRODUCE' THEN 'PRODUCTION'
+                WHEN e.stage = 'TRANSPORT' THEN 'TRANSPORT'
+                WHEN e.stage = 'PROCESS' THEN 'PROCESSING'
+                WHEN e.stage = 'WAREHOUSE' THEN 'WAREHOUSING'
+                WHEN e.stage = 'SALE' THEN 'SELLING'
+                WHEN e.stage = 'INSPECT' AND e.source_type = 'REGULATOR' THEN 'REGULATION'
+                WHEN e.stage = 'INSPECT' THEN 'QUALITY_CHECK'
+                WHEN e.stage = 'SYSTEM' THEN 'SYSTEM'
+                ELSE e.stage
+            END AS node_type,
+            e.title,
+            CAST(e.content_json AS CHAR) AS content,
+            e.event_time,
+            e.is_public
+        FROM trace_event e
+                 LEFT JOIN sys_user u ON e.operator_id = u.id
+                 LEFT JOIN trace_batch b ON e.batch_id = b.id
+                 LEFT JOIN org_company c ON c.id = COALESCE(e.company_id, u.company_id, b.company_id)
+        WHERE e.batch_id = #{batchId}
+          <if test="publicOnly != null and publicOnly">
+              AND e.is_public = 1
+          </if>
+        ORDER BY e.event_time ASC, e.id ASC
+    </select>
+
+</mapper>

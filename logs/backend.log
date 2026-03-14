@@ -1,0 +1,18 @@
+2026-03-14 00:26:54 [main] INFO  e.jxust.agritrace.TraceabilityBackendApplication - Starting TraceabilityBackendApplication using Java 21.0.10 with PID 1596 (C:\Users\Lenovo\Desktop\traceability-system\backend\target\classes started by 神原秋人 in C:\Users\Lenovo\Desktop\traceability-system)
+2026-03-14 00:26:54 [main] INFO  e.jxust.agritrace.TraceabilityBackendApplication - No active profile set, falling back to 1 default profile: "default"
+2026-03-14 00:27:01 [main] WARN  o.s.b.a.s.s.UserDetailsServiceAutoConfiguration - 
+
+Using generated security password: a883de9c-cbcc-43d9-bf38-0aae121349a3
+
+This generated password is for development use only. Your security configuration must be updated before running your application in production.
+
+2026-03-14 00:27:03 [main] INFO  e.jxust.agritrace.TraceabilityBackendApplication - Started TraceabilityBackendApplication in 9.301 seconds (process running for 9.866)
+2026-03-14 00:45:33 [main] INFO  e.jxust.agritrace.TraceabilityBackendApplication - Starting TraceabilityBackendApplication using Java 21.0.10 with PID 26952 (C:\Users\Lenovo\Desktop\traceability-system\backend\target\classes started by 神原秋人 in C:\Users\Lenovo\Desktop\traceability-system)
+2026-03-14 00:45:33 [main] INFO  e.jxust.agritrace.TraceabilityBackendApplication - No active profile set, falling back to 1 default profile: "default"
+2026-03-14 00:45:40 [main] WARN  o.s.b.a.s.s.UserDetailsServiceAutoConfiguration - 
+
+Using generated security password: d3e353e1-8418-43a9-bbf8-f7071677128a
+
+This generated password is for development use only. Your security configuration must be updated before running your application in production.
+
+2026-03-14 00:45:42 [main] INFO  e.jxust.agritrace.TraceabilityBackendApplication - Started TraceabilityBackendApplication in 9.695 seconds (process running for 10.271)

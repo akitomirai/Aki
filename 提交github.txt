@@ -1,4 +1,0 @@
-cd /d C:\Users\Lenovo\Desktop\traceability-system
-git add docker
-git commit -m "feat: add mysql redis docker compose and schema"
-git push

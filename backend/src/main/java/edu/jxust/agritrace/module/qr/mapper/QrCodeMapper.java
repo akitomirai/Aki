@@ -2,10 +2,13 @@ package edu.jxust.agritrace.module.qr.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import edu.jxust.agritrace.module.qr.entity.QrCode;
+import edu.jxust.agritrace.module.qr.vo.QrCodeVO;
+import edu.jxust.agritrace.module.qr.vo.PublicBatchSimpleVO;
 import org.apache.ibatis.annotations.Mapper;
-import org.apache.ibatis.annotations.Update;
-import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Param;
+
 import java.util.List;
+
 /**
  * 二维码 Mapper
  */
@@ -13,16 +16,26 @@ import java.util.List;
 public interface QrCodeMapper extends BaseMapper<QrCode> {
 
     /**
-     * PV 自增（MySQL 原子更新，先跑通；后面换 Redis 也很容易）
+     * 查询批次二维码列表
+     *
+     * @param batchId 批次ID
+     * @return 二维码列表
      */
-    @Update("UPDATE qr_code SET pv = IFNULL(pv,0) + 1 WHERE id = #{qrId}")
-    int incrPv(Long qrId);
+    List<QrCodeVO> selectByBatchId(@Param("batchId") Long batchId);
 
-    @Select("""
-            SELECT id, batch_id, qr_token, status, created_at, expired_at, remark, pv
-            FROM qr_code
-            WHERE batch_id = #{batchId}
-            ORDER BY IFNULL(pv,0) DESC, id DESC
-            """)
-    List<QrCode> selectByBatchIdOrderByPv(Long batchId);
+    /**
+     * 根据 token 查询二维码
+     *
+     * @param token 二维码 token
+     * @return 二维码
+     */
+    QrCode selectByToken(@Param("token") String token);
+
+    /**
+     * 查询前台扫码对应的批次简要信息
+     *
+     * @param batchId 批次ID
+     * @return 批次简要信息
+     */
+    PublicBatchSimpleVO selectPublicBatchSimple(@Param("batchId") Long batchId);
 }

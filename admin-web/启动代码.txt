@@ -1,5 +1,0 @@
-前端启动：
-npm run dev
-
-关闭所有Node进程
-taskkill /IM node.exe /F

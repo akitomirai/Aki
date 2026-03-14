@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="edu.jxust.agritrace.module.qr.mapper.QrCodeMapper">
+
+    <select id="selectByBatchId" resultType="edu.jxust.agritrace.module.qr.vo.QrCodeVO">
+        SELECT
+            id,
+            batch_id,
+            qr_token,
+            status,
+            created_at,
+            expired_at,
+            remark,
+            status_reason,
+            generated_by,
+            last_query_at,
+            pv
+        FROM qr_code
+        WHERE batch_id = #{batchId}
+        ORDER BY id DESC
+    </select>
+
+    <select id="selectByToken" resultType="edu.jxust.agritrace.module.qr.entity.QrCode">
+        SELECT
+            id,
+            batch_id,
+            qr_token,
+            status,
+            created_at,
+            expired_at,
+            remark,
+            status_reason,
+            generated_by,
+            last_query_at,
+            pv
+        FROM qr_code
+        WHERE qr_token = #{token}
+        LIMIT 1
+    </select>
+
+    <select id="selectPublicBatchSimple" resultType="edu.jxust.agritrace.module.qr.vo.PublicBatchSimpleVO">
+        SELECT
+            tb.id,
+            tb.batch_code,
+            bp.name AS product_name,
+            bp.category AS product_category,
+            bp.spec AS product_spec,
+            bp.unit AS product_unit,
+            oc.name AS company_name,
+            tb.origin_place,
+            tb.start_date,
+            tb.status,
+            tb.regulation_status,
+            tb.public_remark
+        FROM trace_batch tb
+                 LEFT JOIN base_product bp ON tb.product_id = bp.id
+                 LEFT JOIN org_company oc ON tb.company_id = oc.id
+        WHERE tb.id = #{batchId}
+        LIMIT 1
+    </select>
+
+</mapper>

@@ -5,113 +5,264 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="558b1343-abe1-46f5-b1da-67dc45c1f991" name="更改" comment="">
-      <change afterPath="$PROJECT_DIR$/../admin-web/src/App.vue" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../admin-web/src/main.js" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../admin-web/src/style.css" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/common/api/service/TraceBatchService.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/common/api/service/TraceEventService.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/common/api/service/impl/TraceBatchServiceImpl.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/common/api/service/impl/TraceEventServiceImpl.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/dto/dto/TraceTimelineResponse.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../admin-web/public/favicon.ico" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../admin-web/src/composables/useAdminLayout.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../admin-web/src/composables/useBatchDetail.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../admin-web/src/composables/useBatchEvent.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../admin-web/src/composables/useBatchManage.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../admin-web/src/composables/useBatchQr.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../admin-web/src/composables/useDashboard.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../admin-web/src/composables/useLogin.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../admin-web/src/composables/useQualityManage.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../admin-web/src/composables/useRegister.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../admin-web/src/layouts/AdminLayout/AdminLayout.vue" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../admin-web/src/pages/Register/RegisterView.vue" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../admin-web/src/pages/Register/index.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../admin-web/src/pages/Register/register.css" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../admin-web/命令.txt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/sql_migration_v2.sql" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/audit/aspect/ApiLogAspect.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/audit/entity/OperationLog.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/audit/mapper/OperationLogMapper.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/common/constant/QrStatusConst.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/common/constant/TraceStageConst.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/common/constant/UserRoleConst.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/common/constant/ValidationPatternConst.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/common/enums/BatchStatus.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/common/enums/EventSourceType.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/common/enums/OperationResultStatus.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/common/enums/QrStatus.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/common/enums/RoleCode.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/common/exception/BizException.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/common/exception/ErrorCode.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/common/flow/BatchStatusFlow.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/common/flow/QrStatusFlow.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/config/ResponseConsoleLogAdvice.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/auth/controller/AuthController.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/auth/dto/RegisterRequest.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/auth/entity/SysUser.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/auth/service/AuthService.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/auth/service/impl/AuthServiceImpl.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/batch/controller/TraceBatchAdminController.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/batch/dto/BatchQueryRequest.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/batch/dto/BatchRegulationStatusChangeRequest.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/batch/dto/BatchUpdateRequest.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/batch/entity/TraceBatch.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/batch/mapper/BatchMapper.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/batch/service/BatchService.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/batch/service/impl/BatchServiceImpl.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/batch/vo/BatchDetailVO.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/batch/vo/BatchListItemVO.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/batch/vo/QrCodeListItemVO.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/batch/vo/QualityReportPublicVO.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/batch/vo/RegulationRecordSummaryVO.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/batch/vo/TraceResultVO.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/company/entity/OrgCompany.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/company/mapper/OrgCompanyMapper.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/product/controller/BaseProductAdminController.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/product/dto/BaseProductCreateRequest.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/product/dto/BaseProductQueryRequest.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/product/dto/BaseProductUpdateRequest.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/product/entity/BaseProduct.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/product/mapper/BaseProductMapper.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/product/service/BaseProductService.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/product/service/impl/BaseProductServiceImpl.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/product/vo/BaseProductVO.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/publicapi/TracePublicController.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/qr/controller/QrAdminController.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/qr/dto/QrStatusChangeRequest.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/qr/service/QrCodeService.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/qr/service/QrQueryLogService.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/qr/service/QrResolverService.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/qr/service/QrStatService.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/qr/service/impl/MySqlQrStatService.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/qr/service/impl/QrCodeServiceImpl.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/qr/service/impl/QrQueryLogServiceImpl.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/qr/service/impl/QrResolverServiceImpl.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/qr/service/impl/RedisQrStatService.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/qr/vo/QrScanStatVO.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/regulation/controller/RegulationRecordController.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/regulation/dto/RegulationRecordCreateRequest.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/regulation/entity/RegulationRecord.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/regulation/mapper/RegulationRecordMapper.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/regulation/service/RegulationRecordService.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/regulation/service/impl/RegulationRecordServiceImpl.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/regulation/vo/RegulationRecordVO.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/trace/dto/TraceEventCreateRequest.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/trace/entity/PesticideRecord.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/trace/mapper/PesticideRecordMapper.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/trace/service/TraceQueryService.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/trace/service/impl/TraceQueryServiceImpl.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/trace/vo/PesticideRecordPublicVO.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/trace/vo/TraceEventCreateRequest.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/trace/vo/TraceEventPublicVO.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/infrastructure/file/FileAdminController.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/infrastructure/file/FileService.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/infrastructure/file/FileServiceImpl.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/infrastructure/job/QrPvFlushJob.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/security/CurrentUserService.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/security/DataPermissionService.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/src/main/resources/logback-spring.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/composables/useTraceDetail.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/pages/TraceDetail/TraceDetailView.vue" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/pages/TraceDetail/index.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/pages/TraceDetail/trace-detail.css" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../admin-web/.env.development" beforeDir="false" afterPath="$PROJECT_DIR$/../admin-web/.env.development" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../admin-web/1.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../admin-web/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/../admin-web/index.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../admin-web/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/../admin-web/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../admin-web/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/../admin-web/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../admin-web/src/App.vue" beforeDir="false" afterPath="$PROJECT_DIR$/../admin-web/src/App.vue" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../admin-web/src/api/auth.js" beforeDir="false" afterPath="$PROJECT_DIR$/../admin-web/src/api/auth.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../admin-web/src/api/batch.js" beforeDir="false" afterPath="$PROJECT_DIR$/../admin-web/src/api/batch.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../admin-web/src/api/event.js" beforeDir="false" afterPath="$PROJECT_DIR$/../admin-web/src/api/event.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../admin-web/src/api/file.js" beforeDir="false" afterPath="$PROJECT_DIR$/../admin-web/src/api/file.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../admin-web/src/api/http.js" beforeDir="false" afterPath="$PROJECT_DIR$/../admin-web/src/api/http.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../admin-web/src/api/qr.js" beforeDir="false" afterPath="$PROJECT_DIR$/../admin-web/src/api/qr.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../admin-web/src/api/quality.js" beforeDir="false" afterPath="$PROJECT_DIR$/../admin-web/src/api/quality.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../admin-web/src/components/AdminLayout.vue" beforeDir="false" afterPath="$PROJECT_DIR$/../admin-web/src/components/AdminLayout.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../admin-web/src/components/AdminLayout.vue" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../admin-web/src/main.js" beforeDir="false" afterPath="$PROJECT_DIR$/../admin-web/src/main.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../admin-web/src/router/index.js" beforeDir="false" afterPath="$PROJECT_DIR$/../admin-web/src/router/index.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../admin-web/src/stores/auth.js" beforeDir="false" afterPath="$PROJECT_DIR$/../admin-web/src/stores/auth.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../admin-web/src/views/BatchDetailView.vue" beforeDir="false" afterPath="$PROJECT_DIR$/../admin-web/src/views/BatchDetailView.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../admin-web/src/views/BatchManageView.vue" beforeDir="false" afterPath="$PROJECT_DIR$/../admin-web/src/views/BatchManageView.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../admin-web/src/views/DashboardView.vue" beforeDir="false" afterPath="$PROJECT_DIR$/../admin-web/src/views/DashboardView.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../admin-web/src/views/LoginView.vue" beforeDir="false" afterPath="$PROJECT_DIR$/../admin-web/src/views/LoginView.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../admin-web/src/views/QualityManageView.vue" beforeDir="false" afterPath="$PROJECT_DIR$/../admin-web/src/views/QualityManageView.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../admin-web/启动代码.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../admin-web/启动代码.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/01_schema.sql" beforeDir="false" afterPath="$PROJECT_DIR$/../admin-web/index.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../admin-web/src/style.css" beforeDir="false" afterPath="$PROJECT_DIR$/../admin-web/src/style.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../admin-web/src/views/BatchDetailView.vue" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../admin-web/src/views/BatchManageView.vue" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../admin-web/src/views/DashboardView.vue" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../admin-web/src/views/LoginView.vue" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../admin-web/src/views/QualityManageView.vue" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../admin-web/vite.config.js" beforeDir="false" afterPath="$PROJECT_DIR$/../admin-web/vite.config.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../admin-web/启动代码.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/.idea/.gitignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/.idea/compiler.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/.idea/dataSources.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/.idea/encodings.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/.idea/jarRepositories.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/.idea/misc.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/.idea/uiDesigner.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/.idea/vcs.xml" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../backend/1.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/1.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/backend/.gitattributes" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/backend/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/backend/.mvn/wrapper/maven-wrapper.properties" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/backend/mvnw" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/backend/mvnw.cmd" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/backend/pom.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/backend/src/main/java/edu/jxust/agritrace/BackendApplication.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/backend/src/main/resources/application.properties" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/backend/src/test/java/edu/jxust/agritrace/BackendApplicationTests.java" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../backend/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/pom.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/PasswordGen.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/PasswordGen.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/common/api/Result.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/common/api/Result.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/common/util/HashUtil.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/common/util/HashUtil.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/common/util/JwtUtil.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/common/util/JwtUtil.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/common/util/QrTokenUtil.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/common/util/QrTokenUtil.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/common/api/service/TraceBatchService.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/common/api/service/TraceEventService.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/trace/service/TraceEventService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/common/api/service/impl/TraceBatchServiceImpl.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/common/api/service/impl/TraceEventServiceImpl.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/trace/service/impl/TraceEventServiceImpl.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/common/util/RedisKeys.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/common/util/RedisKeys.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/common/util/RequestUtil.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/common/util/RequestUtil.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/config/CorsConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/config/CorsConfig.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/config/JacksonConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/config/JacksonConfig.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/config/JwtAuthFilter.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/config/JwtAuthFilter.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/config/MybatisPlusConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/config/MybatisPlusConfig.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/config/SecurityConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/config/SecurityConfig.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/config/StaticResourceConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/config/StaticResourceConfig.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/file/FileAdminController.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/file/FileAdminController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/job/QrPvFlushJob.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/job/QrPvFlushJob.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/auth/AuthController.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/auth/AuthController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/auth/dto/LoginRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/auth/dto/LoginRequest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/auth/entity/SysUser.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/auth/entity/SysUser.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/auth/mapper/SysUserMapper.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/auth/mapper/SysUserMapper.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/publicapi/HealthController.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/publicapi/HealthController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/publicapi/TracePublicController.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/publicapi/TracePublicController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/publicapi/dto/TraceTimelineResponse.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/QrAdminController.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/QrAdminController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/QrStatsAdminController.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/QrStatsAdminController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/dto/QrGenerateRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/dto/QrGenerateRequest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/dto/QrListItem.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/dto/QrListItem.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/entity/QrCode.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/entity/QrCode.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/entity/QrQueryLog.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/entity/QrQueryLog.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/entity/QrQueryStatDay.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/entity/QrQueryStatDay.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/mapper/QrCodeMapper.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/mapper/QrCodeMapper.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/mapper/QrQueryLogMapper.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/mapper/QrQueryLogMapper.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/mapper/QrQueryStatDayMapper.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/mapper/QrQueryStatDayMapper.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/service/GeoService.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/service/GeoService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/service/QrCodeService.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/service/QrCodeService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/service/QrStatService.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/service/QrStatService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/service/impl/MySqlQrStatService.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/service/impl/MySqlQrStatService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/service/impl/QrCodeServiceImpl.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/service/impl/QrCodeServiceImpl.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/service/impl/RedisQrStatService.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/service/impl/RedisQrStatService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/quality/QualityAdminController.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/quality/QualityAdminController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/quality/dto/QualityReportCreateRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/quality/dto/QualityReportCreateRequest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/quality/entity/HashNotary.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/quality/entity/HashNotary.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/quality/entity/QualityReport.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/quality/entity/QualityReport.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/quality/mapper/HashNotaryMapper.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/quality/mapper/HashNotaryMapper.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/quality/mapper/QualityReportMapper.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/quality/mapper/QualityReportMapper.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/quality/service/QualityReportService.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/quality/service/QualityReportService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/quality/service/impl/QualityReportServiceImpl.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/quality/service/impl/QualityReportServiceImpl.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/trace/controller/TraceBatchAdminController.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/trace/controller/TraceBatchAdminController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/trace/controller/TraceEventAdminController.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/trace/controller/TraceEventAdminController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/trace/dto/BatchCreateRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/trace/dto/BatchCreateRequest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/trace/dto/EventCreateRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/trace/dto/EventCreateRequest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/trace/entity/TraceBatch.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/trace/entity/TraceBatch.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/trace/entity/TraceEvent.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/trace/entity/TraceEvent.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/trace/mapper/TraceEventMapper.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/trace/mapper/TraceEventMapper.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/trace/service/TraceBatchService.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/trace/service/TraceEventService.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/trace/service/impl/TraceBatchServiceImpl.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/trace/service/impl/TraceEventServiceImpl.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/file/FileAdminController.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/job/QrPvFlushJob.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/auth/AuthController.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/auth/dto/LoginRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/auth/dto/LoginRequest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/auth/entity/SysUser.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/auth/mapper/SysUserMapper.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/auth/mapper/SysUserMapper.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/publicapi/HealthController.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/publicapi/HealthController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/publicapi/TracePublicController.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/QrAdminController.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/QrStatsAdminController.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/qr/controller/QrStatsAdminController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/dto/QrGenerateRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/qr/dto/QrGenerateRequest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/dto/QrListItem.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/qr/vo/QrListItemVO.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/dto/QrPvTrendPoint.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/qr/vo/QrPvTrendPointVO.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/dto/dto/TraceTimelineResponse.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/trace/vo/TraceTimelineVO.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/entity/QrCode.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/qr/entity/QrCode.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/entity/QrQueryLog.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/qr/entity/QrQueryLog.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/entity/QrQueryStatDay.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/qr/entity/QrQueryStatDay.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/mapper/QrCodeMapper.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/qr/mapper/QrCodeMapper.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/mapper/QrQueryLogMapper.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/qr/mapper/QrQueryLogMapper.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/mapper/QrQueryStatDayMapper.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/qr/mapper/QrQueryStatDayMapper.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/service/GeoService.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/infrastructure/geo/GeoService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/service/QrCodeService.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/service/QrStatService.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/service/impl/MySqlQrStatService.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/service/impl/QrCodeServiceImpl.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/qr/service/impl/RedisQrStatService.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/quality/QualityAdminController.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/quality/controller/QualityAdminController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/quality/dto/QualityReportCreateRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/quality/dto/QualityReportCreateRequest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/quality/entity/HashNotary.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/quality/entity/HashNotary.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/quality/entity/QualityReport.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/quality/entity/QualityReport.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/quality/mapper/HashNotaryMapper.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/quality/mapper/HashNotaryMapper.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/quality/mapper/QualityReportMapper.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/quality/mapper/QualityReportMapper.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/quality/service/QualityReportService.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/quality/service/QualityReportService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/quality/service/impl/QualityReportServiceImpl.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/quality/service/impl/QualityReportServiceImpl.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/trace/controller/TraceBatchAdminController.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/trace/controller/TraceEventAdminController.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/trace/controller/TraceEventAdminController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/trace/dto/BatchCreateRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/batch/dto/BatchCreateRequest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/trace/dto/EventCreateRequest.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/trace/entity/TraceBatch.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/trace/entity/TraceEvent.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/trace/entity/TraceEvent.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/trace/mapper/TraceBatchMapper.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/module/trace/mapper/TraceEventMapper.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/java/edu/jxust/agritrace/domain/trace/mapper/TraceEventMapper.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../backend/src/main/resources/application.yml" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/main/resources/application.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/src/test/java/edu/jxust/agritrace/BackendApplicationTests.java" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/src/test/java/edu/jxust/agritrace/BackendApplicationTests.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/application.yml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/BackendApplication.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/PasswordGen.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/common/api/Result.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/common/api/service/TraceBatchService.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/common/api/service/TraceEventService.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/common/api/service/impl/TraceBatchServiceImpl.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/common/api/service/impl/TraceEventServiceImpl.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/common/util/HashUtil.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/common/util/JwtUtil.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/common/util/QrTokenUtil$Parsed.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/common/util/QrTokenUtil.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/common/util/RedisKeys.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/common/util/RequestUtil.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/config/CorsConfig.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/config/JacksonConfig.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/config/JwtAuthFilter.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/config/MybatisPlusConfig.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/config/SecurityConfig.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/config/StaticResourceConfig.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/file/FileAdminController.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/job/QrPvFlushJob.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/auth/AuthController.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/auth/dto/LoginRequest.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/auth/entity/SysUser.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/auth/mapper/SysUserMapper.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/publicapi/HealthController.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/publicapi/TracePublicController.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/qr/QrAdminController.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/qr/QrStatsAdminController.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/qr/dto/QrGenerateRequest.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/qr/dto/QrListItem.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/qr/dto/QrPvTrendPoint.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/qr/dto/dto/TraceTimelineResponse$BatchDto.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/qr/dto/dto/TraceTimelineResponse$EventDto.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/qr/dto/dto/TraceTimelineResponse.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/qr/entity/QrCode.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/qr/entity/QrQueryLog.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/qr/entity/QrQueryStatDay.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/qr/mapper/QrCodeMapper.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/qr/mapper/QrQueryLogMapper.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/qr/mapper/QrQueryStatDayMapper.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/qr/service/GeoService$GeoInfo.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/qr/service/GeoService.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/qr/service/QrCodeService.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/qr/service/QrStatService.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/qr/service/impl/MySqlQrStatService.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/qr/service/impl/QrCodeServiceImpl.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/qr/service/impl/RedisQrStatService.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/quality/QualityAdminController.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/quality/dto/QualityReportCreateRequest.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/quality/entity/HashNotary.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/quality/entity/QualityReport.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/quality/mapper/HashNotaryMapper.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/quality/mapper/QualityReportMapper.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/quality/service/QualityReportService.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/quality/service/impl/QualityReportServiceImpl.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/trace/controller/TraceBatchAdminController.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/trace/controller/TraceEventAdminController.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/trace/dto/BatchCreateRequest.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/trace/dto/EventCreateRequest.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/trace/entity/TraceBatch.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/trace/entity/TraceEvent.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/trace/mapper/TraceBatchMapper.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/edu/jxust/agritrace/module/trace/mapper/TraceEventMapper.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/classes/ip2region/ip2region_v4.xdb" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/maven-status/maven-compiler-plugin/compile/default-compile/createdFiles.lst" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/maven-status/maven-compiler-plugin/compile/default-compile/inputFiles.lst" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/target/test-classes/edu/jxust/agritrace/BackendApplicationTests.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../p.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../p.txt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/1.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/App.vue" beforeDir="false" afterPath="$PROJECT_DIR$/src/App.vue" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/api/http.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/http.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/api/trace.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/trace.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/router/index.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/router/index.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/views/TraceView.vue" beforeDir="false" afterPath="$PROJECT_DIR$/src/views/TraceView.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/vite.config.js" beforeDir="false" afterPath="$PROJECT_DIR$/vite.config.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/style.css" beforeDir="false" afterPath="$PROJECT_DIR$/src/style.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../新建 文本文档.txt" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -139,21 +290,22 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "git-widget-placeholder": "main",
-    "kotlin-language-version-configured": "true",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "settings.editor.selected.configurable": "MavenSettings",
-    "ts.external.directory.path": "D:\\Program Files\\JetBrains\\IntelliJ IDEA 2024.1.2\\plugins\\javascript-plugin\\jsLanguageServicesImpl\\external",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/Lenovo/Desktop/traceability-system/backend&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;MavenSettings&quot;,
+    &quot;ts.external.directory.path&quot;: &quot;D:\\Program Files\\JetBrains\\IntelliJ IDEA 2024.1.2\\plugins\\javascript-plugin\\jsLanguageServicesImpl\\external&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RunManager">
     <configuration default="true" type="JetRunConfigurationType">
       <module name="trace-web" />
@@ -188,6 +340,12 @@
       <workItem from="1772785946931" duration="76000" />
       <workItem from="1772786119561" duration="12000" />
       <workItem from="1772786155178" duration="496000" />
+      <workItem from="1772795917914" duration="5668000" />
+      <workItem from="1772851695216" duration="604000" />
+      <workItem from="1772862004781" duration="246000" />
+      <workItem from="1772862260566" duration="4230000" />
+      <workItem from="1772896823752" duration="2625000" />
+      <workItem from="1773050876789" duration="595000" />
     </task>
     <servers />
   </component>

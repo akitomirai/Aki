@@ -1,21 +1,14 @@
-/**
- * admin-web 入口文件：
- * - 注册 Pinia
- * - 注册 Vue Router
- * - 注册 Element Plus
- */
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
+import './assets/styles/global.css'
 
 import App from './App.vue'
 import router from './router'
 
 const app = createApp(App)
-
 app.use(createPinia())
 app.use(router)
 app.use(ElementPlus)
-
 app.mount('#app')

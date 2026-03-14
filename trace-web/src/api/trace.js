@@ -1,11 +1,17 @@
-/**
- * 溯源查询接口
- */
 import http from './http'
 
 /**
- * 按二维码 token 查询
+ * 查询公开溯源详情
+ * @param {string} qrToken
  */
-export function getTraceByTokenApi(qrToken) {
-    return http.get(`/api/public/trace/${qrToken}`)
+export function getTraceDetail(qrToken) {
+  return http.get(`/api/public/trace/detail/${qrToken}`)
+}
+
+/**
+ * 提交消费者反馈
+ * @param {object} data
+ */
+export function createFeedback(data) {
+  return http.post('/api/public/feedback/create', data)
 }

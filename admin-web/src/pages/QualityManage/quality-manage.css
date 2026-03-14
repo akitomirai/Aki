@@ -1,0 +1,70 @@
+.quality-page {
+  width: 100%;
+}
+
+.list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.list-ops {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.upload-box {
+  width: 100%;
+}
+
+.upload-action {
+  margin-top: 16px;
+}
+
+.result-box {
+  margin-top: 16px;
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.url-text {
+  word-break: break-all;
+  color: #1f2937;
+}
+
+.full-width {
+  width: 100%;
+}
+
+.json-tool-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.json-template-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.json-valid-row {
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.json-valid-tip {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.json-tip {
+  margin-top: 4px;
+  color: #6b7280;
+  font-size: 12px;
+}
