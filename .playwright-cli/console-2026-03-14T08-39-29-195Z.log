@@ -1,3 +1,0 @@
-[     111ms] [WARNING] [Vue Router warn]: The `next()` callback in navigation guards is deprecated. Return the value instead of calling `next(value)`. @ http://127.0.0.1:5174/node_modules/.vite/deps/vue-router.js?v=cb8cf32c:3806
-[  217929ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://127.0.0.1:5174/src/pages/ProductManage/ProductManageView.vue?t=1773477787113:0
-[  217930ms] [ERROR] [vite] Failed to reload /src/pages/ProductManage/ProductManageView.vue. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://127.0.0.1:5174/@vite/client:807

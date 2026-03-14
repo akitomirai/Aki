@@ -1,3 +1,0 @@
-[GET] http://127.0.0.1:5174/api/platform/product/list => [200] OK
-[POST] http://127.0.0.1:5174/api/auth/login => [200] OK
-[GET] http://127.0.0.1:5174/api/platform/qr/stats/overview => [200] OK
