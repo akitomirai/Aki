@@ -1,40 +1,135 @@
-# 农产品溯源系统 (Traceability System)
+# traceability-system
 
-## 1. 项目简介
-本项目是一个全栈式农产品质量安全溯源系统，旨在通过数字化手段记录农产品从生产、加工、质检到销售的全生命周期信息。系统为政府监管部门、生产企业和终端消费者提供透明、可追溯的数据支撑。
+农产品质量安全追溯系统，包含管理后台、后端服务和公开追溯页三端。当前仓库已整理为本地开发可启动、答辩演示可复现、开发数据可重置的状态。
 
-## 2. 项目结构
-项目采用单仓库多子项目结构，主要包含以下三个核心部分：
+## 项目组成
 
-- **`admin-web`**：后台管理系统前端
-- **`backend`**：后端服务
-- **`trace-web`**：移动端溯源系统前端
+- `backend`
+  Spring Boot 3 + MyBatis-Plus + Spring Security + Redis。负责认证、产品、批次、二维码、公开追溯、日志和 PV/UV 统计。
+- `admin-web`
+  Vue 3 + Vite + Element Plus。用于平台管理员和企业账号登录后的业务管理与演示。
+- `trace-web`
+  Vue 3 + Vite。用于公开追溯页展示，消费者或老师通过追溯链接查看档案。
+- `docs`
+  账号、演示流程、交付说明等文档。
+- `sql`
+  数据库表结构、开发种子数据、开发重置脚本。
+- `scripts`
+  本地演示前自检脚本。
 
-## 3. 各子项目说明
+## 默认端口
 
-### `admin-web`
-- **用途**：面向企业用户和监管机构的 Web 管理后台。
-- **功能**：包含产品信息维护、生产批次管理、溯源环节配置、质检报告上传、反馈处理及监管预警等。
-- **技术栈**：Vue.js 3 + Vite + Element Plus。
+- `backend`: `http://127.0.0.1:8080`
+- `admin-web`: `http://127.0.0.1:5174`
+- `trace-web`: `http://127.0.0.1:5173`
+- Swagger: `http://127.0.0.1:8080/swagger-ui.html`
 
-### `backend`
-- **用途**：系统的核心后端服务，提供业务逻辑处理、数据持久化及安全认证。
-- **架构**：基于 Spring Boot 3 + MyBatis-Plus。采用权限分层 Controller 架构（Admin/Platform/Regulator/Public），集成了 JWT 安全认证、AOP 操作日志审计及统一异常处理。
-- **数据库**：MySQL（脚本位于 `backend/traceability.sql`）。
+## 环境依赖
 
-### `trace-web`
-- **用途**：面向终端消费者的移动端 H5 溯源查询页面。
-- **功能**：消费者通过扫描产品溯源码，即可查看该产品的生长环境、加工记录、物流路径及权威质检报告，并支持在线反馈。
-- **技术栈**：Vue.js 3 + Vite。
+- JDK 17
+- Maven 3.9+
+- Node.js 20+
+- MySQL 8.0
+- Redis 7.x
 
-## 4. 开发文档入口
-为了快速上手和了解项目的核心改造逻辑，请参考以下文档：
+## Redis 用途
 
-- **[日志模块改造交付说明文档](backend/docs/log-module-delivery.md)**：详细记录了系统日志模块的重构背景、安全脱敏策略及后续优化建议。
+Redis 只用于公开追溯访问统计：
 
-## 5. 推荐阅读顺序
-为了更高效地理解项目，建议按以下顺序进行阅读：
+- `PV`: 追溯页总访问次数
+- `UV`: 去重访客人数
 
-1. **根目录 README.md**：即本文档，获取项目全局视角。
-2. **后端开发文档**：查阅 `backend/docs/` 下的相关文档，特别是 [日志模块改造交付说明文档](backend/docs/log-module-delivery.md) 以了解当前开发规范。
-3. **子项目 README**：分别进入 `backend`、`admin-web`、`trace-web` 目录，查看各自环境搭建与运行指令。
+说明：
+
+- 这部分统计不写入 SQL 种子数据。
+- 重置 MySQL 不会自动清空 Redis 统计。
+- 如需从 0 开始演示 PV/UV，请单独清理 Redis 中 `agri:trace:*` 相关 key。
+
+## 数据库脚本
+
+- [sql/01_schema.sql](/Users/Lenovo/Desktop/traceability-system/sql/01_schema.sql)
+  表结构脚本，只包含建表和约束。
+- [sql/02_seed_dev.sql](/Users/Lenovo/Desktop/traceability-system/sql/02_seed_dev.sql)
+  精简开发演示数据，包含默认账号、演示企业、产品、批次、追溯码、节点、质检、监管、日志和反馈。
+- [sql/03_reset_dev.sql](/Users/Lenovo/Desktop/traceability-system/sql/03_reset_dev.sql)
+  一键重建 `traceability_cs` 并导入结构与演示数据。
+
+推荐执行方式：
+
+```bash
+mysql -uroot -p < sql/03_reset_dev.sql
+```
+
+如果只导入现有库：
+
+```bash
+mysql -uroot -p traceability_cs < sql/01_schema.sql
+mysql -uroot -p traceability_cs < sql/02_seed_dev.sql
+```
+
+## 启动顺序
+
+1. 启动 MySQL 和 Redis
+2. 导入开发数据脚本
+3. 启动 `backend`
+4. 启动 `admin-web`
+5. 启动 `trace-web`
+
+### backend
+
+```bash
+cd backend
+mvn spring-boot:run
+```
+
+### admin-web
+
+```bash
+cd admin-web
+npm install
+npm run dev
+```
+
+### trace-web
+
+```bash
+cd trace-web
+npm install
+npm run dev
+```
+
+## 默认账号
+
+详见 [docs/ACCOUNTS.md](/Users/Lenovo/Desktop/traceability-system/docs/ACCOUNTS.md)。
+
+常用账号：
+
+- 平台管理员：`platform / 123456`
+- 企业用户：`testuser1 / 123456`
+
+## 演示主链路
+
+详见 [docs/DEMO_FLOW.md](/Users/Lenovo/Desktop/traceability-system/docs/DEMO_FLOW.md)。
+
+推荐顺序：
+
+1. 平台账号登录后台
+2. 查看 Dashboard 统计与公开追溯快捷入口
+3. 查看产品列表
+4. 查看批次列表并进入批次详情
+5. 在批次详情页查看追溯码、复制链接、预览二维码
+6. 打开公开追溯页：`http://127.0.0.1:5173/t/test-token-2026`
+7. 返回 Dashboard 观察 PV/UV 变化
+
+## 当前主演示数据
+
+- 主演示企业：`赣南脐橙示范基地`
+- 主演示产品：`赣南脐橙`
+- 主演示批次：`BATCH20260311001`
+- 主演示 token：`test-token-2026`
+
+## 补充文档
+
+- [docs/README.md](/Users/Lenovo/Desktop/traceability-system/docs/README.md)
+- [docs/ACCOUNTS.md](/Users/Lenovo/Desktop/traceability-system/docs/ACCOUNTS.md)
+- [docs/DEMO_FLOW.md](/Users/Lenovo/Desktop/traceability-system/docs/DEMO_FLOW.md)

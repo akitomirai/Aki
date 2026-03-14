@@ -1,0 +1,111 @@
+- generic [ref=e4]:
+  - complementary [ref=e5]:
+    - generic [ref=e6]: 农产品溯源后台
+    - menubar [ref=e7]:
+      - menuitem "首页" [ref=e8] [cursor=pointer]
+      - menuitem "批次管理" [ref=e9] [cursor=pointer]
+      - menuitem "质检报告" [ref=e10] [cursor=pointer]
+      - menuitem "消费者反馈" [ref=e11] [cursor=pointer]
+  - generic [ref=e12]:
+    - banner [ref=e13]:
+      - generic [ref=e14]: 管理后台 (企业操作员)
+      - button "退出登录" [ref=e15] [cursor=pointer]:
+        - generic [ref=e16]: 退出登录
+    - main [ref=e17]:
+      - generic [ref=e19]:
+        - generic [ref=e21]:
+          - generic [ref=e22]:
+            - generic [ref=e23]: 产品管理
+            - generic [ref=e24]: 统一管理产品基础信息，支持快速筛选与编辑。
+          - button "刷新" [ref=e26] [cursor=pointer]:
+            - generic [ref=e27]: 刷新
+        - generic [ref=e28]:
+          - generic [ref=e29]:
+            - textbox "搜索产品名称 / 分类 / 规格 / 单位" [ref=e32]
+            - generic [ref=e34] [cursor=pointer]:
+              - generic:
+                - combobox [ref=e36]
+                - generic [ref=e37]: 按分类筛选
+              - img [ref=e40]
+            - button "查询" [ref=e42] [cursor=pointer]:
+              - generic [ref=e43]: 查询
+            - button "重置" [ref=e44] [cursor=pointer]:
+              - generic [ref=e45]: 重置
+          - generic [ref=e46]:
+            - generic [ref=e47]:
+              - table [ref=e49]:
+                - rowgroup [ref=e56]:
+                  - row "产品信息 分类 规格 单位 创建时间" [ref=e57]:
+                    - columnheader "产品信息" [ref=e58]:
+                      - generic [ref=e59]: 产品信息
+                    - columnheader "分类" [ref=e60]:
+                      - generic [ref=e61]: 分类
+                    - columnheader "规格" [ref=e62]:
+                      - generic [ref=e63]: 规格
+                    - columnheader "单位" [ref=e64]:
+                      - generic [ref=e65]: 单位
+                    - columnheader "创建时间" [ref=e66]:
+                      - generic [ref=e67]: 创建时间
+              - table [ref=e72]:
+                - rowgroup [ref=e79]:
+                  - row "有机富硒大米 产品ID：4 粮食 5kg/袋 袋 2026-03-11 10:15:00" [ref=e80]:
+                    - cell "有机富硒大米 产品ID：4" [ref=e81]:
+                      - generic [ref=e83]:
+                        - generic "有机富硒大米" [ref=e84]
+                        - generic [ref=e85]: 产品ID：4
+                    - cell "粮食" [ref=e86]:
+                      - generic [ref=e87]:
+                        - generic:
+                          - generic: 粮食
+                    - cell "5kg/袋" [ref=e88]:
+                      - generic [ref=e89]: 5kg/袋
+                    - cell "袋" [ref=e90]:
+                      - generic [ref=e91]: 袋
+                    - cell "2026-03-11 10:15:00" [ref=e92]:
+                      - generic [ref=e93]: 2026-03-11 10:15:00
+                  - row "江西绿茶 产品ID：3 茶叶 250g/盒 盒 2026-03-11 10:10:00" [ref=e94]:
+                    - cell "江西绿茶 产品ID：3" [ref=e95]:
+                      - generic [ref=e97]:
+                        - generic "江西绿茶" [ref=e98]
+                        - generic [ref=e99]: 产品ID：3
+                    - cell "茶叶" [ref=e100]:
+                      - generic [ref=e101]:
+                        - generic:
+                          - generic: 茶叶
+                    - cell "250g/盒" [ref=e102]:
+                      - generic [ref=e103]: 250g/盒
+                    - cell "盒" [ref=e104]:
+                      - generic [ref=e105]: 盒
+                    - cell "2026-03-11 10:10:00" [ref=e106]:
+                      - generic [ref=e107]: 2026-03-11 10:10:00
+                  - row "南丰蜜橘 产品ID：2 水果 5kg/箱 箱 2026-03-11 10:05:00" [ref=e108]:
+                    - cell "南丰蜜橘 产品ID：2" [ref=e109]:
+                      - generic [ref=e111]:
+                        - generic "南丰蜜橘" [ref=e112]
+                        - generic [ref=e113]: 产品ID：2
+                    - cell "水果" [ref=e114]:
+                      - generic [ref=e115]:
+                        - generic:
+                          - generic: 水果
+                    - cell "5kg/箱" [ref=e116]:
+                      - generic [ref=e117]: 5kg/箱
+                    - cell "箱" [ref=e118]:
+                      - generic [ref=e119]: 箱
+                    - cell "2026-03-11 10:05:00" [ref=e120]:
+                      - generic [ref=e121]: 2026-03-11 10:05:00
+                  - row "赣南脐橙 产品ID：1 水果 10kg/箱 箱 2026-03-11 10:00:00" [ref=e122]:
+                    - cell "赣南脐橙 产品ID：1" [ref=e123]:
+                      - generic [ref=e125]:
+                        - generic "赣南脐橙" [ref=e126]
+                        - generic [ref=e127]: 产品ID：1
+                    - cell "水果" [ref=e128]:
+                      - generic [ref=e129]:
+                        - generic:
+                          - generic: 水果
+                    - cell "10kg/箱" [ref=e130]:
+                      - generic [ref=e131]: 10kg/箱
+                    - cell "箱" [ref=e132]:
+                      - generic [ref=e133]: 箱
+                    - cell "2026-03-11 10:00:00" [ref=e134]:
+                      - generic [ref=e135]: 2026-03-11 10:00:00
+            - img [ref=e139]

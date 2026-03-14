@@ -38,7 +38,7 @@
 Logging initialized using 'class org.apache.ibatis.logging.stdout.StdOutImpl' adapter.
 Get /172.30.208.1 network interface 
 Get network interface info: name:ethernet_32789 (Hyper-V Virtual Ethernet Adapter)
-Initialization Sequence datacenterId:18 workerId:21
+Initialization Sequence datacenterId:18 workerId:3
  _ _   |_  _ _|_. ___ _ |    _ 
 | | |\/|_)(_| | |_\  |_)||_|_\ 
      /               |         
@@ -47,132 +47,571 @@ Initialization Sequence datacenterId:18 workerId:21
 [edu.jxust.agritrace.module.company.mapper.OrgCompanyMapper.selectList] Has been loaded by XML or SqlProvider or Mybatis's Annotation, so ignoring this injection for [class com.baomidou.mybatisplus.core.injector.methods.SelectList]
 [edu.jxust.agritrace.module.regulator.mapper.RegulatorOrgMapper.selectList] Has been loaded by XML or SqlProvider or Mybatis's Annotation, so ignoring this injection for [class com.baomidou.mybatisplus.core.injector.methods.SelectList]
 Creating a new SqlSession
-SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@46ebdb47] was not registered for synchronization because synchronization is not active
-JDBC Connection [HikariProxyConnection@1724269710 wrapping com.mysql.cj.jdbc.ConnectionImpl@78d23e39] will not be managed by Spring
-==>  Preparing: SELECT * FROM sys_user WHERE username = ? AND deleted = 0 LIMIT 1
-==> Parameters: testuser1(String)
-<==    Columns: id, username, password, real_name, phone, role_code, company_id, regulator_org_id, status, deleted, created_at, updated_at
-<==        Row: 3, testuser1, $2a$10$BMHzgS.7V.aoDs8Jsjm83uxSThHzvGe/Gn8vZY0gcxRQTWDPdBK2a, 测试用户1, 13800138001, ENTERPRISE_USER, 1, null, 1, 0, 2026-03-11 11:30:03, 2026-03-11 11:30:03
-<==      Total: 1
-Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@46ebdb47]
-Creating a new SqlSession
-SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@247ddc38] was not registered for synchronization because synchronization is not active
-JDBC Connection [HikariProxyConnection@104198711 wrapping com.mysql.cj.jdbc.ConnectionImpl@78d23e39] will not be managed by Spring
-==>  Preparing: SELECT COUNT( * ) AS total FROM trace_batch WHERE (company_id = ?)
-==> Parameters: 1(Long)
-<==    Columns: total
-<==        Row: 1
-<==      Total: 1
-Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@247ddc38]
-Creating a new SqlSession
-SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@16cd5f61] was not registered for synchronization because synchronization is not active
-JDBC Connection [HikariProxyConnection@1229412177 wrapping com.mysql.cj.jdbc.ConnectionImpl@78d23e39] will not be managed by Spring
-==>  Preparing: SELECT COUNT(1) FROM qr_code q INNER JOIN trace_batch tb ON q.batch_id = tb.id WHERE tb.company_id = ?
-==> Parameters: 1(Long)
-<==    Columns: COUNT(1)
-<==        Row: 1
-<==      Total: 1
-Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@16cd5f61]
-Creating a new SqlSession
-SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@24f52548] was not registered for synchronization because synchronization is not active
-JDBC Connection [HikariProxyConnection@1051264767 wrapping com.mysql.cj.jdbc.ConnectionImpl@78d23e39] will not be managed by Spring
-==>  Preparing: SELECT p.id, p.name, p.category, p.spec, p.unit, p.created_at FROM base_product p WHERE EXISTS ( SELECT 1 FROM trace_batch tb WHERE tb.product_id = p.id AND tb.company_id = ? ) ORDER BY p.created_at DESC, p.id DESC
-==> Parameters: 1(Long)
-<==    Columns: id, name, category, spec, unit, created_at
-<==        Row: 1, Gannan Navel Orange, Fruit, 10kg/Box, Box, 2026-03-11 22:30:03
-<==      Total: 1
-Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@24f52548]
-Creating a new SqlSession
-SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@528302fb] was not registered for synchronization because synchronization is not active
-JDBC Connection [HikariProxyConnection@1548019419 wrapping com.mysql.cj.jdbc.ConnectionImpl@78d23e39] will not be managed by Spring
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@1826bcfe] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@1747402645 wrapping com.mysql.cj.jdbc.ConnectionImpl@2aace872] will not be managed by Spring
 ==>  Preparing: SELECT * FROM sys_user WHERE username = ? AND deleted = 0 LIMIT 1
 ==> Parameters: platform(String)
 <==    Columns: id, username, password, real_name, phone, role_code, company_id, regulator_org_id, status, deleted, created_at, updated_at
-<==        Row: 1, platform, $2a$12$0spe2MzTFCV2/jlCyuMeDeF..MNj2PZ44OECe9YiwHNCUAf/5FQbW, 平台管理员, null, PLATFORM_ADMIN, null, null, 1, 0, 2026-03-11 11:08:43, 2026-03-13 17:52:18
+<==        Row: 1, platform, $2a$12$0spe2MzTFCV2/jlCyuMeDeF..MNj2PZ44OECe9YiwHNCUAf/5FQbW, 平台管理员, null, PLATFORM_ADMIN, null, null, 1, 0, 2026-03-11 09:30:00, 2026-03-11 09:30:00
 <==      Total: 1
-Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@528302fb]
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@1826bcfe]
 Creating a new SqlSession
-SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@620e45ab] was not registered for synchronization because synchronization is not active
-JDBC Connection [HikariProxyConnection@794037585 wrapping com.mysql.cj.jdbc.ConnectionImpl@78d23e39] will not be managed by Spring
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@43cf9360] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@579166608 wrapping com.mysql.cj.jdbc.ConnectionImpl@2aace872] will not be managed by Spring
 ==>  Preparing: SELECT COUNT( * ) AS total FROM trace_batch
 ==> Parameters: 
 <==    Columns: total
-<==        Row: 4
+<==        Row: 5
 <==      Total: 1
-Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@620e45ab]
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@43cf9360]
 Creating a new SqlSession
-SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@51396c20] was not registered for synchronization because synchronization is not active
-JDBC Connection [HikariProxyConnection@1091193009 wrapping com.mysql.cj.jdbc.ConnectionImpl@78d23e39] will not be managed by Spring
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@663a4b62] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@2015699949 wrapping com.mysql.cj.jdbc.ConnectionImpl@2aace872] will not be managed by Spring
 ==>  Preparing: SELECT COUNT( * ) AS total FROM qr_code
 ==> Parameters: 
 <==    Columns: total
 <==        Row: 1
 <==      Total: 1
-Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@51396c20]
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@663a4b62]
 Creating a new SqlSession
-SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@fe6535b] was not registered for synchronization because synchronization is not active
-JDBC Connection [HikariProxyConnection@1741980691 wrapping com.mysql.cj.jdbc.ConnectionImpl@78d23e39] will not be managed by Spring
-==>  Preparing: SELECT id, name, category, spec, unit, created_at FROM base_product ORDER BY created_at DESC, id DESC
-==> Parameters: 
-<==    Columns: id, name, category, spec, unit, created_at
-<==        Row: 5, ????-20260312-145605, ??, 1kg, ?, 2026-03-12 14:56:05
-<==        Row: 4, ????2-20260312-135232, ??, 2kg, ?, 2026-03-12 13:52:32
-<==        Row: 3, ????-20260312-135205, ??, 1kg, ?, 2026-03-12 13:52:06
-<==        Row: 2, ????, ??, 2kg, ?, 2026-03-12 13:48:09
-<==        Row: 1, Gannan Navel Orange, Fruit, 10kg/Box, Box, 2026-03-11 22:30:03
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@15c0e27a] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@439498609 wrapping com.mysql.cj.jdbc.ConnectionImpl@2aace872] will not be managed by Spring
+==>  Preparing: SELECT tb.id, tb.batch_code, tb.product_id, bp.name AS product_name, bp.category AS product_category, bp.spec AS product_spec, bp.unit AS product_unit, tb.company_id, oc.name AS creator_company_name, tb.origin_place, tb.start_date, tb.status, tb.regulation_status, tb.remark, tb.public_remark, tb.internal_remark, tb.status_reason, tb.published_at, tb.frozen_at, tb.recalled_at, tb.created_at, tb.updated_at, tb.created_by, tb.updated_by FROM trace_batch tb LEFT JOIN base_product bp ON tb.product_id = bp.id LEFT JOIN org_company oc ON tb.company_id = oc.id WHERE tb.id = ? LIMIT 1
+==> Parameters: 1(Long)
+<==    Columns: id, batch_code, product_id, product_name, product_category, product_spec, product_unit, company_id, creator_company_name, origin_place, start_date, status, regulation_status, remark, public_remark, internal_remark, status_reason, published_at, frozen_at, recalled_at, created_at, updated_at, created_by, updated_by
+<==        Row: 1, BATCH20260311001, 1, 赣南脐橙, 水果, 10kg/箱, 箱, 1, 赣南脐橙示范基地, 江西省赣州市信丰县高标准果园, 2026-03-01, ACTIVE, NORMAL, 主演示批次：用于展示公开追溯链路, 该批次已完成追溯信息归集，可用于答辩演示。, 内部演示数据，请勿用于生产环境。, null, 2026-03-11 10:30:00, null, null, 2026-03-11 10:20:00, 2026-03-11 10:30:00, 2, 1
+<==      Total: 1
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@15c0e27a]
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@2f81dbaf] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@1200123804 wrapping com.mysql.cj.jdbc.ConnectionImpl@2aace872] will not be managed by Spring
+==>  Preparing: SELECT p.id, p.batch_id, p.company_id, c.name AS company_name, p.biz_role, p.stage_order, p.is_creator, p.remark FROM trace_batch_participant p LEFT JOIN org_company c ON p.company_id = c.id WHERE p.batch_id = ? ORDER BY CASE WHEN p.stage_order IS NULL THEN 1 ELSE 0 END, p.stage_order ASC, p.id ASC
+==> Parameters: 1(Long)
+<==    Columns: id, batch_id, company_id, company_name, biz_role, stage_order, is_creator, remark
+<==        Row: 1, 1, 1, 赣南脐橙示范基地, PRODUCER, 0, 1, 主演示企业，负责生产建档。
+<==        Row: 2, 1, 2, 赣州冷链物流中心, TRANSPORTER, 1, 0, 负责从果园到冷链中心的运输。
+<==        Row: 3, 1, 3, 江西鲜果加工中心, PROCESSOR, 2, 0, 负责分级包装。
+<==        Row: 4, 1, 4, 南昌仓配服务中心, WAREHOUSE, 3, 0, 负责仓储待发。
+<==        Row: 5, 1, 1, 赣南脐橙示范基地, SELLER, 4, 0, 负责终端销售展示。
 <==      Total: 5
-Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@fe6535b]
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@2f81dbaf]
 Creating a new SqlSession
-SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@620c85b6] was not registered for synchronization because synchronization is not active
-JDBC Connection [HikariProxyConnection@1825273735 wrapping com.mysql.cj.jdbc.ConnectionImpl@78d23e39] will not be managed by Spring
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@7715940a] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@931576039 wrapping com.mysql.cj.jdbc.ConnectionImpl@2aace872] will not be managed by Spring
+==>  Preparing: SELECT id,batch_code,product_id,company_id,origin_place,start_date,status,regulation_status,remark,public_remark,internal_remark,status_reason,published_at,frozen_at,recalled_at,created_at,updated_at,created_by,updated_by FROM trace_batch WHERE id=?
+==> Parameters: 1(Long)
+<==    Columns: id, batch_code, product_id, company_id, origin_place, start_date, status, regulation_status, remark, public_remark, internal_remark, status_reason, published_at, frozen_at, recalled_at, created_at, updated_at, created_by, updated_by
+<==        Row: 1, BATCH20260311001, 1, 1, 江西省赣州市信丰县高标准果园, 2026-03-01, ACTIVE, NORMAL, 主演示批次：用于展示公开追溯链路, 该批次已完成追溯信息归集，可用于答辩演示。, 内部演示数据，请勿用于生产环境。, null, 2026-03-11 10:30:00, null, null, 2026-03-11 10:20:00, 2026-03-11 10:30:00, 2, 1
+<==      Total: 1
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@7715940a]
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@799ff0f0] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@586259981 wrapping com.mysql.cj.jdbc.ConnectionImpl@2aace872] will not be managed by Spring
+==>  Preparing: SELECT e.id, e.batch_id, COALESCE(e.company_id, u.company_id, b.company_id) AS company_id, c.name AS company_name, COALESCE(e.biz_role, CASE WHEN e.stage = 'PRODUCE' THEN 'PRODUCER' WHEN e.stage = 'TRANSPORT' THEN 'TRANSPORTER' WHEN e.stage = 'PROCESS' THEN 'PROCESSOR' WHEN e.stage = 'WAREHOUSE' THEN 'WAREHOUSE' WHEN e.stage = 'SALE' THEN 'SELLER' WHEN e.stage = 'INSPECT' AND e.source_type = 'REGULATOR' THEN 'REGULATOR' WHEN e.stage = 'INSPECT' THEN 'INSPECTOR' WHEN e.stage = 'SYSTEM' THEN 'SYSTEM' ELSE NULL END ) AS biz_role, CASE WHEN e.stage = 'PRODUCE' THEN 'PRODUCTION' WHEN e.stage = 'TRANSPORT' THEN 'TRANSPORT' WHEN e.stage = 'PROCESS' THEN 'PROCESSING' WHEN e.stage = 'WAREHOUSE' THEN 'WAREHOUSING' WHEN e.stage = 'SALE' THEN 'SELLING' WHEN e.stage = 'INSPECT' AND e.source_type = 'REGULATOR' THEN 'REGULATION' WHEN e.stage = 'INSPECT' THEN 'QUALITY_CHECK' WHEN e.stage = 'SYSTEM' THEN 'SYSTEM' ELSE e.stage END AS node_type, e.title, CAST(e.content_json AS CHAR) AS content, e.event_time, e.is_public FROM trace_event e LEFT JOIN sys_user u ON e.operator_id = u.id LEFT JOIN trace_batch b ON e.batch_id = b.id LEFT JOIN org_company c ON c.id = COALESCE(e.company_id, u.company_id, b.company_id) WHERE e.batch_id = ? ORDER BY e.event_time ASC, e.id ASC
+==> Parameters: 1(Long)
+<==    Columns: id, batch_id, company_id, company_name, biz_role, node_type, title, content, event_time, is_public
+<==        Row: 1, 1, 1, 赣南脐橙示范基地, PRODUCER, PRODUCTION, 果园建档, <<BLOB>>, 2026-03-01 08:00:00, 1
+<==        Row: 2, 1, 2, 赣州冷链物流中心, TRANSPORTER, TRANSPORT, 冷链运输, <<BLOB>>, 2026-03-08 09:30:00, 1
+<==        Row: 3, 1, 3, 江西鲜果加工中心, PROCESSOR, PROCESSING, 分级包装, <<BLOB>>, 2026-03-09 14:00:00, 1
+<==        Row: 4, 1, 4, 南昌仓配服务中心, WAREHOUSE, WAREHOUSING, 入库待发, <<BLOB>>, 2026-03-10 10:20:00, 1
+<==        Row: 5, 1, 1, 赣南脐橙示范基地, SELLER, SELLING, 门店上架, <<BLOB>>, 2026-03-11 09:00:00, 1
+<==      Total: 5
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@799ff0f0]
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@dd13657] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@347482901 wrapping com.mysql.cj.jdbc.ConnectionImpl@2aace872] will not be managed by Spring
+==>  Preparing: SELECT id,batch_code,product_id,company_id,origin_place,start_date,status,regulation_status,remark,public_remark,internal_remark,status_reason,published_at,frozen_at,recalled_at,created_at,updated_at,created_by,updated_by FROM trace_batch WHERE id=?
+Creating a new SqlSession
+==> Parameters: 1(Long)
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@34b38555] was not registered for synchronization because synchronization is not active
+<==    Columns: id, batch_code, product_id, company_id, origin_place, start_date, status, regulation_status, remark, public_remark, internal_remark, status_reason, published_at, frozen_at, recalled_at, created_at, updated_at, created_by, updated_by
+JDBC Connection [HikariProxyConnection@1592279098 wrapping com.mysql.cj.jdbc.ConnectionImpl@45fe6b02] will not be managed by Spring
+<==        Row: 1, BATCH20260311001, 1, 1, 江西省赣州市信丰县高标准果园, 2026-03-01, ACTIVE, NORMAL, 主演示批次：用于展示公开追溯链路, 该批次已完成追溯信息归集，可用于答辩演示。, 内部演示数据，请勿用于生产环境。, null, 2026-03-11 10:30:00, null, null, 2026-03-11 10:20:00, 2026-03-11 10:30:00, 2, 1
+==>  Preparing: SELECT id,batch_code,product_id,company_id,origin_place,start_date,status,regulation_status,remark,public_remark,internal_remark,status_reason,published_at,frozen_at,recalled_at,created_at,updated_at,created_by,updated_by FROM trace_batch WHERE id=?
+<==      Total: 1
+==> Parameters: 1(Long)
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@dd13657]
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@3bc9fa14] was not registered for synchronization because synchronization is not active
+<==    Columns: id, batch_code, product_id, company_id, origin_place, start_date, status, regulation_status, remark, public_remark, internal_remark, status_reason, published_at, frozen_at, recalled_at, created_at, updated_at, created_by, updated_by
+JDBC Connection [HikariProxyConnection@503480571 wrapping com.mysql.cj.jdbc.ConnectionImpl@2aace872] will not be managed by Spring
+<==        Row: 1, BATCH20260311001, 1, 1, 江西省赣州市信丰县高标准果园, 2026-03-01, ACTIVE, NORMAL, 主演示批次：用于展示公开追溯链路, 该批次已完成追溯信息归集，可用于答辩演示。, 内部演示数据，请勿用于生产环境。, null, 2026-03-11 10:30:00, null, null, 2026-03-11 10:20:00, 2026-03-11 10:30:00, 2, 1
+==>  Preparing: SELECT id, batch_id, report_no, agency, result, report_file_url, report_json, created_at FROM quality_report WHERE batch_id = ? ORDER BY id DESC
+==> Parameters: 1(Long)
+<==      Total: 1
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@34b38555]
+Creating a new SqlSession
+<==    Columns: id, batch_id, report_no, agency, result, report_file_url, report_json, created_at
+org.springframework.web.servlet.resource.NoResourceFoundException: No static resource api/admin/quality/regulation-record/list/1.
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@250a4ae6] was not registered for synchronization because synchronization is not active
+<==        Row: 1, 1, QA-20260311-001, 江西省农产品质量检测中心, PASS, null, <<BLOB>>, 2026-03-11 11:20:00
+	at org.springframework.web.servlet.resource.ResourceHttpRequestHandler.handleRequest(ResourceHttpRequestHandler.java:585)
+JDBC Connection [HikariProxyConnection@964638701 wrapping com.mysql.cj.jdbc.ConnectionImpl@45fe6b02] will not be managed by Spring
+	at org.springframework.web.servlet.mvc.HttpRequestHandlerAdapter.handle(HttpRequestHandlerAdapter.java:52)
+==>  Preparing: SELECT id, batch_id, qr_token, status, created_at, expired_at, remark, status_reason, generated_by, last_query_at, pv FROM qr_code WHERE batch_id = ? ORDER BY id DESC
+	at org.springframework.web.servlet.DispatcherServlet.doDispatch(DispatcherServlet.java:1089)
+<==      Total: 1
+	at org.springframework.web.servlet.DispatcherServlet.doService(DispatcherServlet.java:979)
+	at org.springframework.web.servlet.FrameworkServlet.processRequest(FrameworkServlet.java:1014)
+==> Parameters: 1(Long)
+	at org.springframework.web.servlet.FrameworkServlet.doGet(FrameworkServlet.java:903)
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@3bc9fa14]
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:564)
+	at org.springframework.web.servlet.FrameworkServlet.service(FrameworkServlet.java:885)
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:658)
+<==    Columns: id, batch_id, qr_token, status, created_at, expired_at, remark, status_reason, generated_by, last_query_at, pv
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:193)
+<==        Row: 1, 1, test-token-2026, ACTIVE, 2026-03-11 11:10:00, null, 主演示追溯码, null, 2, null, 0
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:138)
+	at org.apache.tomcat.websocket.server.WsFilter.doFilter(WsFilter.java:51)
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:162)
+<==      Total: 1
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:138)
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@250a4ae6]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:110)
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:162)
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:138)
+	at org.springframework.web.filter.CompositeFilter$VirtualFilterChain.doFilter(CompositeFilter.java:108)
+	at org.springframework.web.filter.CompositeFilter$VirtualFilterChain.doFilter(CompositeFilter.java:108)
+	at org.springframework.security.web.FilterChainProxy.lambda$doFilterInternal$3(FilterChainProxy.java:231)
+	at org.springframework.security.web.FilterChainProxy$VirtualFilterChain.doFilter(FilterChainProxy.java:365)
+	at org.springframework.security.web.access.intercept.AuthorizationFilter.doFilter(AuthorizationFilter.java:101)
+	at org.springframework.security.web.FilterChainProxy$VirtualFilterChain.doFilter(FilterChainProxy.java:374)
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:125)
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:119)
+	at org.springframework.security.web.FilterChainProxy$VirtualFilterChain.doFilter(FilterChainProxy.java:374)
+	at org.springframework.security.web.session.SessionManagementFilter.doFilter(SessionManagementFilter.java:131)
+	at org.springframework.security.web.session.SessionManagementFilter.doFilter(SessionManagementFilter.java:85)
+	at org.springframework.security.web.FilterChainProxy$VirtualFilterChain.doFilter(FilterChainProxy.java:374)
+	at org.springframework.security.web.authentication.AnonymousAuthenticationFilter.doFilter(AnonymousAuthenticationFilter.java:100)
+	at org.springframework.security.web.FilterChainProxy$VirtualFilterChain.doFilter(FilterChainProxy.java:374)
+	at org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter.doFilter(SecurityContextHolderAwareRequestFilter.java:179)
+	at org.springframework.security.web.FilterChainProxy$VirtualFilterChain.doFilter(FilterChainProxy.java:374)
+	at org.springframework.security.web.savedrequest.RequestCacheAwareFilter.doFilter(RequestCacheAwareFilter.java:63)
+	at org.springframework.security.web.FilterChainProxy$VirtualFilterChain.doFilter(FilterChainProxy.java:374)
+	at edu.jxust.agritrace.common.security.JwtAuthenticationFilter.doFilterInternal(JwtAuthenticationFilter.java:49)
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
+	at org.springframework.security.web.FilterChainProxy$VirtualFilterChain.doFilter(FilterChainProxy.java:374)
+	at org.springframework.security.web.authentication.logout.LogoutFilter.doFilter(LogoutFilter.java:107)
+	at org.springframework.security.web.authentication.logout.LogoutFilter.doFilter(LogoutFilter.java:93)
+	at org.springframework.security.web.FilterChainProxy$VirtualFilterChain.doFilter(FilterChainProxy.java:374)
+	at org.springframework.web.filter.CorsFilter.doFilterInternal(CorsFilter.java:91)
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
+	at org.springframework.security.web.FilterChainProxy$VirtualFilterChain.doFilter(FilterChainProxy.java:374)
+	at org.springframework.security.web.header.HeaderWriterFilter.doHeadersAfter(HeaderWriterFilter.java:90)
+	at org.springframework.security.web.header.HeaderWriterFilter.doFilterInternal(HeaderWriterFilter.java:75)
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
+	at org.springframework.security.web.FilterChainProxy$VirtualFilterChain.doFilter(FilterChainProxy.java:374)
+	at org.springframework.security.web.context.SecurityContextHolderFilter.doFilter(SecurityContextHolderFilter.java:82)
+	at org.springframework.security.web.context.SecurityContextHolderFilter.doFilter(SecurityContextHolderFilter.java:69)
+	at org.springframework.security.web.FilterChainProxy$VirtualFilterChain.doFilter(FilterChainProxy.java:374)
+	at org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter.doFilterInternal(WebAsyncManagerIntegrationFilter.java:62)
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
+	at org.springframework.security.web.FilterChainProxy$VirtualFilterChain.doFilter(FilterChainProxy.java:374)
+	at org.springframework.security.web.session.DisableEncodeUrlFilter.doFilterInternal(DisableEncodeUrlFilter.java:42)
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
+	at org.springframework.security.web.FilterChainProxy$VirtualFilterChain.doFilter(FilterChainProxy.java:374)
+	at org.springframework.security.web.FilterChainProxy.doFilterInternal(FilterChainProxy.java:233)
+	at org.springframework.security.web.FilterChainProxy.doFilter(FilterChainProxy.java:191)
+	at org.springframework.web.filter.CompositeFilter$VirtualFilterChain.doFilter(CompositeFilter.java:113)
+	at org.springframework.web.filter.ServletRequestPathFilter.doFilter(ServletRequestPathFilter.java:52)
+	at org.springframework.web.filter.CompositeFilter$VirtualFilterChain.doFilter(CompositeFilter.java:113)
+	at org.springframework.web.filter.CompositeFilter.doFilter(CompositeFilter.java:74)
+	at org.springframework.security.config.annotation.web.configuration.WebSecurityConfiguration$CompositeFilterChainProxy.doFilter(WebSecurityConfiguration.java:319)
+	at org.springframework.web.filter.CompositeFilter$VirtualFilterChain.doFilter(CompositeFilter.java:113)
+	at org.springframework.web.servlet.handler.HandlerMappingIntrospector.lambda$createCacheFilter$4(HandlerMappingIntrospector.java:267)
+	at org.springframework.web.filter.CompositeFilter$VirtualFilterChain.doFilter(CompositeFilter.java:113)
+	at org.springframework.web.filter.CompositeFilter.doFilter(CompositeFilter.java:74)
+	at org.springframework.security.config.annotation.web.configuration.WebMvcSecurityConfiguration$CompositeFilterChainProxy.doFilter(WebMvcSecurityConfiguration.java:240)
+	at org.springframework.web.filter.DelegatingFilterProxy.invokeDelegate(DelegatingFilterProxy.java:362)
+	at org.springframework.web.filter.DelegatingFilterProxy.doFilter(DelegatingFilterProxy.java:278)
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:162)
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:138)
+	at org.springframework.web.filter.RequestContextFilter.doFilterInternal(RequestContextFilter.java:100)
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:162)
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:138)
+	at org.springframework.web.filter.FormContentFilter.doFilterInternal(FormContentFilter.java:93)
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:162)
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:138)
+	at org.springframework.web.filter.CharacterEncodingFilter.doFilterInternal(CharacterEncodingFilter.java:201)
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:162)
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:138)
+	at org.apache.catalina.core.StandardWrapperValve.invoke(StandardWrapperValve.java:165)
+	at org.apache.catalina.core.StandardContextValve.invoke(StandardContextValve.java:88)
+	at org.apache.catalina.authenticator.AuthenticatorBase.invoke(AuthenticatorBase.java:492)
+	at org.apache.catalina.core.StandardHostValve.invoke(StandardHostValve.java:113)
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:83)
+	at org.apache.catalina.core.StandardEngineValve.invoke(StandardEngineValve.java:72)
+	at org.apache.catalina.connector.CoyoteAdapter.service(CoyoteAdapter.java:342)
+	at org.apache.coyote.http11.Http11Processor.service(Http11Processor.java:399)
+	at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:63)
+	at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:903)
+	at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1775)
+	at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:52)
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:973)
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:491)
+	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:63)
+	at java.base/java.lang.Thread.run(Thread.java:1583)
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@58b59494] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@1450340850 wrapping com.mysql.cj.jdbc.ConnectionImpl@2aace872] will not be managed by Spring
 ==>  Preparing: SELECT * FROM sys_user WHERE username = ? AND deleted = 0 LIMIT 1
 ==> Parameters: testuser1(String)
 <==    Columns: id, username, password, real_name, phone, role_code, company_id, regulator_org_id, status, deleted, created_at, updated_at
-<==        Row: 3, testuser1, $2a$10$BMHzgS.7V.aoDs8Jsjm83uxSThHzvGe/Gn8vZY0gcxRQTWDPdBK2a, 测试用户1, 13800138001, ENTERPRISE_USER, 1, null, 1, 0, 2026-03-11 11:30:03, 2026-03-11 11:30:03
+<==        Row: 2, testuser1, $2a$10$BMHzgS.7V.aoDs8Jsjm83uxSThHzvGe/Gn8vZY0gcxRQTWDPdBK2a, 示范企业用户, 13800138001, ENTERPRISE_USER, 1, null, 1, 0, 2026-03-11 09:35:00, 2026-03-11 09:35:00
 <==      Total: 1
-Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@620c85b6]
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@58b59494]
 Creating a new SqlSession
-SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@4e4e8937] was not registered for synchronization because synchronization is not active
-JDBC Connection [HikariProxyConnection@1082748558 wrapping com.mysql.cj.jdbc.ConnectionImpl@78d23e39] will not be managed by Spring
-==>  Preparing: SELECT * FROM sys_user WHERE username = ? AND deleted = 0 LIMIT 1
-==> Parameters: platform(String)
-<==    Columns: id, username, password, real_name, phone, role_code, company_id, regulator_org_id, status, deleted, created_at, updated_at
-<==        Row: 1, platform, $2a$12$0spe2MzTFCV2/jlCyuMeDeF..MNj2PZ44OECe9YiwHNCUAf/5FQbW, 平台管理员, null, PLATFORM_ADMIN, null, null, 1, 0, 2026-03-11 11:08:43, 2026-03-13 17:52:18
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@443830e4] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@893330064 wrapping com.mysql.cj.jdbc.ConnectionImpl@2aace872] will not be managed by Spring
+==>  Preparing: SELECT COUNT( * ) AS total FROM trace_batch WHERE (company_id = ?)
+==> Parameters: 1(Long)
+<==    Columns: total
+<==        Row: 5
 <==      Total: 1
-Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@4e4e8937]
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@443830e4]
 Creating a new SqlSession
-SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@281bce98] was not registered for synchronization because synchronization is not active
-JDBC Connection [HikariProxyConnection@1847593835 wrapping com.mysql.cj.jdbc.ConnectionImpl@78d23e39] will not be managed by Spring
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@5c02c0e9] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@1942757058 wrapping com.mysql.cj.jdbc.ConnectionImpl@2aace872] will not be managed by Spring
+==>  Preparing: SELECT COUNT(1) FROM qr_code q INNER JOIN trace_batch tb ON q.batch_id = tb.id WHERE tb.company_id = ?
+==> Parameters: 1(Long)
+<==    Columns: COUNT(1)
+<==        Row: 1
+<==      Total: 1
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@5c02c0e9]
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@64d8853f] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@1782945262 wrapping com.mysql.cj.jdbc.ConnectionImpl@2aace872] will not be managed by Spring
 ==>  Preparing: SELECT p.id, p.name, p.category, p.spec, p.unit, p.created_at FROM base_product p WHERE EXISTS ( SELECT 1 FROM trace_batch tb WHERE tb.product_id = p.id AND tb.company_id = ? ) ORDER BY p.created_at DESC, p.id DESC
 ==> Parameters: 1(Long)
 <==    Columns: id, name, category, spec, unit, created_at
-<==        Row: 1, Gannan Navel Orange, Fruit, 10kg/Box, Box, 2026-03-11 22:30:03
-<==      Total: 1
-Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@281bce98]
+<==        Row: 4, 有机富硒大米, 粮食, 5kg/袋, 袋, 2026-03-11 10:15:00
+<==        Row: 3, 江西绿茶, 茶叶, 250g/盒, 盒, 2026-03-11 10:10:00
+<==        Row: 2, 南丰蜜橘, 水果, 5kg/箱, 箱, 2026-03-11 10:05:00
+<==        Row: 1, 赣南脐橙, 水果, 10kg/箱, 箱, 2026-03-11 10:00:00
+<==      Total: 4
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@64d8853f]
 Creating a new SqlSession
-SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@4093ebaa] was not registered for synchronization because synchronization is not active
-JDBC Connection [HikariProxyConnection@94968953 wrapping com.mysql.cj.jdbc.ConnectionImpl@78d23e39] will not be managed by Spring
-==>  Preparing: SELECT id, name, category, spec, unit, created_at FROM base_product ORDER BY created_at DESC, id DESC
-==> Parameters: 
-<==    Columns: id, name, category, spec, unit, created_at
-<==        Row: 5, ????-20260312-145605, ??, 1kg, ?, 2026-03-12 14:56:05
-<==        Row: 4, ????2-20260312-135232, ??, 2kg, ?, 2026-03-12 13:52:32
-<==        Row: 3, ????-20260312-135205, ??, 1kg, ?, 2026-03-12 13:52:06
-<==        Row: 2, ????, ??, 2kg, ?, 2026-03-12 13:48:09
-<==        Row: 1, Gannan Navel Orange, Fruit, 10kg/Box, Box, 2026-03-11 22:30:03
-<==      Total: 5
-Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@4093ebaa]
-Creating a new SqlSession
-SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@27a263a7] was not registered for synchronization because synchronization is not active
-JDBC Connection [HikariProxyConnection@297099406 wrapping com.mysql.cj.jdbc.ConnectionImpl@78d23e39] will not be managed by Spring
-==>  Preparing: SELECT COUNT(*) AS total FROM trace_batch tb WHERE tb.company_id = ?
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@222db065] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@760250493 wrapping com.mysql.cj.jdbc.ConnectionImpl@2aace872] will not be managed by Spring
+==>  Preparing: SELECT tb.id, tb.batch_code, tb.product_id, bp.name AS product_name, bp.category AS product_category, bp.spec AS product_spec, bp.unit AS product_unit, tb.company_id, oc.name AS creator_company_name, tb.origin_place, tb.start_date, tb.status, tb.regulation_status, tb.remark, tb.public_remark, tb.internal_remark, tb.status_reason, tb.published_at, tb.frozen_at, tb.recalled_at, tb.created_at, tb.updated_at, tb.created_by, tb.updated_by FROM trace_batch tb LEFT JOIN base_product bp ON tb.product_id = bp.id LEFT JOIN org_company oc ON tb.company_id = oc.id WHERE tb.id = ? LIMIT 1
 ==> Parameters: 1(Long)
-<==    Columns: total
-<==        Row: 1
+<==    Columns: id, batch_code, product_id, product_name, product_category, product_spec, product_unit, company_id, creator_company_name, origin_place, start_date, status, regulation_status, remark, public_remark, internal_remark, status_reason, published_at, frozen_at, recalled_at, created_at, updated_at, created_by, updated_by
+<==        Row: 1, BATCH20260311001, 1, 赣南脐橙, 水果, 10kg/箱, 箱, 1, 赣南脐橙示范基地, 江西省赣州市信丰县高标准果园, 2026-03-01, ACTIVE, NORMAL, 主演示批次：用于展示公开追溯链路, 该批次已完成追溯信息归集，可用于答辩演示。, 内部演示数据，请勿用于生产环境。, null, 2026-03-11 10:30:00, null, null, 2026-03-11 10:20:00, 2026-03-11 10:30:00, 2, 1
 <==      Total: 1
-==>  Preparing: SELECT tb.id, tb.batch_code, tb.product_id, bp.name AS product_name, tb.company_id, tb.origin_place, tb.start_date, tb.status, tb.regulation_status, tb.public_remark, tb.created_at FROM trace_batch tb LEFT JOIN base_product bp ON tb.product_id = bp.id WHERE tb.company_id = ? ORDER BY tb.id DESC LIMIT ?
-==> Parameters: 1(Long), 20(Long)
-<==    Columns: id, batch_code, product_id, product_name, company_id, origin_place, start_date, status, regulation_status, public_remark, created_at
-<==        Row: 1, BATCH20260311001, 1, Gannan Navel Orange, 1, Xinfeng, Ganzhou, Jiangxi, 2026-03-01, ACTIVE, NORMAL, null, 2026-03-11 22:30:03
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@222db065]
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@5d07d2cb] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@317128598 wrapping com.mysql.cj.jdbc.ConnectionImpl@2aace872] will not be managed by Spring
+==>  Preparing: SELECT p.id, p.batch_id, p.company_id, c.name AS company_name, p.biz_role, p.stage_order, p.is_creator, p.remark FROM trace_batch_participant p LEFT JOIN org_company c ON p.company_id = c.id WHERE p.batch_id = ? ORDER BY CASE WHEN p.stage_order IS NULL THEN 1 ELSE 0 END, p.stage_order ASC, p.id ASC
+==> Parameters: 1(Long)
+<==    Columns: id, batch_id, company_id, company_name, biz_role, stage_order, is_creator, remark
+<==        Row: 1, 1, 1, 赣南脐橙示范基地, PRODUCER, 0, 1, 主演示企业，负责生产建档。
+<==        Row: 2, 1, 2, 赣州冷链物流中心, TRANSPORTER, 1, 0, 负责从果园到冷链中心的运输。
+<==        Row: 3, 1, 3, 江西鲜果加工中心, PROCESSOR, 2, 0, 负责分级包装。
+<==        Row: 4, 1, 4, 南昌仓配服务中心, WAREHOUSE, 3, 0, 负责仓储待发。
+<==        Row: 5, 1, 1, 赣南脐橙示范基地, SELLER, 4, 0, 负责终端销售展示。
+<==      Total: 5
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@5d07d2cb]
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@22bad098] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@117801238 wrapping com.mysql.cj.jdbc.ConnectionImpl@2aace872] will not be managed by Spring
+==>  Preparing: SELECT id,batch_code,product_id,company_id,origin_place,start_date,status,regulation_status,remark,public_remark,internal_remark,status_reason,published_at,frozen_at,recalled_at,created_at,updated_at,created_by,updated_by FROM trace_batch WHERE id=?
+==> Parameters: 1(Long)
+<==    Columns: id, batch_code, product_id, company_id, origin_place, start_date, status, regulation_status, remark, public_remark, internal_remark, status_reason, published_at, frozen_at, recalled_at, created_at, updated_at, created_by, updated_by
+<==        Row: 1, BATCH20260311001, 1, 1, 江西省赣州市信丰县高标准果园, 2026-03-01, ACTIVE, NORMAL, 主演示批次：用于展示公开追溯链路, 该批次已完成追溯信息归集，可用于答辩演示。, 内部演示数据，请勿用于生产环境。, null, 2026-03-11 10:30:00, null, null, 2026-03-11 10:20:00, 2026-03-11 10:30:00, 2, 1
 <==      Total: 1
-Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@27a263a7]
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@22bad098]
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@5da29a7a] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@694726470 wrapping com.mysql.cj.jdbc.ConnectionImpl@2aace872] will not be managed by Spring
+==>  Preparing: SELECT e.id, e.batch_id, COALESCE(e.company_id, u.company_id, b.company_id) AS company_id, c.name AS company_name, COALESCE(e.biz_role, CASE WHEN e.stage = 'PRODUCE' THEN 'PRODUCER' WHEN e.stage = 'TRANSPORT' THEN 'TRANSPORTER' WHEN e.stage = 'PROCESS' THEN 'PROCESSOR' WHEN e.stage = 'WAREHOUSE' THEN 'WAREHOUSE' WHEN e.stage = 'SALE' THEN 'SELLER' WHEN e.stage = 'INSPECT' AND e.source_type = 'REGULATOR' THEN 'REGULATOR' WHEN e.stage = 'INSPECT' THEN 'INSPECTOR' WHEN e.stage = 'SYSTEM' THEN 'SYSTEM' ELSE NULL END ) AS biz_role, CASE WHEN e.stage = 'PRODUCE' THEN 'PRODUCTION' WHEN e.stage = 'TRANSPORT' THEN 'TRANSPORT' WHEN e.stage = 'PROCESS' THEN 'PROCESSING' WHEN e.stage = 'WAREHOUSE' THEN 'WAREHOUSING' WHEN e.stage = 'SALE' THEN 'SELLING' WHEN e.stage = 'INSPECT' AND e.source_type = 'REGULATOR' THEN 'REGULATION' WHEN e.stage = 'INSPECT' THEN 'QUALITY_CHECK' WHEN e.stage = 'SYSTEM' THEN 'SYSTEM' ELSE e.stage END AS node_type, e.title, CAST(e.content_json AS CHAR) AS content, e.event_time, e.is_public FROM trace_event e LEFT JOIN sys_user u ON e.operator_id = u.id LEFT JOIN trace_batch b ON e.batch_id = b.id LEFT JOIN org_company c ON c.id = COALESCE(e.company_id, u.company_id, b.company_id) WHERE e.batch_id = ? ORDER BY e.event_time ASC, e.id ASC
+==> Parameters: 1(Long)
+<==    Columns: id, batch_id, company_id, company_name, biz_role, node_type, title, content, event_time, is_public
+<==        Row: 1, 1, 1, 赣南脐橙示范基地, PRODUCER, PRODUCTION, 果园建档, <<BLOB>>, 2026-03-01 08:00:00, 1
+<==        Row: 2, 1, 2, 赣州冷链物流中心, TRANSPORTER, TRANSPORT, 冷链运输, <<BLOB>>, 2026-03-08 09:30:00, 1
+<==        Row: 3, 1, 3, 江西鲜果加工中心, PROCESSOR, PROCESSING, 分级包装, <<BLOB>>, 2026-03-09 14:00:00, 1
+<==        Row: 4, 1, 4, 南昌仓配服务中心, WAREHOUSE, WAREHOUSING, 入库待发, <<BLOB>>, 2026-03-10 10:20:00, 1
+<==        Row: 5, 1, 1, 赣南脐橙示范基地, SELLER, SELLING, 门店上架, <<BLOB>>, 2026-03-11 09:00:00, 1
+<==      Total: 5
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@5da29a7a]
+Creating a new SqlSession
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@7bcf9906] was not registered for synchronization because synchronization is not active
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@487a4e3c] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@1006658314 wrapping com.mysql.cj.jdbc.ConnectionImpl@2aace872] will not be managed by Spring
+==>  Preparing: SELECT id,batch_code,product_id,company_id,origin_place,start_date,status,regulation_status,remark,public_remark,internal_remark,status_reason,published_at,frozen_at,recalled_at,created_at,updated_at,created_by,updated_by FROM trace_batch WHERE id=?
+==> Parameters: 1(Long)
+JDBC Connection [HikariProxyConnection@1408708083 wrapping com.mysql.cj.jdbc.ConnectionImpl@45fe6b02] will not be managed by Spring
+==>  Preparing: SELECT id,batch_code,product_id,company_id,origin_place,start_date,status,regulation_status,remark,public_remark,internal_remark,status_reason,published_at,frozen_at,recalled_at,created_at,updated_at,created_by,updated_by FROM trace_batch WHERE id=?
+==> Parameters: 1(Long)
+org.springframework.web.servlet.resource.NoResourceFoundException: No static resource api/admin/quality/regulation-record/list/1.
+	at org.springframework.web.servlet.resource.ResourceHttpRequestHandler.handleRequest(ResourceHttpRequestHandler.java:585)
+	at org.springframework.web.servlet.mvc.HttpRequestHandlerAdapter.handle(HttpRequestHandlerAdapter.java:52)
+<==    Columns: id, batch_code, product_id, company_id, origin_place, start_date, status, regulation_status, remark, public_remark, internal_remark, status_reason, published_at, frozen_at, recalled_at, created_at, updated_at, created_by, updated_by
+<==    Columns: id, batch_code, product_id, company_id, origin_place, start_date, status, regulation_status, remark, public_remark, internal_remark, status_reason, published_at, frozen_at, recalled_at, created_at, updated_at, created_by, updated_by
+	at org.springframework.web.servlet.DispatcherServlet.doDispatch(DispatcherServlet.java:1089)
+<==        Row: 1, BATCH20260311001, 1, 1, 江西省赣州市信丰县高标准果园, 2026-03-01, ACTIVE, NORMAL, 主演示批次：用于展示公开追溯链路, 该批次已完成追溯信息归集，可用于答辩演示。, 内部演示数据，请勿用于生产环境。, null, 2026-03-11 10:30:00, null, null, 2026-03-11 10:20:00, 2026-03-11 10:30:00, 2, 1
+	at org.springframework.web.servlet.DispatcherServlet.doService(DispatcherServlet.java:979)
+<==        Row: 1, BATCH20260311001, 1, 1, 江西省赣州市信丰县高标准果园, 2026-03-01, ACTIVE, NORMAL, 主演示批次：用于展示公开追溯链路, 该批次已完成追溯信息归集，可用于答辩演示。, 内部演示数据，请勿用于生产环境。, null, 2026-03-11 10:30:00, null, null, 2026-03-11 10:20:00, 2026-03-11 10:30:00, 2, 1
+	at org.springframework.web.servlet.FrameworkServlet.processRequest(FrameworkServlet.java:1014)
+	at org.springframework.web.servlet.FrameworkServlet.doGet(FrameworkServlet.java:903)
+<==      Total: 1
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:564)
+<==      Total: 1
+	at org.springframework.web.servlet.FrameworkServlet.service(FrameworkServlet.java:885)
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@7bcf9906]
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:658)
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@487a4e3c]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:193)
+Creating a new SqlSession
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:138)
+Creating a new SqlSession
+	at org.apache.tomcat.websocket.server.WsFilter.doFilter(WsFilter.java:51)
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@2339629d] was not registered for synchronization because synchronization is not active
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:162)
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@71fd3ea] was not registered for synchronization because synchronization is not active
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:138)
+JDBC Connection [HikariProxyConnection@958972776 wrapping com.mysql.cj.jdbc.ConnectionImpl@45fe6b02] will not be managed by Spring
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:110)
+JDBC Connection [HikariProxyConnection@10448294 wrapping com.mysql.cj.jdbc.ConnectionImpl@2aace872] will not be managed by Spring
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:162)
+==>  Preparing: SELECT id, batch_id, qr_token, status, created_at, expired_at, remark, status_reason, generated_by, last_query_at, pv FROM qr_code WHERE batch_id = ? ORDER BY id DESC
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:138)
+==>  Preparing: SELECT id, batch_id, report_no, agency, result, report_file_url, report_json, created_at FROM quality_report WHERE batch_id = ? ORDER BY id DESC
+	at org.springframework.web.filter.CompositeFilter$VirtualFilterChain.doFilter(CompositeFilter.java:108)
+==> Parameters: 1(Long)
+	at org.springframework.web.filter.CompositeFilter$VirtualFilterChain.doFilter(CompositeFilter.java:108)
+	at org.springframework.security.web.FilterChainProxy.lambda$doFilterInternal$3(FilterChainProxy.java:231)
+	at org.springframework.security.web.FilterChainProxy$VirtualFilterChain.doFilter(FilterChainProxy.java:365)
+==> Parameters: 1(Long)
+	at org.springframework.security.web.access.intercept.AuthorizationFilter.doFilter(AuthorizationFilter.java:101)
+	at org.springframework.security.web.FilterChainProxy$VirtualFilterChain.doFilter(FilterChainProxy.java:374)
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:125)
+<==    Columns: id, batch_id, qr_token, status, created_at, expired_at, remark, status_reason, generated_by, last_query_at, pv
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:119)
+<==    Columns: id, batch_id, report_no, agency, result, report_file_url, report_json, created_at
+	at org.springframework.security.web.FilterChainProxy$VirtualFilterChain.doFilter(FilterChainProxy.java:374)
+<==        Row: 1, 1, test-token-2026, ACTIVE, 2026-03-11 11:10:00, null, 主演示追溯码, null, 2, null, 0
+	at org.springframework.security.web.session.SessionManagementFilter.doFilter(SessionManagementFilter.java:131)
+	at org.springframework.security.web.session.SessionManagementFilter.doFilter(SessionManagementFilter.java:85)
+<==        Row: 1, 1, QA-20260311-001, 江西省农产品质量检测中心, PASS, null, <<BLOB>>, 2026-03-11 11:20:00
+	at org.springframework.security.web.FilterChainProxy$VirtualFilterChain.doFilter(FilterChainProxy.java:374)
+<==      Total: 1
+	at org.springframework.security.web.authentication.AnonymousAuthenticationFilter.doFilter(AnonymousAuthenticationFilter.java:100)
+<==      Total: 1
+	at org.springframework.security.web.FilterChainProxy$VirtualFilterChain.doFilter(FilterChainProxy.java:374)
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@2339629d]
+	at org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter.doFilter(SecurityContextHolderAwareRequestFilter.java:179)
+	at org.springframework.security.web.FilterChainProxy$VirtualFilterChain.doFilter(FilterChainProxy.java:374)
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@71fd3ea]
+	at org.springframework.security.web.savedrequest.RequestCacheAwareFilter.doFilter(RequestCacheAwareFilter.java:63)
+	at org.springframework.security.web.FilterChainProxy$VirtualFilterChain.doFilter(FilterChainProxy.java:374)
+	at edu.jxust.agritrace.common.security.JwtAuthenticationFilter.doFilterInternal(JwtAuthenticationFilter.java:49)
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
+	at org.springframework.security.web.FilterChainProxy$VirtualFilterChain.doFilter(FilterChainProxy.java:374)
+	at org.springframework.security.web.authentication.logout.LogoutFilter.doFilter(LogoutFilter.java:107)
+	at org.springframework.security.web.authentication.logout.LogoutFilter.doFilter(LogoutFilter.java:93)
+	at org.springframework.security.web.FilterChainProxy$VirtualFilterChain.doFilter(FilterChainProxy.java:374)
+	at org.springframework.web.filter.CorsFilter.doFilterInternal(CorsFilter.java:91)
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
+	at org.springframework.security.web.FilterChainProxy$VirtualFilterChain.doFilter(FilterChainProxy.java:374)
+	at org.springframework.security.web.header.HeaderWriterFilter.doHeadersAfter(HeaderWriterFilter.java:90)
+	at org.springframework.security.web.header.HeaderWriterFilter.doFilterInternal(HeaderWriterFilter.java:75)
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
+	at org.springframework.security.web.FilterChainProxy$VirtualFilterChain.doFilter(FilterChainProxy.java:374)
+	at org.springframework.security.web.context.SecurityContextHolderFilter.doFilter(SecurityContextHolderFilter.java:82)
+	at org.springframework.security.web.context.SecurityContextHolderFilter.doFilter(SecurityContextHolderFilter.java:69)
+	at org.springframework.security.web.FilterChainProxy$VirtualFilterChain.doFilter(FilterChainProxy.java:374)
+	at org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter.doFilterInternal(WebAsyncManagerIntegrationFilter.java:62)
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
+	at org.springframework.security.web.FilterChainProxy$VirtualFilterChain.doFilter(FilterChainProxy.java:374)
+	at org.springframework.security.web.session.DisableEncodeUrlFilter.doFilterInternal(DisableEncodeUrlFilter.java:42)
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
+	at org.springframework.security.web.FilterChainProxy$VirtualFilterChain.doFilter(FilterChainProxy.java:374)
+	at org.springframework.security.web.FilterChainProxy.doFilterInternal(FilterChainProxy.java:233)
+	at org.springframework.security.web.FilterChainProxy.doFilter(FilterChainProxy.java:191)
+	at org.springframework.web.filter.CompositeFilter$VirtualFilterChain.doFilter(CompositeFilter.java:113)
+	at org.springframework.web.filter.ServletRequestPathFilter.doFilter(ServletRequestPathFilter.java:52)
+	at org.springframework.web.filter.CompositeFilter$VirtualFilterChain.doFilter(CompositeFilter.java:113)
+	at org.springframework.web.filter.CompositeFilter.doFilter(CompositeFilter.java:74)
+	at org.springframework.security.config.annotation.web.configuration.WebSecurityConfiguration$CompositeFilterChainProxy.doFilter(WebSecurityConfiguration.java:319)
+	at org.springframework.web.filter.CompositeFilter$VirtualFilterChain.doFilter(CompositeFilter.java:113)
+	at org.springframework.web.servlet.handler.HandlerMappingIntrospector.lambda$createCacheFilter$4(HandlerMappingIntrospector.java:267)
+	at org.springframework.web.filter.CompositeFilter$VirtualFilterChain.doFilter(CompositeFilter.java:113)
+	at org.springframework.web.filter.CompositeFilter.doFilter(CompositeFilter.java:74)
+	at org.springframework.security.config.annotation.web.configuration.WebMvcSecurityConfiguration$CompositeFilterChainProxy.doFilter(WebMvcSecurityConfiguration.java:240)
+	at org.springframework.web.filter.DelegatingFilterProxy.invokeDelegate(DelegatingFilterProxy.java:362)
+	at org.springframework.web.filter.DelegatingFilterProxy.doFilter(DelegatingFilterProxy.java:278)
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:162)
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:138)
+	at org.springframework.web.filter.RequestContextFilter.doFilterInternal(RequestContextFilter.java:100)
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:162)
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:138)
+	at org.springframework.web.filter.FormContentFilter.doFilterInternal(FormContentFilter.java:93)
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:162)
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:138)
+	at org.springframework.web.filter.CharacterEncodingFilter.doFilterInternal(CharacterEncodingFilter.java:201)
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:162)
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:138)
+	at org.apache.catalina.core.StandardWrapperValve.invoke(StandardWrapperValve.java:165)
+	at org.apache.catalina.core.StandardContextValve.invoke(StandardContextValve.java:88)
+	at org.apache.catalina.authenticator.AuthenticatorBase.invoke(AuthenticatorBase.java:492)
+	at org.apache.catalina.core.StandardHostValve.invoke(StandardHostValve.java:113)
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:83)
+	at org.apache.catalina.core.StandardEngineValve.invoke(StandardEngineValve.java:72)
+	at org.apache.catalina.connector.CoyoteAdapter.service(CoyoteAdapter.java:342)
+	at org.apache.coyote.http11.Http11Processor.service(Http11Processor.java:399)
+	at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:63)
+	at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:903)
+	at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1775)
+	at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:52)
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:973)
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:491)
+	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:63)
+	at java.base/java.lang.Thread.run(Thread.java:1583)
+Creating a new SqlSession
+Registering transaction synchronization for SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@2843fe75]
+JDBC Connection [HikariProxyConnection@1817757344 wrapping com.mysql.cj.jdbc.ConnectionImpl@2aace872] will be managed by Spring
+==>  Preparing: SELECT id, batch_id, qr_token, status, created_at, expired_at, remark, status_reason, generated_by, last_query_at, pv FROM qr_code WHERE qr_token = ? LIMIT 1
+==> Parameters: test-token-2026(String)
+<==    Columns: id, batch_id, qr_token, status, created_at, expired_at, remark, status_reason, generated_by, last_query_at, pv
+<==        Row: 1, 1, test-token-2026, ACTIVE, 2026-03-11 11:10:00, null, 主演示追溯码, null, 2, null, 0
+<==      Total: 1
+Releasing transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@2843fe75]
+Fetched SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@2843fe75] from current transaction
+==>  Preparing: SELECT id,batch_code,product_id,company_id,origin_place,start_date,status,regulation_status,remark,public_remark,internal_remark,status_reason,published_at,frozen_at,recalled_at,created_at,updated_at,created_by,updated_by FROM trace_batch WHERE id=?
+==> Parameters: 1(Long)
+<==    Columns: id, batch_code, product_id, company_id, origin_place, start_date, status, regulation_status, remark, public_remark, internal_remark, status_reason, published_at, frozen_at, recalled_at, created_at, updated_at, created_by, updated_by
+<==        Row: 1, BATCH20260311001, 1, 1, 江西省赣州市信丰县高标准果园, 2026-03-01, ACTIVE, NORMAL, 主演示批次：用于展示公开追溯链路, 该批次已完成追溯信息归集，可用于答辩演示。, 内部演示数据，请勿用于生产环境。, null, 2026-03-11 10:30:00, null, null, 2026-03-11 10:20:00, 2026-03-11 10:30:00, 2, 1
+<==      Total: 1
+Releasing transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@2843fe75]
+Fetched SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@2843fe75] from current transaction
+==>  Preparing: SELECT tb.id, tb.batch_code, bp.name AS product_name, bp.category AS product_category, bp.spec AS product_spec, bp.unit AS product_unit, oc.name AS company_name, tb.origin_place, tb.start_date, tb.status, tb.regulation_status, tb.public_remark FROM trace_batch tb LEFT JOIN base_product bp ON tb.product_id = bp.id LEFT JOIN org_company oc ON tb.company_id = oc.id WHERE tb.id = ? LIMIT 1
+==> Parameters: 1(Long)
+<==    Columns: id, batch_code, product_name, product_category, product_spec, product_unit, company_name, origin_place, start_date, status, regulation_status, public_remark
+<==        Row: 1, BATCH20260311001, 赣南脐橙, 水果, 10kg/箱, 箱, 赣南脐橙示范基地, 江西省赣州市信丰县高标准果园, 2026-03-01, ACTIVE, NORMAL, 该批次已完成追溯信息归集，可用于答辩演示。
+<==      Total: 1
+Releasing transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@2843fe75]
+Fetched SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@2843fe75] from current transaction
+==>  Preparing: UPDATE qr_code SET batch_id=?, qr_token=?, status=?, created_at=?, remark=?, generated_by=?, last_query_at=?, pv=? WHERE id=?
+==> Parameters: 1(Long), test-token-2026(String), ACTIVE(String), 2026-03-11T11:10(LocalDateTime), 主演示追溯码(String), 2(Long), 2026-03-14T17:39:01.168767400(LocalDateTime), 1(Long), 1(Long)
+<==    Updates: 1
+Releasing transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@2843fe75]
+Fetched SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@2843fe75] from current transaction
+==>  Preparing: INSERT INTO qr_query_log ( qr_id, batch_id, query_time, ip, ua, referer ) VALUES ( ?, ?, ?, ?, ?, ? )
+==> Parameters: 1(Long), 1(Long), 2026-03-14T17:39:01.179827(LocalDateTime), 127.0.0.1(String), Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/145.0.0.0 Safari/537.36 Edg/145.0.0.0(String), http://127.0.0.1:5173/t/test-token-2026(String)
+<==    Updates: 1
+Releasing transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@2843fe75]
+Fetched SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@2843fe75] from current transaction
+==>  Preparing: SELECT * FROM qr_query_stat_day WHERE qr_id = ? AND day = ? LIMIT 1
+==> Parameters: 1(Long), 2026-03-14(LocalDate)
+<==      Total: 0
+Releasing transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@2843fe75]
+Fetched SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@2843fe75] from current transaction
+==>  Preparing: INSERT INTO qr_query_stat_day ( qr_id, day, pv, uv ) VALUES ( ?, ?, ?, ? )
+==> Parameters: 1(Long), 2026-03-14(LocalDate), 1(Long), 0(Long)
+<==    Updates: 1
+Releasing transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@2843fe75]
+Transaction synchronization committing SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@2843fe75]
+Transaction synchronization deregistering SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@2843fe75]
+Transaction synchronization closing SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@2843fe75]
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@3a4c1aee] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@185137207 wrapping com.mysql.cj.jdbc.ConnectionImpl@2aace872] will not be managed by Spring
+==>  Preparing: SELECT id,batch_code,product_id,company_id,origin_place,start_date,status,regulation_status,remark,public_remark,internal_remark,status_reason,published_at,frozen_at,recalled_at,created_at,updated_at,created_by,updated_by FROM trace_batch WHERE id=?
+==> Parameters: 1(Long)
+<==    Columns: id, batch_code, product_id, company_id, origin_place, start_date, status, regulation_status, remark, public_remark, internal_remark, status_reason, published_at, frozen_at, recalled_at, created_at, updated_at, created_by, updated_by
+<==        Row: 1, BATCH20260311001, 1, 1, 江西省赣州市信丰县高标准果园, 2026-03-01, ACTIVE, NORMAL, 主演示批次：用于展示公开追溯链路, 该批次已完成追溯信息归集，可用于答辩演示。, 内部演示数据，请勿用于生产环境。, null, 2026-03-11 10:30:00, null, null, 2026-03-11 10:20:00, 2026-03-11 10:30:00, 2, 1
+<==      Total: 1
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@3a4c1aee]
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@2e506da7] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@1955695081 wrapping com.mysql.cj.jdbc.ConnectionImpl@2aace872] will not be managed by Spring
+==>  Preparing: SELECT id, stage, title, event_time, operator_name, location, source_type, content_json, attachments_json FROM trace_event WHERE batch_id = ? AND is_public = 1 ORDER BY event_time ASC, id ASC
+==> Parameters: 1(Long)
+<==    Columns: id, stage, title, event_time, operator_name, location, source_type, content_json, attachments_json
+<==        Row: 1, PRODUCE, 果园建档, 2026-03-01 08:00:00, testuser1, 赣州信丰果园, ADMIN, <<BLOB>>, <<BLOB>>
+<==        Row: 2, TRANSPORT, 冷链运输, 2026-03-08 09:30:00, testuser1, 赣州冷链物流中心, ADMIN, <<BLOB>>, <<BLOB>>
+<==        Row: 3, PROCESS, 分级包装, 2026-03-09 14:00:00, testuser1, 江西鲜果加工中心, ADMIN, <<BLOB>>, <<BLOB>>
+<==        Row: 4, WAREHOUSE, 入库待发, 2026-03-10 10:20:00, testuser1, 南昌仓配服务中心, ADMIN, <<BLOB>>, <<BLOB>>
+<==        Row: 5, SALE, 门店上架, 2026-03-11 09:00:00, testuser1, 南昌演示门店, ADMIN, <<BLOB>>, <<BLOB>>
+<==      Total: 5
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@2e506da7]
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@1a29df11] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@47535654 wrapping com.mysql.cj.jdbc.ConnectionImpl@2aace872] will not be managed by Spring
+==>  Preparing: SELECT id,batch_code,product_id,company_id,origin_place,start_date,status,regulation_status,remark,public_remark,internal_remark,status_reason,published_at,frozen_at,recalled_at,created_at,updated_at,created_by,updated_by FROM trace_batch WHERE id=?
+==> Parameters: 1(Long)
+<==    Columns: id, batch_code, product_id, company_id, origin_place, start_date, status, regulation_status, remark, public_remark, internal_remark, status_reason, published_at, frozen_at, recalled_at, created_at, updated_at, created_by, updated_by
+<==        Row: 1, BATCH20260311001, 1, 1, 江西省赣州市信丰县高标准果园, 2026-03-01, ACTIVE, NORMAL, 主演示批次：用于展示公开追溯链路, 该批次已完成追溯信息归集，可用于答辩演示。, 内部演示数据，请勿用于生产环境。, null, 2026-03-11 10:30:00, null, null, 2026-03-11 10:20:00, 2026-03-11 10:30:00, 2, 1
+<==      Total: 1
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@1a29df11]
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@2ce3b106] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@2028352220 wrapping com.mysql.cj.jdbc.ConnectionImpl@2aace872] will not be managed by Spring
+==>  Preparing: SELECT e.id, e.batch_id, COALESCE(e.company_id, u.company_id, b.company_id) AS company_id, c.name AS company_name, COALESCE(e.biz_role, CASE WHEN e.stage = 'PRODUCE' THEN 'PRODUCER' WHEN e.stage = 'TRANSPORT' THEN 'TRANSPORTER' WHEN e.stage = 'PROCESS' THEN 'PROCESSOR' WHEN e.stage = 'WAREHOUSE' THEN 'WAREHOUSE' WHEN e.stage = 'SALE' THEN 'SELLER' WHEN e.stage = 'INSPECT' AND e.source_type = 'REGULATOR' THEN 'REGULATOR' WHEN e.stage = 'INSPECT' THEN 'INSPECTOR' WHEN e.stage = 'SYSTEM' THEN 'SYSTEM' ELSE NULL END ) AS biz_role, CASE WHEN e.stage = 'PRODUCE' THEN 'PRODUCTION' WHEN e.stage = 'TRANSPORT' THEN 'TRANSPORT' WHEN e.stage = 'PROCESS' THEN 'PROCESSING' WHEN e.stage = 'WAREHOUSE' THEN 'WAREHOUSING' WHEN e.stage = 'SALE' THEN 'SELLING' WHEN e.stage = 'INSPECT' AND e.source_type = 'REGULATOR' THEN 'REGULATION' WHEN e.stage = 'INSPECT' THEN 'QUALITY_CHECK' WHEN e.stage = 'SYSTEM' THEN 'SYSTEM' ELSE e.stage END AS node_type, e.title, CAST(e.content_json AS CHAR) AS content, e.event_time, e.is_public FROM trace_event e LEFT JOIN sys_user u ON e.operator_id = u.id LEFT JOIN trace_batch b ON e.batch_id = b.id LEFT JOIN org_company c ON c.id = COALESCE(e.company_id, u.company_id, b.company_id) WHERE e.batch_id = ? AND e.is_public = 1 ORDER BY e.event_time ASC, e.id ASC
+==> Parameters: 1(Long)
+<==    Columns: id, batch_id, company_id, company_name, biz_role, node_type, title, content, event_time, is_public
+<==        Row: 1, 1, 1, 赣南脐橙示范基地, PRODUCER, PRODUCTION, 果园建档, <<BLOB>>, 2026-03-01 08:00:00, 1
+<==        Row: 2, 1, 2, 赣州冷链物流中心, TRANSPORTER, TRANSPORT, 冷链运输, <<BLOB>>, 2026-03-08 09:30:00, 1
+<==        Row: 3, 1, 3, 江西鲜果加工中心, PROCESSOR, PROCESSING, 分级包装, <<BLOB>>, 2026-03-09 14:00:00, 1
+<==        Row: 4, 1, 4, 南昌仓配服务中心, WAREHOUSE, WAREHOUSING, 入库待发, <<BLOB>>, 2026-03-10 10:20:00, 1
+<==        Row: 5, 1, 1, 赣南脐橙示范基地, SELLER, SELLING, 门店上架, <<BLOB>>, 2026-03-11 09:00:00, 1
+<==      Total: 5
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@2ce3b106]
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@2cf0010] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@60357094 wrapping com.mysql.cj.jdbc.ConnectionImpl@2aace872] will not be managed by Spring
+==>  Preparing: SELECT p.id, p.batch_id, p.company_id, c.name AS company_name, p.biz_role, p.stage_order, p.is_creator, p.remark FROM trace_batch_participant p LEFT JOIN org_company c ON p.company_id = c.id WHERE p.batch_id = ? ORDER BY CASE WHEN p.stage_order IS NULL THEN 1 ELSE 0 END, p.stage_order ASC, p.id ASC
+==> Parameters: 1(Long)
+<==    Columns: id, batch_id, company_id, company_name, biz_role, stage_order, is_creator, remark
+<==        Row: 1, 1, 1, 赣南脐橙示范基地, PRODUCER, 0, 1, 主演示企业，负责生产建档。
+<==        Row: 2, 1, 2, 赣州冷链物流中心, TRANSPORTER, 1, 0, 负责从果园到冷链中心的运输。
+<==        Row: 3, 1, 3, 江西鲜果加工中心, PROCESSOR, 2, 0, 负责分级包装。
+<==        Row: 4, 1, 4, 南昌仓配服务中心, WAREHOUSE, 3, 0, 负责仓储待发。
+<==        Row: 5, 1, 1, 赣南脐橙示范基地, SELLER, 4, 0, 负责终端销售展示。
+<==      Total: 5
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@2cf0010]
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@1f3fb8f8] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@1529619760 wrapping com.mysql.cj.jdbc.ConnectionImpl@2aace872] will not be managed by Spring
+==>  Preparing: SELECT id,batch_code,product_id,company_id,origin_place,start_date,status,regulation_status,remark,public_remark,internal_remark,status_reason,published_at,frozen_at,recalled_at,created_at,updated_at,created_by,updated_by FROM trace_batch WHERE id=?
+==> Parameters: 1(Long)
+<==    Columns: id, batch_code, product_id, company_id, origin_place, start_date, status, regulation_status, remark, public_remark, internal_remark, status_reason, published_at, frozen_at, recalled_at, created_at, updated_at, created_by, updated_by
+<==        Row: 1, BATCH20260311001, 1, 1, 江西省赣州市信丰县高标准果园, 2026-03-01, ACTIVE, NORMAL, 主演示批次：用于展示公开追溯链路, 该批次已完成追溯信息归集，可用于答辩演示。, 内部演示数据，请勿用于生产环境。, null, 2026-03-11 10:30:00, null, null, 2026-03-11 10:20:00, 2026-03-11 10:30:00, 2, 1
+<==      Total: 1
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@1f3fb8f8]
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@39b4d09a] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@1538148140 wrapping com.mysql.cj.jdbc.ConnectionImpl@2aace872] will not be managed by Spring
+==>  Preparing: SELECT id, batch_id, report_no, agency, result, report_file_url, report_json, created_at FROM quality_report WHERE batch_id = ? ORDER BY id DESC
+==> Parameters: 1(Long)
+<==    Columns: id, batch_id, report_no, agency, result, report_file_url, report_json, created_at
+<==        Row: 1, 1, QA-20260311-001, 江西省农产品质量检测中心, PASS, null, <<BLOB>>, 2026-03-11 11:20:00
+<==      Total: 1
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@39b4d09a]
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@6042cb75] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@1241282422 wrapping com.mysql.cj.jdbc.ConnectionImpl@2aace872] will not be managed by Spring
+==>  Preparing: SELECT id,batch_code,product_id,company_id,origin_place,start_date,status,regulation_status,remark,public_remark,internal_remark,status_reason,published_at,frozen_at,recalled_at,created_at,updated_at,created_by,updated_by FROM trace_batch WHERE id=?
+==> Parameters: 1(Long)
+<==    Columns: id, batch_code, product_id, company_id, origin_place, start_date, status, regulation_status, remark, public_remark, internal_remark, status_reason, published_at, frozen_at, recalled_at, created_at, updated_at, created_by, updated_by
+<==        Row: 1, BATCH20260311001, 1, 1, 江西省赣州市信丰县高标准果园, 2026-03-01, ACTIVE, NORMAL, 主演示批次：用于展示公开追溯链路, 该批次已完成追溯信息归集，可用于答辩演示。, 内部演示数据，请勿用于生产环境。, null, 2026-03-11 10:30:00, null, null, 2026-03-11 10:20:00, 2026-03-11 10:30:00, 2, 1
+<==      Total: 1
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@6042cb75]
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@37383813] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@1096242402 wrapping com.mysql.cj.jdbc.ConnectionImpl@2aace872] will not be managed by Spring
+==>  Preparing: SELECT id, inspector_name, inspect_time, inspect_result, action_taken, remark, attachment_url FROM regulation_record WHERE batch_id = ? ORDER BY inspect_time DESC, id DESC
+==> Parameters: 1(Long)
+<==    Columns: id, inspector_name, inspect_time, inspect_result, action_taken, remark, attachment_url
+<==        Row: 1, 赣州市市场监管局, 2026-03-11 15:00:00, NORMAL, 例行抽检通过, 监管抽查未发现异常。, null
+<==      Total: 1
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@37383813]
