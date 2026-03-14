@@ -51,6 +51,42 @@
           <el-descriptions-item label="创建时间">{{ formatTime(batch.createdAt) }}</el-descriptions-item>
           <el-descriptions-item label="对外说明">{{ normalizeText(batch.publicRemark, '暂无对外说明') }}</el-descriptions-item>
         </el-descriptions>
+
+        <div class="summary-grid">
+          <div class="summary-item">
+            <div class="summary-label">批次编号</div>
+            <el-tooltip :content="summaryBatchCode" placement="top">
+              <div class="summary-value summary-mono text-ellipsis">{{ summaryBatchCode }}</div>
+            </el-tooltip>
+          </div>
+          <div class="summary-item">
+            <div class="summary-label">产品名称</div>
+            <el-tooltip :content="summaryProductName" placement="top">
+              <div class="summary-value text-ellipsis">{{ summaryProductName }}</div>
+            </el-tooltip>
+          </div>
+          <div class="summary-item">
+            <div class="summary-label">所属企业</div>
+            <el-tooltip :content="summaryCompanyName" placement="top">
+              <div class="summary-value text-ellipsis">{{ summaryCompanyName }}</div>
+            </el-tooltip>
+          </div>
+          <div class="summary-item">
+            <div class="summary-label">开始日期</div>
+            <div class="summary-value">{{ summaryStartDate }}</div>
+          </div>
+          <div class="summary-item">
+            <div class="summary-label">创建时间</div>
+            <div class="summary-value">{{ summaryCreatedAt }}</div>
+          </div>
+          <div class="summary-item summary-item-status">
+            <div class="summary-label">状态总览</div>
+            <div class="summary-statuses">
+              <el-tag :type="getStatusType(batch.status)" effect="dark">批次：{{ getStatusText(batch.status) }}</el-tag>
+              <el-tag :type="getRegulationStatusType(batch.regulationStatus)" effect="plain">监管：{{ getRegulationStatusText(batch.regulationStatus) }}</el-tag>
+            </div>
+          </div>
+        </div>
       </el-card>
 
       <el-card class="overview-card trace-entry-card" shadow="never">
@@ -64,6 +100,9 @@
           </div>
         </template>
         <div v-if="currentQrToken" class="trace-entry-panel">
+          <div class="trace-entry-note">
+            追溯码用于快速核验当前批次，公开链接可直接分享给老师或消费者查看追溯档案。
+          </div>
           <div class="trace-entry-meta">
             <div class="trace-entry-block">
               <span class="trace-entry-label">追溯码 Token</span>
@@ -472,6 +511,11 @@ const canSelectCompany = computed(() => roleCode.value === 'PLATFORM_ADMIN')
 const currentQr = computed(() => qrList.value[0] || null)
 const currentQrToken = computed(() => currentQr.value?.qrToken || '')
 const currentTraceLink = computed(() => buildTraceLink(currentQrToken.value))
+const summaryBatchCode = computed(() => normalizeText(batch.value?.batchCode, '未生成批次编码'))
+const summaryProductName = computed(() => normalizeText(batch.value?.productName, '未关联产品'))
+const summaryCompanyName = computed(() => normalizeText(batch.value?.creatorCompanyName, '暂无企业信息'))
+const summaryStartDate = computed(() => normalizeText(batch.value?.startDate, '未填写'))
+const summaryCreatedAt = computed(() => formatTime(batch.value?.createdAt))
 
 const editForm = reactive({
   id: null,
@@ -906,6 +950,52 @@ onMounted(() => {
   font-size: 12px;
 }
 
+.summary-grid {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.summary-item {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #fbfdff;
+}
+
+.summary-label {
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.summary-value {
+  font-size: 14px;
+  color: #111827;
+  font-weight: 600;
+}
+
+.summary-mono {
+  font-family: 'Consolas', 'Courier New', monospace;
+}
+
+.summary-item-status {
+  background: linear-gradient(135deg, #f8fbff 0%, #eff6ff 100%);
+}
+
+.summary-statuses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.text-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .trace-entry-card {
   border: 1px solid #dbeafe;
   background: linear-gradient(135deg, #f8fbff 0%, #eff6ff 100%);
@@ -915,6 +1005,16 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.trace-entry-note {
+  padding: 10px 12px;
+  border: 1px dashed #bfdbfe;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #1d4ed8;
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 .trace-entry-meta {
@@ -951,6 +1051,8 @@ onMounted(() => {
 .trace-entry-link {
   font-size: 13px;
   line-height: 1.6;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .trace-entry-actions {
@@ -1120,6 +1222,10 @@ onMounted(() => {
   .card-header,
   .node-header {
     flex-direction: column;
+  }
+
+  .summary-grid {
+    grid-template-columns: 1fr;
   }
 
   .trace-entry-meta {
