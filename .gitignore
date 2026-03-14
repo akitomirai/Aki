@@ -1,2 +1,6 @@
 admin-web/node_modules/
 admin-web/.idea/
+trace-web/node_modules/
+backend/target/
+logs/
+output/

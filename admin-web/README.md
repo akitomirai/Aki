@@ -30,7 +30,7 @@ admin-web/
 │   ├── utils/        # 通用工具类
 │   ├── App.vue       # 根组件
 │   └── main.js       # 入口文件
-├── .env.development  # 开发环境配置（包含后端接口地址）
+├── .env.development  # 开发环境配置（当前主要用于公开追溯页来源地址）
 ├── index.html        # 入口 HTML
 └── package.json      # 项目依赖与脚本
 ```
@@ -53,5 +53,5 @@ npm run build
 - **样式规范**：通用样式位于 `src/assets/styles/`。
 
 ## 7. 与其他子项目的关系
-- **对接后端**：通过 `src/api/http.js` 对接 `backend` 项目提供的 RESTful 接口。
-- **环境配置**：在 `.env.development` 中配置 `VITE_API_BASE_URL` 指向后端服务地址。
+- **对接后端**：通过 `src/api/http.js` 使用 Vite 代理转发 `/api` 到本地 `backend`。
+- **环境配置**：当前 `.env.development` 主要维护 `VITE_TRACE_WEB_ORIGIN`，后端地址由 `vite.config.js` 代理到 `http://127.0.0.1:8080`。

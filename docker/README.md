@@ -28,7 +28,7 @@ docker-compose up -d --build
 | **后端接口文档** | [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html) | Swagger 接口文档 |
 
 ## 5. 初始账号 (演示使用)
-请参考 `backend/traceability.sql` 或 `docs/feedback-and-permission-delivery.md` 中的账号说明进行登录。
+开发/答辩数据请参考根目录 `sql/01_schema.sql`、`sql/02_seed_dev.sql`、`sql/03_reset_dev.sql` 和 `docs/ACCOUNTS.md`。
 
 ## 6. 注意事项
 - 第一次启动时，MySQL 容器初始化数据库结构可能需要几秒钟，Backend 会等待 MySQL 就绪后自动启动。

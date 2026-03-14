@@ -4,11 +4,11 @@
 
 ## 推荐先看
 
-- [README.md](/Users/Lenovo/Desktop/traceability-system/README.md)
+- [README.md](../README.md)
   仓库总说明、启动顺序、端口、SQL 脚本入口。
-- [ACCOUNTS.md](/Users/Lenovo/Desktop/traceability-system/docs/ACCOUNTS.md)
+- [ACCOUNTS.md](ACCOUNTS.md)
   默认账号、主演示企业、主演示批次和主演示 token。
-- [DEMO_FLOW.md](/Users/Lenovo/Desktop/traceability-system/docs/DEMO_FLOW.md)
+- [DEMO_FLOW.md](DEMO_FLOW.md)
   平台端、企业端、公开追溯页和 PV/UV 的演示顺序。
 
 ## 其他历史文档

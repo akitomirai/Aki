@@ -47,11 +47,11 @@ Redis 只用于公开追溯访问统计：
 
 ## 数据库脚本
 
-- [sql/01_schema.sql](/Users/Lenovo/Desktop/traceability-system/sql/01_schema.sql)
+- [sql/01_schema.sql](sql/01_schema.sql)
   表结构脚本，只包含建表和约束。
-- [sql/02_seed_dev.sql](/Users/Lenovo/Desktop/traceability-system/sql/02_seed_dev.sql)
+- [sql/02_seed_dev.sql](sql/02_seed_dev.sql)
   精简开发演示数据，包含默认账号、演示企业、产品、批次、追溯码、节点、质检、监管、日志和反馈。
-- [sql/03_reset_dev.sql](/Users/Lenovo/Desktop/traceability-system/sql/03_reset_dev.sql)
+- [sql/03_reset_dev.sql](sql/03_reset_dev.sql)
   一键重建 `traceability_cs` 并导入结构与演示数据。
 
 推荐执行方式：
@@ -100,7 +100,7 @@ npm run dev
 
 ## 默认账号
 
-详见 [docs/ACCOUNTS.md](/Users/Lenovo/Desktop/traceability-system/docs/ACCOUNTS.md)。
+详见 [docs/ACCOUNTS.md](docs/ACCOUNTS.md)。
 
 常用账号：
 
@@ -109,7 +109,7 @@ npm run dev
 
 ## 演示主链路
 
-详见 [docs/DEMO_FLOW.md](/Users/Lenovo/Desktop/traceability-system/docs/DEMO_FLOW.md)。
+详见 [docs/DEMO_FLOW.md](docs/DEMO_FLOW.md)。
 
 推荐顺序：
 
@@ -130,6 +130,6 @@ npm run dev
 
 ## 补充文档
 
-- [docs/README.md](/Users/Lenovo/Desktop/traceability-system/docs/README.md)
-- [docs/ACCOUNTS.md](/Users/Lenovo/Desktop/traceability-system/docs/ACCOUNTS.md)
-- [docs/DEMO_FLOW.md](/Users/Lenovo/Desktop/traceability-system/docs/DEMO_FLOW.md)
+- [docs/README.md](docs/README.md)
+- [docs/ACCOUNTS.md](docs/ACCOUNTS.md)
+- [docs/DEMO_FLOW.md](docs/DEMO_FLOW.md)

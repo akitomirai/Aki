@@ -30,15 +30,17 @@ backend/
 │   ├── application.yml # 系统配置文件
 │   └── logback-spring.xml # 日志配置
 ├── docs/               # 核心设计与交付文档 (重要)
-├── traceability.sql    # 数据库初始化脚本
+├── ../sql/01_schema.sql    # 数据库表结构脚本
+├── ../sql/02_seed_dev.sql  # 开发/答辩演示数据脚本
+├── ../sql/03_reset_dev.sql # 一键重置开发库脚本
 └── pom.xml             # Maven 依赖管理
 ```
 
 ## 5. 本地启动
 ### 数据库准备
-1. 创建数据库 `agritrace`（字符集推荐 `utf8mb4`）。
-2. 执行根目录下的 `traceability.sql` 脚本导入初始表结构与数据。
-3. 在 `src/main/resources/application.yml` 中修改数据库连接配置（用户名/密码）。
+1. 创建数据库 `traceability_cs`（字符集推荐 `utf8mb4`）。
+2. 优先执行根目录 `sql/03_reset_dev.sql`，或按顺序执行 `sql/01_schema.sql` 与 `sql/02_seed_dev.sql`。
+3. 在 `src/main/resources/application.yml` 中核对数据库与 Redis 连接配置。
 
 ### 启动服务
 ```bash
