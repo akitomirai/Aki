@@ -9,6 +9,7 @@ public record TraceRecordVO(
         String operatorName,
         String location,
         boolean visibleToConsumer,
-        String summary
+        String summary,
+        String imageUrl
 ) {
 }

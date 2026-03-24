@@ -4,83 +4,121 @@ import { useRoute } from 'vue-router'
 import { getTraceDetail } from '../api/trace'
 
 const route = useRoute()
+
 const detail = ref(null)
 const loading = ref(true)
+const errorMessage = ref('')
+
+onMounted(() => {
+  loadDetail(route.params.token)
+})
+
+watch(
+  () => route.params.token,
+  (token) => {
+    loadDetail(token)
+  }
+)
 
 async function loadDetail(token) {
+  if (!token) {
+    return
+  }
   loading.value = true
-  const response = await getTraceDetail(token)
-  detail.value = response.data
-  loading.value = false
+  errorMessage.value = ''
+  try {
+    const response = await getTraceDetail(token)
+    detail.value = response.data
+  } catch (error) {
+    errorMessage.value = error?.response?.data?.message || error?.message || '追溯信息加载失败，请稍后重试。'
+  } finally {
+    loading.value = false
+  }
 }
-
-onMounted(() => loadDetail(route.params.token))
-watch(() => route.params.token, (token) => loadDetail(token))
 </script>
 
 <template>
   <div class="trace-page">
     <div v-if="loading" class="loading-card">正在加载追溯信息...</div>
 
+    <div v-else-if="errorMessage" class="error-card">
+      {{ errorMessage }}
+    </div>
+
     <template v-else-if="detail">
+      <section
+        v-if="detail.risk?.hasRisk"
+        class="risk-banner"
+        :class="detail.risk.level"
+      >
+        <p class="risk-tag">重要提示</p>
+        <h2>{{ detail.risk.title }}</h2>
+        <p>{{ detail.risk.reason }}</p>
+        <small>{{ detail.risk.suggestion }}</small>
+      </section>
+
       <header class="hero-card">
-        <p class="eyebrow">扫码即看</p>
-        <h1>{{ detail.summary.productName }}</h1>
-        <p class="batch-code">批次号：{{ detail.summary.batchCode }}</p>
-        <div class="summary-grid">
-          <div>
-            <span>企业</span>
-            <strong>{{ detail.summary.companyName }}</strong>
-          </div>
-          <div>
-            <span>产地</span>
-            <strong>{{ detail.summary.originPlace }}</strong>
-          </div>
-          <div>
-            <span>状态</span>
-            <strong>{{ detail.summary.statusLabel }}</strong>
-          </div>
-          <div>
-            <span>质检</span>
-            <strong>{{ detail.summary.qualityLabel }}</strong>
-          </div>
+        <div class="hero-image-wrap">
+          <img class="hero-image" :src="detail.summary.productImageUrl" :alt="detail.summary.productName">
         </div>
-        <p class="slogan">{{ detail.summary.slogan }}</p>
-      </header>
 
-      <section v-if="detail.exception.hasException" class="warning-card" :class="detail.exception.level">
-        <h2>异常状态提醒</h2>
-        <p>{{ detail.exception.message }}</p>
-        <small>{{ detail.exception.suggestion }}</small>
-      </section>
+        <div class="hero-copy">
+          <p class="eyebrow">扫码即看</p>
+          <h1>{{ detail.summary.productName }}</h1>
+          <p class="batch-code">批次编号：{{ detail.summary.batchCode }}</p>
+          <p class="slogan">{{ detail.summary.slogan }}</p>
 
-      <section class="card">
-        <div class="section-head">
-          <h2>关键时间线</h2>
-          <span>{{ detail.timeline.length }} 个节点</span>
-        </div>
-        <ol class="timeline">
-          <li v-for="item in detail.timeline" :key="`${item.stageName}-${item.time}`">
-            <div class="dot" />
-            <div class="line-body">
-              <h3>{{ item.stageName }} · {{ item.title }}</h3>
-              <p>{{ item.summary }}</p>
-              <small>{{ item.time }} · {{ item.location }}</small>
+          <div class="summary-grid">
+            <div>
+              <span>企业名称</span>
+              <strong>{{ detail.summary.companyName }}</strong>
             </div>
-          </li>
-        </ol>
-      </section>
+            <div>
+              <span>产地</span>
+              <strong>{{ detail.summary.originPlace }}</strong>
+            </div>
+            <div>
+              <span>当前状态</span>
+              <strong>{{ detail.summary.statusLabel }}</strong>
+            </div>
+            <div>
+              <span>质检结果</span>
+              <strong>{{ detail.summary.qualityResult }}</strong>
+            </div>
+            <div>
+              <span>生产日期</span>
+              <strong>{{ detail.summary.productionDate }}</strong>
+            </div>
+            <div>
+              <span>上市日期</span>
+              <strong>{{ detail.summary.marketDate || '暂未发布' }}</strong>
+            </div>
+          </div>
+        </div>
+      </header>
 
       <section class="card-grid">
         <article class="card">
           <div class="section-head">
-            <h2>质检信息</h2>
-            <span>{{ detail.quality.status }}</span>
+            <h2>质检摘要</h2>
+            <span>{{ detail.quality.resultLabel }}</span>
           </div>
-          <p>{{ detail.quality.agency }}</p>
-          <p>{{ detail.quality.reportNo || '暂无报告编号' }}</p>
-          <p>{{ detail.quality.reportTime || '暂无检测时间' }}</p>
-          <div class="pill-list">
+          <p class="section-copy">{{ detail.quality.summary }}</p>
+          <div class="info-list">
+            <div>
+              <span>检测机构</span>
+              <strong>{{ detail.quality.agency || '暂未补充' }}</strong>
+            </div>
+            <div>
+              <span>报告编号</span>
+              <strong>{{ detail.quality.reportNo || '暂未补充' }}</strong>
+            </div>
+            <div>
+              <span>检测时间</span>
+              <strong>{{ detail.quality.reportTime || '暂未补充' }}</strong>
+            </div>
+          </div>
+          <div class="pill-row">
             <span v-for="item in detail.quality.highlights" :key="item">{{ item }}</span>
           </div>
         </article>
@@ -90,16 +128,56 @@ watch(() => route.params.token, (token) => loadDetail(token))
             <h2>企业信息</h2>
             <span>可联系</span>
           </div>
-          <p>{{ detail.company.name }}</p>
-          <p>许可证：{{ detail.company.licenseNo }}</p>
-          <p>联系人：{{ detail.company.contactName }} / {{ detail.company.contactPhone }}</p>
-          <p>{{ detail.company.address }}</p>
+          <div class="info-list">
+            <div>
+              <span>企业名称</span>
+              <strong>{{ detail.company.name }}</strong>
+            </div>
+            <div>
+              <span>许可证号</span>
+              <strong>{{ detail.company.licenseNo }}</strong>
+            </div>
+            <div>
+              <span>联系人</span>
+              <strong>{{ detail.company.contactName }}</strong>
+            </div>
+            <div>
+              <span>联系电话</span>
+              <strong>{{ detail.company.contactPhone }}</strong>
+            </div>
+          </div>
+          <p class="section-copy">{{ detail.company.address }}</p>
         </article>
       </section>
 
       <section class="card">
         <div class="section-head">
-          <h2>消费者查看建议</h2>
+          <h2>关键时间线</h2>
+          <span>{{ detail.timeline.length }} 个节点</span>
+        </div>
+
+        <ol class="timeline">
+          <li v-for="item in detail.timeline" :key="`${item.stageCode}-${item.time}`" class="timeline-item">
+            <div class="timeline-marker" />
+            <div class="timeline-body">
+              <div class="timeline-top">
+                <div>
+                  <p class="timeline-stage">{{ item.stageName }}</p>
+                  <h3>{{ item.title }}</h3>
+                </div>
+                <span>{{ item.time }}</span>
+              </div>
+              <p class="timeline-meta">{{ item.location }}</p>
+              <p class="timeline-summary">{{ item.summary }}</p>
+              <img v-if="item.imageUrl" class="timeline-image" :src="item.imageUrl" :alt="item.title">
+            </div>
+          </li>
+        </ol>
+      </section>
+
+      <section class="card">
+        <div class="section-head">
+          <h2>扫码后如何判断</h2>
           <span>首屏即懂</span>
         </div>
         <ul class="tips-list">
@@ -114,169 +192,255 @@ watch(() => route.params.token, (token) => loadDetail(token))
 .trace-page {
   max-width: 760px;
   margin: 0 auto;
-  padding: 18px 14px 40px;
+  padding: 16px 14px 40px;
 }
 
-.hero-card,
-.card,
 .loading-card,
-.warning-card {
+.error-card,
+.risk-banner,
+.hero-card,
+.card {
   border-radius: 24px;
-  background: rgba(255, 255, 255, 0.9);
   box-shadow: 0 18px 36px rgba(25, 55, 44, 0.08);
 }
 
+.loading-card,
+.error-card,
+.card {
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.loading-card,
+.error-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 180px;
+  padding: 20px;
+  color: #466257;
+  text-align: center;
+}
+
+.risk-banner {
+  margin-bottom: 14px;
+  padding: 18px;
+}
+
+.risk-banner.warning {
+  background: #fff5df;
+  color: #7a4d00;
+}
+
+.risk-banner.danger {
+  background: #fdeceb;
+  color: #8b241f;
+}
+
+.risk-tag,
+.eyebrow {
+  margin: 0 0 8px;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.risk-tag {
+  color: currentColor;
+  opacity: 0.78;
+}
+
 .hero-card {
-  padding: 24px;
+  overflow: hidden;
   background:
-    radial-gradient(circle at top right, rgba(245, 210, 127, 0.4), transparent 28%),
+    radial-gradient(circle at top right, rgba(245, 210, 127, 0.34), transparent 26%),
     linear-gradient(160deg, #17362e, #285245 70%, #eff6eb 180%);
   color: #fff7ea;
 }
 
-.eyebrow {
-  margin: 0 0 8px;
-  color: #f5d283;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  font-size: 12px;
+.hero-image-wrap {
+  padding: 18px 18px 0;
+}
+
+.hero-image {
+  width: 100%;
+  height: min(48vw, 280px);
+  max-height: 280px;
+  object-fit: cover;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.hero-copy {
+  padding: 18px 18px 24px;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin-top: 0;
 }
 
 h1 {
-  margin: 0;
+  margin-bottom: 10px;
   font-size: 30px;
 }
 
 .batch-code,
 .slogan {
-  color: rgba(255, 247, 234, 0.88);
+  color: rgba(255, 247, 234, 0.9);
 }
 
-.summary-grid {
+.slogan {
+  margin-bottom: 18px;
+  line-height: 1.7;
+}
+
+.summary-grid,
+.info-list {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
-  margin: 18px 0;
+}
+
+.summary-grid div,
+.info-list div {
+  padding: 14px;
+  border-radius: 18px;
 }
 
 .summary-grid div {
-  padding: 14px;
-  border-radius: 18px;
   background: rgba(255, 255, 255, 0.08);
 }
 
-.summary-grid span,
-.section-head span {
-  display: block;
-  color: #d4dfd7;
-  font-size: 12px;
-}
-
-.summary-grid strong {
-  display: block;
-  margin-top: 6px;
-}
-
-.warning-card {
-  margin-top: 16px;
-  padding: 18px;
-}
-
-.warning-card.warning {
-  background: #fff7e8;
-  color: #7a4d00;
-}
-
-.warning-card.danger {
-  background: #fdeceb;
-  color: #8b241f;
-}
-
 .card {
-  margin-top: 16px;
+  margin-top: 14px;
   padding: 20px;
 }
 
 .card-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
+  gap: 14px;
 }
 
-.section-head {
+.section-head,
+.timeline-top {
   display: flex;
+  align-items: flex-start;
   justify-content: space-between;
-  align-items: center;
   gap: 12px;
 }
 
 .section-head h2 {
-  margin: 0 0 14px;
+  margin-bottom: 0;
   color: #183228;
 }
 
-.section-head span {
-  color: #5d786e;
+.section-head span,
+.summary-grid span,
+.info-list span {
+  display: block;
+  color: #688176;
+  font-size: 12px;
 }
 
-.timeline {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.summary-grid strong,
+.info-list strong {
+  display: block;
+  margin-top: 6px;
+  line-height: 1.5;
 }
 
-.timeline li {
-  display: grid;
-  grid-template-columns: 22px 1fr;
-  gap: 12px;
-  padding-bottom: 16px;
-}
-
-.dot {
-  width: 14px;
-  height: 14px;
-  margin-top: 4px;
-  border-radius: 999px;
-  background: #2d6b56;
-  box-shadow: 0 0 0 4px rgba(45, 107, 86, 0.12);
-}
-
-.line-body h3 {
-  margin: 0 0 8px;
-  color: #19362c;
-}
-
-.line-body p,
-.line-body small,
-.card p,
+.section-copy,
+.timeline-summary,
+.timeline-meta,
 .tips-list li {
   color: #446055;
   line-height: 1.7;
 }
 
-.pill-list {
+.pill-row {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  margin-top: 14px;
 }
 
-.pill-list span {
-  padding: 7px 10px;
+.pill-row span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 12px;
   border-radius: 999px;
-  background: #edf3de;
-  color: #566327;
+  background: rgba(45, 107, 86, 0.1);
+  color: #225241;
+  font-size: 13px;
+}
+
+.timeline {
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 0;
+}
+
+.timeline-item {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 12px;
+  padding-bottom: 16px;
+}
+
+.timeline-marker {
+  width: 14px;
+  height: 14px;
+  margin-top: 5px;
+  border-radius: 999px;
+  background: #2d6b56;
+  box-shadow: 0 0 0 4px rgba(45, 107, 86, 0.12);
+}
+
+.timeline-stage {
+  margin-bottom: 4px;
+  color: #688176;
   font-size: 12px;
 }
 
+.timeline-body h3 {
+  margin-bottom: 8px;
+  color: #19362c;
+}
+
+.timeline-image {
+  width: 100%;
+  margin-top: 12px;
+  border-radius: 18px;
+  object-fit: cover;
+  max-height: 220px;
+}
+
 .tips-list {
-  margin: 0;
+  margin: 18px 0 0;
   padding-left: 18px;
 }
 
-@media (max-width: 680px) {
-  .summary-grid,
+@media (min-width: 760px) {
   .card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .summary-grid,
+  .info-list {
     grid-template-columns: 1fr;
+  }
+
+  .hero-image {
+    height: 220px;
+  }
+
+  h1 {
+    font-size: 26px;
   }
 }
 </style>

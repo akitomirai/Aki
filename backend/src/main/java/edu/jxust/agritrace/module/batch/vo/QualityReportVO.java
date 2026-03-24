@@ -7,6 +7,7 @@ public record QualityReportVO(
         String reportNo,
         String agency,
         String result,
+        String resultLabel,
         String reportTime,
         List<String> highlights
 ) {

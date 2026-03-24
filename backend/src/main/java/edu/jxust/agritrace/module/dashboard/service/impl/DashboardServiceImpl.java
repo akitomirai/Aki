@@ -1,5 +1,6 @@
 package edu.jxust.agritrace.module.dashboard.service.impl;
 
+import edu.jxust.agritrace.module.batch.dto.BatchListQueryRequest;
 import edu.jxust.agritrace.module.batch.entity.BatchStatus;
 import edu.jxust.agritrace.module.batch.service.BatchService;
 import edu.jxust.agritrace.module.dashboard.service.DashboardService;
@@ -20,11 +21,11 @@ public class DashboardServiceImpl implements DashboardService {
     @Override
     public DashboardOverviewVO getOverview() {
         List<String> focus = List.of(
-                "企业建档要尽量一次录完，避免重复跳转。",
-                "批次详情要像工作台，集中查看状态、记录、质检和二维码。",
-                "公开追溯页只展示消费者关心的信息，不回传后台字段。"
+                "企业建档尽量一次录完，减少重复跳转。",
+                "批次详情要像工作台，把记录、质检、二维码和状态放在一起。",
+                "公开追溯页优先展示消费者看得懂的信息，不直接暴露后台字段。"
         );
-        var batches = batchService.listBatches();
+        var batches = batchService.listBatches(new BatchListQueryRequest());
         int published = (int) batches.stream().filter(batch -> BatchStatus.PUBLISHED.name().equals(batch.status())).count();
         int draft = (int) batches.stream().filter(batch -> BatchStatus.DRAFT.name().equals(batch.status())).count();
         int risk = (int) batches.stream().filter(batch -> List.of(BatchStatus.FROZEN.name(), BatchStatus.RECALLED.name()).contains(batch.status())).count();
@@ -33,7 +34,7 @@ public class DashboardServiceImpl implements DashboardService {
                 published,
                 draft,
                 risk,
-                "当前主链路聚焦为：企业建档 -> 批次创建 -> 过程记录 -> 质检上传 -> 二维码生成 -> 发布 -> 扫码查看。",
+                "当前主流程聚焦为：企业建档 -> 批次创建 -> 过程记录 -> 质检上传 -> 二维码生成 -> 发布 -> 扫码查看。",
                 focus
         );
     }

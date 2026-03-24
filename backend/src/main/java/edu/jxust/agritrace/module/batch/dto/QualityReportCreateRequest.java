@@ -8,7 +8,7 @@ public record QualityReportCreateRequest(
         @NotBlank String reportNo,
         @NotBlank String agency,
         @NotBlank String result,
-        @NotBlank String reportTime,
+        String reportTime,
         List<String> highlights
 ) {
 }

@@ -8,7 +8,7 @@ public record PublicTraceDetailVO(
         List<PublicTimelineItemVO> timeline,
         PublicQualityVO quality,
         PublicCompanyVO company,
-        PublicExceptionVO exception,
+        PublicRiskVO risk,
         List<String> consumerTips
 ) {
 }

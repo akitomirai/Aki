@@ -4,6 +4,7 @@ public record BatchActionVO(
         String code,
         String label,
         boolean enabled,
-        String hint
+        String hint,
+        String variant
 ) {
 }

@@ -1,7 +1,9 @@
 package edu.jxust.agritrace.module.batch.service;
 
 import edu.jxust.agritrace.module.batch.dto.BatchCreateRequest;
+import edu.jxust.agritrace.module.batch.dto.BatchListQueryRequest;
 import edu.jxust.agritrace.module.batch.dto.BatchStatusActionRequest;
+import edu.jxust.agritrace.module.batch.dto.BatchUpdateRequest;
 import edu.jxust.agritrace.module.batch.dto.QualityReportCreateRequest;
 import edu.jxust.agritrace.module.batch.dto.TraceRecordCreateRequest;
 import edu.jxust.agritrace.module.batch.entity.BatchEntity;
@@ -12,11 +14,13 @@ import java.util.List;
 
 public interface BatchService {
 
-    List<BatchListItemVO> listBatches();
+    List<BatchListItemVO> listBatches(BatchListQueryRequest request);
 
     BatchWorkbenchVO getBatchWorkbench(Long batchId);
 
     BatchWorkbenchVO createBatch(BatchCreateRequest request);
+
+    BatchWorkbenchVO updateBatch(Long batchId, BatchUpdateRequest request);
 
     BatchWorkbenchVO changeStatus(Long batchId, BatchStatusActionRequest request);
 

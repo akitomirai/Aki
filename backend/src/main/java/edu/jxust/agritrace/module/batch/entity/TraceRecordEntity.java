@@ -4,13 +4,13 @@ import java.time.LocalDateTime;
 
 public record TraceRecordEntity(
         Long id,
-        String stageCode,
-        String stageName,
+        TraceStage stage,
         String title,
         LocalDateTime eventTime,
         String operatorName,
         String location,
         boolean visibleToConsumer,
-        String summary
+        String summary,
+        String imageUrl
 ) {
 }

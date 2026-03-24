@@ -1,9 +1,10 @@
 package edu.jxust.agritrace.module.publictrace.vo;
 
-public record PublicExceptionVO(
-        boolean hasException,
+public record PublicRiskVO(
+        boolean hasRisk,
         String level,
-        String message,
+        String title,
+        String reason,
         String suggestion
 ) {
 }
