@@ -7,7 +7,10 @@ public record QrCodeEntity(
         String token,
         String status,
         String publicUrl,
+        String imageUrl,
         LocalDateTime generatedAt,
-        LocalDateTime lastScanAt
+        LocalDateTime lastScanAt,
+        long pv,
+        long uv
 ) {
 }

@@ -5,6 +5,7 @@ import edu.jxust.agritrace.module.batch.entity.BatchStatus;
 import edu.jxust.agritrace.module.batch.entity.QualityReportEntity;
 import edu.jxust.agritrace.module.batch.entity.TraceRecordEntity;
 import edu.jxust.agritrace.module.batch.service.BatchService;
+import edu.jxust.agritrace.module.publictrace.dto.PublicTraceAccessContext;
 import edu.jxust.agritrace.module.publictrace.service.PublicTraceService;
 import edu.jxust.agritrace.module.publictrace.vo.PublicCompanyVO;
 import edu.jxust.agritrace.module.publictrace.vo.PublicQualityVO;
@@ -32,7 +33,8 @@ public class PublicTraceServiceImpl implements PublicTraceService {
     }
 
     @Override
-    public PublicTraceDetailVO getTraceDetailByToken(String token) {
+    public PublicTraceDetailVO getTraceDetailByToken(String token, PublicTraceAccessContext accessContext) {
+        batchService.recordPublicTraceAccess(token, accessContext);
         BatchEntity batch = batchService.getBatchEntityByToken(token);
         QualityReportEntity latestQuality = batch.getQualityReports().stream()
                 .max(Comparator.comparing(QualityReportEntity::reportTime))
@@ -73,7 +75,7 @@ public class PublicTraceServiceImpl implements PublicTraceService {
                         latestQuality == null ? "暂无" : latestQuality.agency(),
                         latestQuality == null ? null : latestQuality.reportNo(),
                         latestQuality == null ? null : formatDateTime(latestQuality.reportTime()),
-                        latestQuality == null ? List.of("建议查看企业补充说明") : latestQuality.highlights()
+                        latestQuality == null ? List.of("建议稍后查看企业补充说明") : latestQuality.highlights()
                 ),
                 new PublicCompanyVO(
                         batch.getCompany().name(),
@@ -107,7 +109,7 @@ public class PublicTraceServiceImpl implements PublicTraceService {
                     "warning",
                     "该批次当前已冻结",
                     defaultMessage(batch.getStatusReason(), "企业正在补充留痕材料或等待监管复核。"),
-                    "建议暂缓购买，等待批次状态恢复或进一步公告。"
+                    "建议暂缓购买，等待批次状态恢复或进一步公示。"
             );
         }
         return new PublicRiskVO(

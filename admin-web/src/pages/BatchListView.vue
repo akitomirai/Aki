@@ -372,7 +372,7 @@ function statusClass(status) {
 }
 
 function qrStatusLabel(status) {
-  return status === 'GENERATED' ? '已生成' : '待生成'
+  return status && status !== 'NOT_GENERATED' ? '已生成' : '待生成'
 }
 </script>
 
@@ -543,6 +543,14 @@ function qrStatusLabel(status) {
             @click="openStatusDialog(item, 'PUBLISHED')"
           >
             发布
+          </button>
+          <button
+            class="success"
+            :disabled="!actionOf(item, 'RESUME').enabled"
+            :title="actionOf(item, 'RESUME').hint"
+            @click="openStatusDialog(item, 'PUBLISHED')"
+          >
+            恢复
           </button>
           <button
             class="warning"

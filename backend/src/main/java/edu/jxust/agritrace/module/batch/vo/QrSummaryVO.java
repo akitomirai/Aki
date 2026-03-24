@@ -5,8 +5,11 @@ public record QrSummaryVO(
         String token,
         String status,
         String publicUrl,
+        String imageUrl,
         String generatedAt,
         String lastScanAt,
+        long pv,
+        long uv,
         boolean generated
 ) {
 }

@@ -358,6 +358,14 @@ function statusClass(status) {
             发布
           </button>
           <button
+            :class="actionClass('RESUME')"
+            :disabled="!actionOf('RESUME').enabled"
+            :title="actionOf('RESUME').hint"
+            @click="openStatusDialog('PUBLISHED')"
+          >
+            恢复发布
+          </button>
+          <button
             :class="actionClass('FREEZE')"
             :disabled="!actionOf('FREEZE').enabled"
             :title="actionOf('FREEZE').hint"
@@ -490,6 +498,21 @@ function statusClass(status) {
               <span>最近扫码</span>
               <strong>{{ detail.qr.lastScanAt || '暂无' }}</strong>
             </div>
+            <div>
+              <span>扫码 PV</span>
+              <strong>{{ detail.qr.pv }}</strong>
+            </div>
+            <div>
+              <span>扫码 UV</span>
+              <strong>{{ detail.qr.uv }}</strong>
+            </div>
+          </div>
+
+          <div v-if="detail.qr.generated && detail.qr.imageUrl" class="qr-preview">
+            <img :src="detail.qr.imageUrl" :alt="`${detail.batch.batchCode} 二维码`">
+            <a class="preview-link" :href="detail.qr.imageUrl" target="_blank" rel="noreferrer" download>
+              下载二维码
+            </a>
           </div>
 
           <a v-if="canPreviewPublic" class="preview-block" :href="detail.qr.publicUrl" target="_blank" rel="noreferrer">
@@ -973,6 +996,23 @@ label span {
   text-decoration: none;
 }
 
+.qr-preview {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 16px;
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 22px;
+  background: rgba(245, 248, 244, 0.96);
+}
+
+.qr-preview img {
+  width: 180px;
+  height: 180px;
+  border-radius: 18px;
+  background: #ffffff;
+}
+
 .status-timeline {
   list-style: none;
   margin: 18px 0 0;
@@ -1165,6 +1205,16 @@ button:disabled {
   .hero-image {
     width: 100%;
     height: 240px;
+  }
+
+  .qr-preview {
+    grid-template-columns: 1fr;
+  }
+
+  .qr-preview img {
+    width: 100%;
+    height: auto;
+    max-width: 260px;
   }
 }
 

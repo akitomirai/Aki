@@ -1,5 +1,7 @@
 package edu.jxust.agritrace.module.batch.entity;
 
+import java.util.Locale;
+
 public enum TraceStage {
     ARCHIVE("企业建档"),
     PRODUCE("生产记录"),
@@ -18,5 +20,23 @@ public enum TraceStage {
 
     public String label() {
         return label;
+    }
+
+    public static TraceStage fromCode(String code) {
+        if (code == null || code.isBlank()) {
+            return PRODUCE;
+        }
+        String normalized = code.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "ARCHIVE" -> ARCHIVE;
+            case "PRODUCE", "PLANT", "FARM" -> PRODUCE;
+            case "QUALITY", "CHECK" -> QUALITY;
+            case "TRANSPORT", "LOGISTICS" -> TRANSPORT;
+            case "WAREHOUSE", "STORAGE", "PROCESS" -> WAREHOUSE;
+            case "DELIVERY", "OUTBOUND" -> DELIVERY;
+            case "MARKET", "SALE", "SELL" -> MARKET;
+            case "REGULATION", "REGULATOR" -> REGULATION;
+            default -> PRODUCE;
+        };
     }
 }

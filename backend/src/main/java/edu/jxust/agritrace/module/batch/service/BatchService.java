@@ -9,6 +9,8 @@ import edu.jxust.agritrace.module.batch.dto.TraceRecordCreateRequest;
 import edu.jxust.agritrace.module.batch.entity.BatchEntity;
 import edu.jxust.agritrace.module.batch.vo.BatchListItemVO;
 import edu.jxust.agritrace.module.batch.vo.BatchWorkbenchVO;
+import edu.jxust.agritrace.module.publictrace.dto.PublicTraceAccessContext;
+import org.springframework.core.io.Resource;
 
 import java.util.List;
 
@@ -33,4 +35,8 @@ public interface BatchService {
     BatchEntity getBatchEntityById(Long batchId);
 
     BatchEntity getBatchEntityByToken(String token);
+
+    void recordPublicTraceAccess(String token, PublicTraceAccessContext accessContext);
+
+    Resource loadQrImage(String token);
 }
