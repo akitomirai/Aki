@@ -11,11 +11,14 @@ DROP TABLE IF EXISTS base_product;
 CREATE TABLE base_product (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   company_id BIGINT,
+  product_code VARCHAR(64),
   name VARCHAR(128) NOT NULL,
   category VARCHAR(64),
+  origin_place VARCHAR(128),
   spec VARCHAR(64),
   unit VARCHAR(16),
   image_url VARCHAR(255),
+  status VARCHAR(20) DEFAULT 'ENABLED',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -26,6 +29,7 @@ CREATE TABLE org_company (
   address VARCHAR(255),
   contact VARCHAR(64),
   phone VARCHAR(32),
+  status VARCHAR(20) DEFAULT 'ENABLED',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

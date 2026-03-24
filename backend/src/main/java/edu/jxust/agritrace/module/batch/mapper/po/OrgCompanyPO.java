@@ -16,6 +16,7 @@ public class OrgCompanyPO {
     private String address;
     private String contact;
     private String phone;
+    private String status;
     private LocalDateTime createdAt;
 
     public Long getId() {
@@ -64,6 +65,14 @@ public class OrgCompanyPO {
 
     public void setPhone(String phone) {
         this.phone = phone;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
     }
 
     public LocalDateTime getCreatedAt() {

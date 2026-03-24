@@ -36,6 +36,9 @@ app:
     backend-base-url: ${BACKEND_BASE_URL:http://127.0.0.1:8080}
     qr-storage-dir: ${QR_STORAGE_DIR:${user.dir}/storage/qr}
     attachment-storage-dir: ${ATTACHMENT_STORAGE_DIR:${user.dir}/storage/attachments}
+    trace-image-max-size: ${TRACE_IMAGE_MAX_SIZE:5MB}
+    quality-attachment-max-size: ${QUALITY_ATTACHMENT_MAX_SIZE:10MB}
+    attachment-orphan-cleanup-hours: ${ATTACHMENT_ORPHAN_CLEANUP_HOURS:24}
 
 springdoc:
   swagger-ui:

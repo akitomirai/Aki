@@ -391,6 +391,15 @@ function statusClass(status) {
   }[status] ?? 'draft'
 }
 
+function riskToneClass(risk) {
+  return {
+    normal: 'risk-normal',
+    pending: 'risk-pending',
+    warning: 'risk-warning',
+    danger: 'risk-danger'
+  }[risk?.riskLevel] ?? 'risk-normal'
+}
+
 function formatFileSize(size) {
   if (!size) {
     return '0 B'
@@ -463,6 +472,23 @@ function fileLabel(file) {
 
       <section v-if="message" class="message-bar" :class="messageType">
         {{ message }}
+      </section>
+
+      <section
+        v-if="detail.risk && detail.risk.status !== 'NORMAL'"
+        class="risk-panel"
+        :class="riskToneClass(detail.risk)"
+      >
+        <div>
+          <p class="eyebrow">Risk status</p>
+          <h2>{{ detail.risk.title }}</h2>
+          <p class="risk-copy">{{ detail.risk.reason }}</p>
+        </div>
+        <div class="risk-meta">
+          <p><strong>Status:</strong> {{ detail.risk.status }}</p>
+          <p><strong>Updated:</strong> {{ detail.risk.updatedAt || detail.status.changedAt || 'N/A' }}</p>
+          <p><strong>Hint:</strong> {{ detail.risk.tip }}</p>
+        </div>
       </section>
 
       <section class="quick-panel">
@@ -839,7 +865,7 @@ function fileLabel(file) {
             <span>Trace images</span>
             <div class="upload-box">
               <input type="file" accept="image/*" multiple @change="handleTraceFilesChange">
-              <small>Uploaded files will be linked to this trace record.</small>
+              <small>Only PNG, JPG, JPEG, WEBP or GIF are allowed for trace images.</small>
             </div>
           </label>
           <label class="full-width">
@@ -891,8 +917,8 @@ function fileLabel(file) {
           <label class="full-width">
             <span>Quality attachments</span>
             <div class="upload-box">
-              <input type="file" multiple @change="handleQualityFilesChange">
-              <small>Upload report or support files.</small>
+              <input type="file" accept=".pdf,image/png,image/jpeg,image/webp" multiple @change="handleQualityFilesChange">
+              <small>Upload PDF or image files for the quality report.</small>
             </div>
           </label>
           <div v-if="qualityUploading" class="full-width upload-hint">Uploading quality attachments...</div>
@@ -1109,6 +1135,7 @@ label span {
 .quick-panel,
 .panel,
 .message-bar,
+.risk-panel,
 .loading-card {
   margin-top: 18px;
   padding: 24px;
@@ -1126,6 +1153,42 @@ label span {
 .message-bar.error {
   background: rgba(253, 236, 235, 0.94);
   color: #8f2f29;
+}
+
+.risk-panel {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 16px;
+}
+
+.risk-panel h2 {
+  margin-bottom: 8px;
+  color: #17362d;
+}
+
+.risk-copy,
+.risk-meta p {
+  color: #42594f;
+  line-height: 1.7;
+}
+
+.risk-meta {
+  padding: 18px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.48);
+}
+
+.risk-warning {
+  background: rgba(255, 245, 223, 0.94);
+}
+
+.risk-danger {
+  background: rgba(253, 236, 235, 0.94);
+}
+
+.risk-pending,
+.risk-normal {
+  background: rgba(245, 248, 244, 0.96);
 }
 
 .loading-card {
@@ -1556,7 +1619,8 @@ button:disabled {
 
 @media (max-width: 1080px) {
   .hero-card,
-  .grid {
+  .grid,
+  .risk-panel {
     grid-template-columns: 1fr;
   }
 

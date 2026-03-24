@@ -16,12 +16,17 @@ import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 
 @Component
 public class AttachmentStorageService {
 
     private static final DateTimeFormatter FOLDER_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd");
+    private static final Set<String> TRACE_IMAGE_EXTENSIONS = Set.of(".png", ".jpg", ".jpeg", ".webp", ".gif");
+    private static final Set<String> TRACE_IMAGE_CONTENT_TYPES = Set.of("image/png", "image/jpeg", "image/webp", "image/gif");
+    private static final Set<String> QUALITY_ATTACHMENT_EXTENSIONS = Set.of(".pdf", ".png", ".jpg", ".jpeg", ".webp");
+    private static final Set<String> QUALITY_ATTACHMENT_CONTENT_TYPES = Set.of("application/pdf", "image/png", "image/jpeg", "image/webp");
 
     private final TraceProperties traceProperties;
 
@@ -31,24 +36,31 @@ public class AttachmentStorageService {
 
     public StoredAttachment store(MultipartFile file, AttachmentBusinessType businessType) {
         if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("上传文件不能为空");
+            throw new IllegalArgumentException("uploaded file cannot be empty");
         }
-        String originalName = file.getOriginalFilename() == null ? "upload.bin" : Paths.get(file.getOriginalFilename()).getFileName().toString();
+
+        String originalName = file.getOriginalFilename() == null
+                ? "upload.bin"
+                : Paths.get(file.getOriginalFilename()).getFileName().toString();
         String extension = resolveExtension(originalName);
+        validate(file, businessType, extension);
+
         String relativePath = businessType.code() + "/" + FOLDER_FORMATTER.format(LocalDate.now()) + "/" + UUID.randomUUID() + extension;
         Path root = Paths.get(traceProperties.getAttachmentStorageDir()).toAbsolutePath().normalize();
         Path target = root.resolve(relativePath).normalize();
         if (!target.startsWith(root)) {
-            throw new IllegalArgumentException("非法文件路径");
+            throw new IllegalArgumentException("illegal attachment path");
         }
+
         try {
             Files.createDirectories(target.getParent());
             try (InputStream inputStream = file.getInputStream()) {
                 Files.copy(inputStream, target, StandardCopyOption.REPLACE_EXISTING);
             }
         } catch (IOException exception) {
-            throw new IllegalStateException("文件保存失败", exception);
+            throw new IllegalStateException("failed to save attachment", exception);
         }
+
         String contentType = file.getContentType() == null ? "application/octet-stream" : file.getContentType();
         return new StoredAttachment(originalName, relativePath.replace('\\', '/'), contentType, file.getSize());
     }
@@ -57,9 +69,46 @@ public class AttachmentStorageService {
         Path root = Paths.get(traceProperties.getAttachmentStorageDir()).toAbsolutePath().normalize();
         Path target = root.resolve(relativePath).normalize();
         if (!target.startsWith(root) || !Files.exists(target)) {
-            throw new IllegalArgumentException("附件不存在");
+            throw new IllegalArgumentException("attachment does not exist");
         }
         return new FileSystemResource(target);
+    }
+
+    public void delete(String relativePath) {
+        if (relativePath == null || relativePath.isBlank()) {
+            return;
+        }
+        Path root = Paths.get(traceProperties.getAttachmentStorageDir()).toAbsolutePath().normalize();
+        Path target = root.resolve(relativePath).normalize();
+        if (!target.startsWith(root)) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(target);
+        } catch (IOException ignored) {
+        }
+    }
+
+    private void validate(MultipartFile file, AttachmentBusinessType businessType, String extension) {
+        long size = file.getSize();
+        String contentType = file.getContentType() == null ? "" : file.getContentType().toLowerCase(Locale.ROOT);
+
+        if (businessType == AttachmentBusinessType.TRACE_IMAGE) {
+            if (size > traceProperties.getTraceImageMaxSize().toBytes()) {
+                throw new IllegalArgumentException("trace image exceeds the 5 MB limit");
+            }
+            if (!TRACE_IMAGE_EXTENSIONS.contains(extension) || !TRACE_IMAGE_CONTENT_TYPES.contains(contentType)) {
+                throw new IllegalArgumentException("trace image only supports PNG, JPG, JPEG, WEBP or GIF");
+            }
+            return;
+        }
+
+        if (size > traceProperties.getQualityAttachmentMaxSize().toBytes()) {
+            throw new IllegalArgumentException("quality attachment exceeds the 10 MB limit");
+        }
+        if (!QUALITY_ATTACHMENT_EXTENSIONS.contains(extension) || !QUALITY_ATTACHMENT_CONTENT_TYPES.contains(contentType)) {
+            throw new IllegalArgumentException("quality attachment only supports PDF, PNG, JPG, JPEG or WEBP");
+        }
     }
 
     private String resolveExtension(String fileName) {

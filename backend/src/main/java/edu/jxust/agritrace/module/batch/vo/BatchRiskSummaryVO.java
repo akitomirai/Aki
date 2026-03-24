@@ -1,6 +1,6 @@
-package edu.jxust.agritrace.module.publictrace.vo;
+package edu.jxust.agritrace.module.batch.vo;
 
-public record PublicRiskVO(
+public record BatchRiskSummaryVO(
         boolean hasRisk,
         String status,
         String riskLevel,

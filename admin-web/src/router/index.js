@@ -14,6 +14,14 @@ const routes = [
     component: () => import('../pages/BatchListView.vue')
   },
   {
+    path: '/companies',
+    component: () => import('../pages/CompanyManageView.vue')
+  },
+  {
+    path: '/products',
+    component: () => import('../pages/ProductManageView.vue')
+  },
+  {
     path: '/batches/:id',
     component: () => import('../pages/BatchWorkbenchView.vue')
   }

@@ -34,3 +34,5 @@ INSERT INTO qr_query_log (id, qr_id, batch_id, query_time, ip, ua, referer) VALU
 (1, 1, 1, '2026-03-24 10:15:00', '127.0.0.1', 'DemoBrowser/Desktop', 'http://127.0.0.1:5173');
 
 UPDATE base_product SET company_id = 1 WHERE id = 1;
+UPDATE org_company SET status = 'ENABLED' WHERE id = 1;
+UPDATE base_product SET product_code = 'ORANGE-001', origin_place = 'Jiangxi Ganzhou Xinfeng', status = 'ENABLED' WHERE id = 1;

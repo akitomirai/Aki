@@ -11,6 +11,8 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.util.Arrays;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -34,7 +36,7 @@ class BatchControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "batchCode": "ROUND4-CONTROLLER-001",
+                                  "batchCode": "ROUND5-CONTROLLER-001",
                                   "productId": 1,
                                   "originPlace": "Ganzhou Xinfeng",
                                   "productionDate": "2026-03-24"
@@ -50,7 +52,7 @@ class BatchControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "batchCode": "ROUND4-CONTROLLER-002",
+                                  "batchCode": "ROUND5-CONTROLLER-002",
                                   "companyId": 1,
                                   "originPlace": "Ganzhou Xinfeng",
                                   "productionDate": "2026-03-24"
@@ -107,9 +109,9 @@ class BatchControllerIntegrationTest {
     void shouldUploadQualityAttachmentAndBindToReport() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
                 "files",
-                "quality-report.txt",
-                MediaType.TEXT_PLAIN_VALUE,
-                "quality-attachment".getBytes()
+                "quality-report.pdf",
+                "application/pdf",
+                "%PDF-1.4".getBytes()
         );
 
         MvcResult uploadResult = mockMvc.perform(multipart("/api/batches/files/upload")
@@ -128,7 +130,7 @@ class BatchControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "reportNo": "QA-ROUND4-UPLOADED",
+                                  "reportNo": "QA-ROUND5-UPLOADED",
                                   "agency": "Jiangxi Quality Center",
                                   "result": "PASS",
                                   "reportTime": "2026-03-24T14:30",
@@ -142,5 +144,39 @@ class BatchControllerIntegrationTest {
 
         mockMvc.perform(get(filePath))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void shouldRejectUnsupportedTraceImageType() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "files",
+                "trace.txt",
+                MediaType.TEXT_PLAIN_VALUE,
+                "not-an-image".getBytes()
+        );
+
+        mockMvc.perform(multipart("/api/batches/files/upload")
+                        .file(file)
+                        .param("businessType", "trace-image"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", containsString("supports")));
+    }
+
+    @Test
+    void shouldRejectOversizedTraceImage() throws Exception {
+        byte[] bytes = new byte[5 * 1024 * 1024 + 1];
+        Arrays.fill(bytes, (byte) 1);
+        MockMultipartFile file = new MockMultipartFile(
+                "files",
+                "large.png",
+                MediaType.IMAGE_PNG_VALUE,
+                bytes
+        );
+
+        mockMvc.perform(multipart("/api/batches/files/upload")
+                        .file(file)
+                        .param("businessType", "trace-image"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", containsString("5 MB")));
     }
 }

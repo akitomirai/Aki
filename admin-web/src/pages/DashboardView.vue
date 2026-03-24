@@ -16,46 +16,49 @@ onMounted(async () => {
   <div class="page-shell">
     <header class="hero">
       <div>
-        <p class="eyebrow">轻量、直观、扫码即看</p>
-        <h1>农产品追溯管理端</h1>
+        <p class="eyebrow">Lightweight, direct, scan-first</p>
+        <h1>Agricultural traceability admin</h1>
         <p class="lead">
-          本轮项目方向已经从功能堆砌收敛为批次主线，优先保证企业建档、批次工作台和公开追溯页顺畅。
+          The project now stays focused on the batch workflow, public QR trace page,
+          and the minimum master data needed to keep the demo close to a real system.
         </p>
       </div>
       <nav class="hero-actions">
-        <RouterLink to="/batches">进入批次管理</RouterLink>
+        <RouterLink to="/batches">Batch center</RouterLink>
+        <RouterLink to="/companies">Companies</RouterLink>
+        <RouterLink to="/products">Products</RouterLink>
       </nav>
     </header>
 
-    <section v-if="loading" class="panel">正在加载概览数据...</section>
+    <section v-if="loading" class="panel">Loading overview...</section>
 
     <template v-else-if="overview">
       <section class="stats-grid">
         <article class="stat-card">
-          <span>批次总数</span>
+          <span>Total batches</span>
           <strong>{{ overview.totalBatches }}</strong>
         </article>
         <article class="stat-card">
-          <span>已发布批次</span>
+          <span>Published batches</span>
           <strong>{{ overview.publishedBatches }}</strong>
         </article>
         <article class="stat-card">
-          <span>草稿批次</span>
+          <span>Draft batches</span>
           <strong>{{ overview.draftBatches }}</strong>
         </article>
         <article class="stat-card danger">
-          <span>风险批次</span>
+          <span>Risk batches</span>
           <strong>{{ overview.riskBatches }}</strong>
         </article>
       </section>
 
       <section class="content-grid">
         <article class="panel">
-          <h2>当前主流程</h2>
+          <h2>Current main flow</h2>
           <p>{{ overview.coreFlowMessage }}</p>
         </article>
         <article class="panel">
-          <h2>本轮建设重点</h2>
+          <h2>This round focus</h2>
           <ul>
             <li v-for="item in overview.currentFocus" :key="item">{{ item }}</li>
           </ul>
@@ -105,15 +108,17 @@ h1 {
 
 .hero-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: end;
   justify-content: end;
+  gap: 12px;
 }
 
 .hero-actions a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 168px;
+  min-width: 148px;
   padding: 14px 18px;
   border-radius: 999px;
   background: #f3d17b;

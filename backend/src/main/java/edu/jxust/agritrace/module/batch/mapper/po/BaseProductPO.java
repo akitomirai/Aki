@@ -12,11 +12,14 @@ public class BaseProductPO {
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long companyId;
+    private String productCode;
     private String name;
     private String category;
+    private String originPlace;
     private String spec;
     private String unit;
     private String imageUrl;
+    private String status;
     private LocalDateTime createdAt;
 
     public Long getId() {
@@ -35,6 +38,14 @@ public class BaseProductPO {
         this.companyId = companyId;
     }
 
+    public String getProductCode() {
+        return productCode;
+    }
+
+    public void setProductCode(String productCode) {
+        this.productCode = productCode;
+    }
+
     public String getName() {
         return name;
     }
@@ -49,6 +60,14 @@ public class BaseProductPO {
 
     public void setCategory(String category) {
         this.category = category;
+    }
+
+    public String getOriginPlace() {
+        return originPlace;
+    }
+
+    public void setOriginPlace(String originPlace) {
+        this.originPlace = originPlace;
     }
 
     public String getSpec() {
@@ -73,6 +92,14 @@ public class BaseProductPO {
 
     public void setImageUrl(String imageUrl) {
         this.imageUrl = imageUrl;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
     }
 
     public LocalDateTime getCreatedAt() {

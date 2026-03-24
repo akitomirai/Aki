@@ -524,6 +524,8 @@ function fileLabel(file) {
       </div>
       <div class="hero-actions">
         <button class="primary" @click="openCreateDialog">Create batch</button>
+        <button class="ghost" @click="router.push('/companies')">Companies</button>
+        <button class="ghost" @click="router.push('/products')">Products</button>
         <button class="ghost" @click="router.push('/dashboard')">Back to dashboard</button>
       </div>
     </header>
@@ -797,7 +799,7 @@ function fileLabel(file) {
             <span>Trace images</span>
             <div class="upload-box">
               <input type="file" accept="image/*" multiple @change="handleTraceFilesChange">
-              <small>Upload real images. URL fallback is still supported.</small>
+              <small>Upload PNG, JPG, JPEG, WEBP or GIF. URL fallback is still supported.</small>
             </div>
           </label>
           <label class="full-width">
@@ -853,8 +855,8 @@ function fileLabel(file) {
           <label class="full-width">
             <span>Quality attachments</span>
             <div class="upload-box">
-              <input type="file" multiple @change="handleQualityFilesChange">
-              <small>Upload report files or supporting attachments.</small>
+              <input type="file" accept=".pdf,image/png,image/jpeg,image/webp" multiple @change="handleQualityFilesChange">
+              <small>Upload PDF or image attachments for the quality report.</small>
             </div>
           </label>
           <div v-if="qualityUploading" class="full-width upload-hint">Uploading quality attachments...</div>

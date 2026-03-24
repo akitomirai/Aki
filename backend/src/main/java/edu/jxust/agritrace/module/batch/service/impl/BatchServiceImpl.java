@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import edu.jxust.agritrace.config.TraceProperties;
 import edu.jxust.agritrace.module.batch.dto.BatchCreateRequest;
 import edu.jxust.agritrace.module.batch.dto.BatchListQueryRequest;
 import edu.jxust.agritrace.module.batch.dto.BatchStatusActionRequest;
@@ -16,6 +17,7 @@ import edu.jxust.agritrace.module.batch.entity.BatchEntity;
 import edu.jxust.agritrace.module.batch.entity.BatchStatus;
 import edu.jxust.agritrace.module.batch.entity.CompanyEntity;
 import edu.jxust.agritrace.module.batch.entity.FileAssetEntity;
+import edu.jxust.agritrace.module.batch.entity.MasterDataStatus;
 import edu.jxust.agritrace.module.batch.entity.ProductEntity;
 import edu.jxust.agritrace.module.batch.entity.QrCodeEntity;
 import edu.jxust.agritrace.module.batch.entity.QualityReportEntity;
@@ -42,12 +44,15 @@ import edu.jxust.agritrace.module.batch.mapper.po.QualityReportPO;
 import edu.jxust.agritrace.module.batch.mapper.po.TraceBatchPO;
 import edu.jxust.agritrace.module.batch.mapper.po.TraceEventPO;
 import edu.jxust.agritrace.module.batch.service.BatchService;
+import edu.jxust.agritrace.module.batch.service.MasterDataService;
 import edu.jxust.agritrace.module.batch.service.support.AttachmentStorageService;
+import edu.jxust.agritrace.module.batch.service.support.BatchRiskResolver;
 import edu.jxust.agritrace.module.batch.service.support.QrImageStorageService;
 import edu.jxust.agritrace.module.batch.service.support.TraceLinkBuilder;
 import edu.jxust.agritrace.module.batch.vo.BatchActionVO;
 import edu.jxust.agritrace.module.batch.vo.BatchListItemVO;
 import edu.jxust.agritrace.module.batch.vo.BatchOverviewVO;
+import edu.jxust.agritrace.module.batch.vo.BatchRiskSummaryVO;
 import edu.jxust.agritrace.module.batch.vo.BatchStatusLogVO;
 import edu.jxust.agritrace.module.batch.vo.BatchStatusSummaryVO;
 import edu.jxust.agritrace.module.batch.vo.BatchWorkbenchVO;
@@ -78,7 +83,6 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -104,9 +108,12 @@ public class BatchServiceImpl implements BatchService {
     private final BatchStatusLogMapper batchStatusLogMapper;
     private final QrQueryLogMapper qrQueryLogMapper;
     private final ObjectMapper objectMapper;
+    private final MasterDataService masterDataService;
+    private final TraceProperties traceProperties;
     private final TraceLinkBuilder traceLinkBuilder;
     private final QrImageStorageService qrImageStorageService;
     private final AttachmentStorageService attachmentStorageService;
+    private final BatchRiskResolver batchRiskResolver;
 
     public BatchServiceImpl(
             TraceBatchMapper traceBatchMapper,
@@ -119,9 +126,12 @@ public class BatchServiceImpl implements BatchService {
             BatchStatusLogMapper batchStatusLogMapper,
             QrQueryLogMapper qrQueryLogMapper,
             ObjectMapper objectMapper,
+            MasterDataService masterDataService,
+            TraceProperties traceProperties,
             TraceLinkBuilder traceLinkBuilder,
             QrImageStorageService qrImageStorageService,
-            AttachmentStorageService attachmentStorageService
+            AttachmentStorageService attachmentStorageService,
+            BatchRiskResolver batchRiskResolver
     ) {
         this.traceBatchMapper = traceBatchMapper;
         this.baseProductMapper = baseProductMapper;
@@ -133,9 +143,12 @@ public class BatchServiceImpl implements BatchService {
         this.batchStatusLogMapper = batchStatusLogMapper;
         this.qrQueryLogMapper = qrQueryLogMapper;
         this.objectMapper = objectMapper;
+        this.masterDataService = masterDataService;
+        this.traceProperties = traceProperties;
         this.traceLinkBuilder = traceLinkBuilder;
         this.qrImageStorageService = qrImageStorageService;
         this.attachmentStorageService = attachmentStorageService;
+        this.batchRiskResolver = batchRiskResolver;
     }
 
     @Override
@@ -173,56 +186,19 @@ public class BatchServiceImpl implements BatchService {
 
     @Override
     public List<CompanyOptionVO> listCompanyOptions(String keyword) {
-        LambdaQueryWrapper<OrgCompanyPO> wrapper = new LambdaQueryWrapper<OrgCompanyPO>()
-                .orderByAsc(OrgCompanyPO::getName)
-                .orderByAsc(OrgCompanyPO::getId);
-        if (notBlank(keyword)) {
-            wrapper.and(item -> item
-                    .like(OrgCompanyPO::getName, keyword.trim())
-                    .or()
-                    .like(OrgCompanyPO::getLicenseNo, keyword.trim()));
-        }
-        return orgCompanyMapper.selectList(wrapper).stream()
-                .map(company -> new CompanyOptionVO(
-                        company.getId(),
-                        company.getName(),
-                        company.getLicenseNo(),
-                        company.getAddress()
-                ))
-                .toList();
+        return masterDataService.listCompanyOptions(keyword);
     }
 
     @Override
     public List<ProductOptionVO> listProductOptions(Long companyId, String keyword) {
-        LambdaQueryWrapper<BaseProductPO> wrapper = new LambdaQueryWrapper<BaseProductPO>()
-                .orderByAsc(BaseProductPO::getName)
-                .orderByAsc(BaseProductPO::getId);
-        if (companyId != null) {
-            wrapper.eq(BaseProductPO::getCompanyId, companyId);
-        }
-        if (notBlank(keyword)) {
-            wrapper.and(item -> item
-                    .like(BaseProductPO::getName, keyword.trim())
-                    .or()
-                    .like(BaseProductPO::getCategory, keyword.trim()));
-        }
-        return baseProductMapper.selectList(wrapper).stream()
-                .map(product -> new ProductOptionVO(
-                        product.getId(),
-                        product.getCompanyId(),
-                        product.getName(),
-                        product.getCategory(),
-                        defaultValue(product.getSpec(), null),
-                        defaultValue(product.getUnit(), null),
-                        defaultValue(product.getImageUrl(), resolveProductImage(product.getName(), product.getCategory()))
-                ))
-                .toList();
+        return masterDataService.listProductOptions(companyId, keyword);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public List<FileAssetVO> uploadAttachments(String businessType, List<MultipartFile> files) {
         AttachmentBusinessType attachmentBusinessType = AttachmentBusinessType.fromCode(businessType);
+        cleanupExpiredOrphanAttachments();
         if (files == null || files.isEmpty()) {
             throw new IllegalArgumentException("files cannot be empty");
         }
@@ -684,6 +660,7 @@ public class BatchServiceImpl implements BatchService {
                         batch.getCompany().address()
                 ),
                 buildStatusSummary(batch, statusHistory),
+                buildRiskSummary(batch),
                 new TraceSectionVO(
                         sortedTraceRecords.size(),
                         sortedTraceRecords.isEmpty() ? null : sortedTraceRecords.get(0).eventTime(),
@@ -714,6 +691,19 @@ public class BatchServiceImpl implements BatchService {
                 defaultValue(batch.getStatusReason(), latestStatusLog == null ? "" : latestStatusLog.reason()),
                 latestStatusLog == null ? null : latestStatusLog.operatorName(),
                 latestStatusLog == null ? null : latestStatusLog.operatedAt()
+        );
+    }
+
+    private BatchRiskSummaryVO buildRiskSummary(BatchEntity batch) {
+        BatchRiskResolver.RiskSnapshot risk = batchRiskResolver.resolve(batch);
+        return new BatchRiskSummaryVO(
+                risk.hasRisk(),
+                risk.status(),
+                risk.riskLevel(),
+                risk.title(),
+                risk.reason(),
+                formatDateTime(risk.updatedAt()),
+                risk.tip()
         );
     }
 
@@ -1057,6 +1047,9 @@ public class BatchServiceImpl implements BatchService {
         if (productPO == null) {
             throw new IllegalArgumentException("productId does not exist");
         }
+        if (MasterDataStatus.fromCode(productPO.getStatus()) == MasterDataStatus.DISABLED) {
+            throw new IllegalArgumentException("selected product is disabled");
+        }
         if (!notBlank(productPO.getImageUrl())) {
             productPO.setImageUrl(resolveProductImage(productPO.getName(), productPO.getCategory()));
             baseProductMapper.updateById(productPO);
@@ -1068,6 +1061,9 @@ public class BatchServiceImpl implements BatchService {
         OrgCompanyPO companyPO = orgCompanyMapper.selectById(companyId);
         if (companyPO == null) {
             throw new IllegalArgumentException("companyId does not exist");
+        }
+        if (MasterDataStatus.fromCode(companyPO.getStatus()) == MasterDataStatus.DISABLED) {
+            throw new IllegalArgumentException("selected company is disabled");
         }
         return companyPO;
     }
@@ -1084,6 +1080,17 @@ public class BatchServiceImpl implements BatchService {
             throw new IllegalArgumentException("attachment does not exist");
         }
         return attachmentPO;
+    }
+
+    private void cleanupExpiredOrphanAttachments() {
+        LocalDateTime deadline = LocalDateTime.now().minusHours(traceProperties.getAttachmentOrphanCleanupHours());
+        List<BizAttachmentPO> expired = bizAttachmentMapper.selectList(new LambdaQueryWrapper<BizAttachmentPO>()
+                .isNull(BizAttachmentPO::getBusinessId)
+                .le(BizAttachmentPO::getCreatedAt, deadline));
+        for (BizAttachmentPO attachment : expired) {
+            attachmentStorageService.delete(attachment.getFilePath());
+            bizAttachmentMapper.deleteById(attachment.getId());
+        }
     }
 
     private List<BizAttachmentPO> claimAttachments(List<Long> attachmentIds, AttachmentBusinessType businessType, Long existingBusinessId) {
