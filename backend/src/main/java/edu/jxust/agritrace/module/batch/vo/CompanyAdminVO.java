@@ -8,6 +8,9 @@ public record CompanyAdminVO(
         String contactPhone,
         String address,
         String status,
-        String statusLabel
+        String statusLabel,
+        long productCount,
+        long batchCount,
+        boolean canDelete
 ) {
 }

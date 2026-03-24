@@ -38,6 +38,7 @@ async function loadDetail(token) {
 
 function riskClass(risk) {
   return {
+    pending: 'pending',
     warning: 'warning',
     danger: 'danger'
   }[risk?.riskLevel] ?? 'warning'
@@ -240,6 +241,11 @@ function riskClass(risk) {
 .risk-banner.warning {
   background: #fff5df;
   color: #7a4d00;
+}
+
+.risk-banner.pending {
+  background: #eef5ff;
+  color: #2a4f7f;
 }
 
 .risk-banner.danger {

@@ -3,7 +3,9 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   changeBatchStatus,
+  cleanupBatchFiles,
   createQualityReport,
+  createRiskAction,
   createTraceRecord,
   generateBatchQr,
   getBatchDetail,
@@ -29,6 +31,7 @@ const dialog = ref({
 const batchForm = ref(createBatchForm())
 const traceForm = ref(createTraceForm())
 const qualityForm = ref(createQualityForm())
+const riskForm = ref(createRiskForm())
 const statusForm = ref(createStatusForm())
 
 const formCompanyOptions = ref([])
@@ -53,6 +56,13 @@ const qualityOptions = [
   { value: 'REVIEW', label: 'Review' }
 ]
 
+const riskActionOptions = [
+  { value: 'COMMENT', label: 'Handling comment' },
+  { value: 'RECTIFICATION', label: 'Rectification record' },
+  { value: 'PROCESSING', label: 'Mark processing' },
+  { value: 'RECTIFIED', label: 'Mark rectified' }
+]
+
 const dialogTitle = computed(() => {
   switch (dialog.value.type) {
     case 'edit':
@@ -63,6 +73,8 @@ const dialogTitle = computed(() => {
       return 'Upload quality'
     case 'status':
       return 'Change status'
+    case 'risk':
+      return 'Update risk handling'
     default:
       return ''
   }
@@ -159,6 +171,15 @@ function createQualityForm() {
   }
 }
 
+function createRiskForm(actionType = 'COMMENT') {
+  return {
+    actionType,
+    reason: detail.value?.risk?.reason ?? '',
+    comment: '',
+    operatorName: 'Admin'
+  }
+}
+
 function createStatusForm(targetStatus = 'PUBLISHED') {
   return {
     targetStatus,
@@ -220,6 +241,14 @@ function openStatusDialog(targetStatus) {
   }
 }
 
+function openRiskDialog(actionType) {
+  riskForm.value = createRiskForm(actionType)
+  dialog.value = {
+    visible: true,
+    type: 'risk'
+  }
+}
+
 function closeDialog() {
   dialog.value = {
     visible: false,
@@ -258,11 +287,13 @@ async function submitDialog() {
         agency: qualityForm.value.agency,
         result: qualityForm.value.result,
         reportTime: qualityForm.value.reportTime,
-        highlights: splitHighlights(qualityForm.value.highlightsText),
+        highlights: splitHighlightsInput(qualityForm.value.highlightsText),
         attachmentIds: qualityForm.value.attachmentIds
       })
     } else if (dialog.value.type === 'status') {
       response = await changeBatchStatus(route.params.id, statusForm.value)
+    } else if (dialog.value.type === 'risk') {
+      response = await createRiskAction(route.params.id, riskForm.value)
     } else {
       return
     }
@@ -280,6 +311,20 @@ async function handleQrAction() {
     const response = await generateBatchQr(route.params.id)
     detail.value = response.data
     showMessage(response.message, 'success')
+  } catch (error) {
+    showMessage(getErrorMessage(error), 'error')
+  }
+}
+
+async function handleAttachmentCleanup() {
+  try {
+    const response = await cleanupBatchFiles()
+    const result = response.data
+    showMessage(
+      `Cleanup finished. Cleaned ${result.cleanedCount} attachment(s), failed ${result.failedCount}.`,
+      'success'
+    )
+    await loadDetail(route.params.id)
   } catch (error) {
     showMessage(getErrorMessage(error), 'error')
   }
@@ -416,6 +461,25 @@ function formatFileSize(size) {
 function fileLabel(file) {
   return file.fileName || file.fileUrl || 'Uploaded file'
 }
+
+function splitHighlightsInput(text) {
+  return text
+    .split(/[\n,;，；]/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function uploadStateLabel(file) {
+  return file?.businessId ? 'Bound' : 'Pending bind'
+}
+
+function uploadStateClass(file) {
+  return file?.businessId ? 'bound' : 'pending'
+}
+
+function canHandleRisk() {
+  return ['FROZEN', 'RECALLED'].includes(detail.value?.status?.code)
+}
 </script>
 
 <template>
@@ -547,6 +611,7 @@ function fileLabel(file) {
           <a v-if="canPreviewPublic" class="preview-link" :href="detail.qr.publicUrl" target="_blank" rel="noreferrer">
             Public preview
           </a>
+          <button class="ghost" @click="handleAttachmentCleanup">Run file cleanup</button>
         </div>
       </section>
 
@@ -596,7 +661,7 @@ function fileLabel(file) {
                   target="_blank"
                   rel="noreferrer"
                 >
-                  {{ fileLabel(attachment) }}
+                  {{ fileLabel(attachment) }} · {{ uploadStateLabel(attachment) }}
                 </a>
               </div>
               <small>{{ item.visibleToConsumer ? 'Public page visible' : 'Internal only' }}</small>
@@ -639,7 +704,7 @@ function fileLabel(file) {
                 target="_blank"
                 rel="noreferrer"
               >
-                {{ fileLabel(attachment) }}
+                {{ fileLabel(attachment) }} · {{ uploadStateLabel(attachment) }}
               </a>
             </div>
           </article>
@@ -761,6 +826,51 @@ function fileLabel(file) {
         <article class="panel">
           <div class="section-head">
             <div>
+              <p class="eyebrow">Risk handling</p>
+              <h2>Close the loop before resume</h2>
+            </div>
+          </div>
+
+          <div class="scan-grid">
+            <div>
+              <span>Current stage</span>
+              <strong>{{ detail.riskHandling.currentStageLabel }}</strong>
+            </div>
+            <div>
+              <span>Can resume</span>
+              <strong>{{ detail.riskHandling.canResume ? 'Yes' : 'Not yet' }}</strong>
+            </div>
+            <div>
+              <span>Current risk</span>
+              <strong>{{ detail.risk.title }}</strong>
+            </div>
+          </div>
+
+          <div class="quick-actions risk-actions">
+            <button class="ghost" :disabled="!canHandleRisk()" @click="openRiskDialog('COMMENT')">Add handling comment</button>
+            <button class="ghost" :disabled="!canHandleRisk()" @click="openRiskDialog('RECTIFICATION')">Add rectification</button>
+            <button class="warning" :disabled="!canHandleRisk()" @click="openRiskDialog('PROCESSING')">Mark processing</button>
+            <button class="success" :disabled="!canHandleRisk()" @click="openRiskDialog('RECTIFIED')">Mark rectified</button>
+          </div>
+
+          <ul class="risk-history">
+            <li v-if="!detail.riskHandling.history.length" class="risk-history-empty">
+              No handling record yet. Add a comment and rectification step before trying to resume.
+            </li>
+            <li v-for="item in detail.riskHandling.history" :key="item.id">
+              <div>
+                <strong>{{ item.actionLabel }}</strong>
+                <p v-if="item.reason">{{ item.reason }}</p>
+                <p v-if="item.comment">{{ item.comment }}</p>
+              </div>
+              <small>{{ item.operatorName }} | {{ item.createdAt }}</small>
+            </li>
+          </ul>
+        </article>
+
+        <article class="panel">
+          <div class="section-head">
+            <div>
               <p class="eyebrow">Status log</p>
               <h2>Reason, operator and timestamp</h2>
             </div>
@@ -877,9 +987,10 @@ function fileLabel(file) {
             <article v-for="item in traceForm.uploadedFiles" :key="item.id" class="uploaded-file-item">
               <div>
                 <strong>{{ fileLabel(item) }}</strong>
-                <small>{{ formatFileSize(item.size) }}</small>
+                <small>{{ formatFileSize(item.size) }} · {{ uploadStateLabel(item) }}</small>
               </div>
               <div class="inline-actions">
+                <span class="upload-state" :class="uploadStateClass(item)">{{ uploadStateLabel(item) }}</span>
                 <a class="preview-link" :href="item.fileUrl" target="_blank" rel="noreferrer">Open</a>
                 <button class="ghost" @click="removeTraceAttachment(item.id)">Remove</button>
               </div>
@@ -926,14 +1037,36 @@ function fileLabel(file) {
             <article v-for="item in qualityForm.uploadedFiles" :key="item.id" class="uploaded-file-item">
               <div>
                 <strong>{{ fileLabel(item) }}</strong>
-                <small>{{ formatFileSize(item.size) }}</small>
+                <small>{{ formatFileSize(item.size) }} · {{ uploadStateLabel(item) }}</small>
               </div>
               <div class="inline-actions">
+                <span class="upload-state" :class="uploadStateClass(item)">{{ uploadStateLabel(item) }}</span>
                 <a class="preview-link" :href="item.fileUrl" target="_blank" rel="noreferrer">Open</a>
                 <button class="ghost" @click="removeQualityAttachment(item.id)">Remove</button>
               </div>
             </article>
           </div>
+        </div>
+
+        <div v-else-if="dialog.type === 'risk'" class="form-grid">
+          <label>
+            <span>Action type</span>
+            <select v-model="riskForm.actionType">
+              <option v-for="item in riskActionOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+            </select>
+          </label>
+          <label>
+            <span>Operator</span>
+            <input v-model.trim="riskForm.operatorName" type="text">
+          </label>
+          <label class="full-width">
+            <span>Reason</span>
+            <textarea v-model.trim="riskForm.reason" rows="3" placeholder="Short reason or current stage"></textarea>
+          </label>
+          <label class="full-width">
+            <span>Comment</span>
+            <textarea v-model.trim="riskForm.comment" rows="4" placeholder="Handling opinion or rectification record"></textarea>
+          </label>
         </div>
 
         <div v-else-if="dialog.type === 'status'" class="form-grid">
@@ -1385,6 +1518,42 @@ label span {
   color: #60786d;
 }
 
+.risk-actions {
+  margin-top: 18px;
+}
+
+.risk-history {
+  display: grid;
+  gap: 10px;
+  padding: 0;
+  margin: 18px 0 0;
+  list-style: none;
+}
+
+.risk-history li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(245, 248, 244, 0.96);
+}
+
+.risk-history strong {
+  color: #17362d;
+}
+
+.risk-history p,
+.risk-history small {
+  margin-bottom: 0;
+  color: #60786d;
+  line-height: 1.6;
+}
+
+.risk-history-empty {
+  color: #60786d;
+}
+
 .trend-table {
   display: grid;
   gap: 10px;
@@ -1528,6 +1697,26 @@ textarea {
   padding: 12px 14px;
 }
 
+.upload-state {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.upload-state.pending {
+  background: rgba(242, 204, 105, 0.18);
+  color: #7b5d13;
+}
+
+.upload-state.bound {
+  background: rgba(40, 110, 74, 0.12);
+  color: #245846;
+}
+
 .upload-hint {
   padding: 4px 2px;
 }
@@ -1660,6 +1849,10 @@ button:disabled {
   .uploaded-file-item {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .risk-history li {
+    flex-direction: column;
   }
 }
 

@@ -37,7 +37,11 @@ app:
     qr-storage-dir: ${QR_STORAGE_DIR:${user.dir}/storage/qr}
     attachment-storage-dir: ${ATTACHMENT_STORAGE_DIR:${user.dir}/storage/attachments}
     trace-image-max-size: ${TRACE_IMAGE_MAX_SIZE:5MB}
+    trace-image-allowed-extensions: ${TRACE_IMAGE_ALLOWED_EXTENSIONS:.png,.jpg,.jpeg,.webp,.gif}
+    trace-image-allowed-content-types: ${TRACE_IMAGE_ALLOWED_CONTENT_TYPES:image/png,image/jpeg,image/webp,image/gif}
     quality-attachment-max-size: ${QUALITY_ATTACHMENT_MAX_SIZE:10MB}
+    quality-attachment-allowed-extensions: ${QUALITY_ATTACHMENT_ALLOWED_EXTENSIONS:.pdf,.png,.jpg,.jpeg,.webp}
+    quality-attachment-allowed-content-types: ${QUALITY_ATTACHMENT_ALLOWED_CONTENT_TYPES:application/pdf,image/png,image/jpeg,image/webp}
     attachment-orphan-cleanup-hours: ${ATTACHMENT_ORPHAN_CLEANUP_HOURS:24}
 
 springdoc:

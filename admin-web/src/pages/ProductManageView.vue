@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   createProduct,
+  deleteProduct,
   getCompanyList,
   getProductList,
   updateProduct,
@@ -30,10 +31,6 @@ const dialog = ref({
 })
 
 const form = ref(createProductForm())
-
-const companyLabelMap = computed(() => {
-  return Object.fromEntries(companies.value.map((item) => [item.id, item.name]))
-})
 
 const dialogTitle = computed(() => (dialog.value.type === 'edit' ? 'Edit product' : 'Create product'))
 
@@ -131,13 +128,10 @@ function closeDialog() {
 
 async function submitDialog() {
   try {
-    if (dialog.value.type === 'edit') {
-      const response = await updateProduct(dialog.value.productId, form.value)
-      showMessage(response.message, 'success')
-    } else {
-      const response = await createProduct(form.value)
-      showMessage(response.message, 'success')
-    }
+    const response = dialog.value.type === 'edit'
+      ? await updateProduct(dialog.value.productId, form.value)
+      : await createProduct(form.value)
+    showMessage(response.message, 'success')
     closeDialog()
     await fetchProducts()
   } catch (error) {
@@ -156,8 +150,45 @@ async function toggleStatus(item) {
   }
 }
 
+async function archiveProductItem(item) {
+  try {
+    const response = await updateProductStatus(item.id, 'ARCHIVED')
+    showMessage(response.message, 'success')
+    await fetchProducts()
+  } catch (error) {
+    showMessage(getErrorMessage(error), 'error')
+  }
+}
+
+async function deleteProductItem(item) {
+  if (!window.confirm(`Delete product "${item.productName}"? This only works when no batch still references it.`)) {
+    return
+  }
+  try {
+    const response = await deleteProduct(item.id)
+    showMessage(response.message, 'success')
+    await fetchProducts()
+  } catch (error) {
+    showMessage(getErrorMessage(error), 'error')
+  }
+}
+
 function statusClass(status) {
-  return status === 'ENABLED' ? 'enabled' : 'disabled'
+  return {
+    ENABLED: 'enabled',
+    DISABLED: 'disabled',
+    ARCHIVED: 'archived'
+  }[status] ?? 'disabled'
+}
+
+function statusActionLabel(status) {
+  if (status === 'ENABLED') {
+    return 'Disable'
+  }
+  if (status === 'ARCHIVED') {
+    return 'Restore'
+  }
+  return 'Enable'
 }
 
 function getErrorMessage(error) {
@@ -172,7 +203,7 @@ function getErrorMessage(error) {
         <p class="eyebrow">Master data</p>
         <h1>Product maintenance</h1>
         <p class="lead">
-          Keep product options aligned with real company ownership and batch selection.
+          Maintain real product options, archive historical products, and block unsafe deletion when batches still reference them.
         </p>
       </div>
       <div class="hero-actions">
@@ -201,6 +232,7 @@ function getErrorMessage(error) {
             <option value="">All status</option>
             <option value="ENABLED">Enabled</option>
             <option value="DISABLED">Disabled</option>
+            <option value="ARCHIVED">Archived</option>
           </select>
         </label>
       </div>
@@ -257,6 +289,10 @@ function getErrorMessage(error) {
                 <span>Unit</span>
                 <strong>{{ item.unit || 'N/A' }}</strong>
               </div>
+              <div>
+                <span>Batch refs</span>
+                <strong>{{ item.batchCount }}</strong>
+              </div>
             </div>
           </div>
         </div>
@@ -264,7 +300,13 @@ function getErrorMessage(error) {
         <div class="toolbar">
           <button class="ghost" @click="openEditDialog(item)">Edit</button>
           <button :class="item.status === 'ENABLED' ? 'warning' : 'success'" @click="toggleStatus(item)">
-            {{ item.status === 'ENABLED' ? 'Disable' : 'Enable' }}
+            {{ statusActionLabel(item.status) }}
+          </button>
+          <button class="neutral" :disabled="item.status === 'ARCHIVED'" @click="archiveProductItem(item)">
+            Archive
+          </button>
+          <button class="danger" @click="deleteProductItem(item)">
+            Delete
           </button>
         </div>
       </article>
@@ -309,6 +351,7 @@ function getErrorMessage(error) {
             <select v-model="form.status">
               <option value="ENABLED">Enabled</option>
               <option value="DISABLED">Disabled</option>
+              <option value="ARCHIVED">Archived</option>
             </select>
           </label>
           <label>
@@ -322,10 +365,6 @@ function getErrorMessage(error) {
           <label>
             <span>Unit</span>
             <input v-model.trim="form.unit" type="text">
-          </label>
-          <label v-if="form.companyId" class="full-width">
-            <span>Current company</span>
-            <div class="field-note">{{ companyLabelMap[form.companyId] || 'Selected company' }}</div>
           </label>
         </div>
 
@@ -388,7 +427,7 @@ h1 {
 .lead {
   margin: 0;
   line-height: 1.8;
-  max-width: 680px;
+  max-width: 700px;
 }
 
 .hero-actions,
@@ -465,8 +504,7 @@ h1 {
   margin-top: 16px;
 }
 
-.meta-grid div,
-.field-note {
+.meta-grid div {
   padding: 14px;
   border-radius: 18px;
   background: rgba(245, 248, 244, 0.96);
@@ -483,10 +521,6 @@ label span {
 .meta-grid strong {
   color: #17362d;
   line-height: 1.5;
-}
-
-.full-width {
-  grid-column: 1 / -1;
 }
 
 .message-bar.success {
@@ -529,6 +563,11 @@ button {
   color: #8f2f29;
 }
 
+.status-badge.archived {
+  background: rgba(96, 120, 109, 0.16);
+  color: #53675e;
+}
+
 input,
 select,
 textarea {
@@ -564,6 +603,16 @@ button {
 .warning {
   background: rgba(214, 137, 58, 0.16);
   color: #8b4c13;
+}
+
+.neutral {
+  background: rgba(96, 120, 109, 0.14);
+  color: #53675e;
+}
+
+.danger {
+  background: rgba(190, 70, 58, 0.14);
+  color: #8f2f29;
 }
 
 .dialog-mask {

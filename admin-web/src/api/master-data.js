@@ -20,6 +20,10 @@ export function updateCompanyStatus(id, status) {
   return http.post(`/companies/${id}/status`, { status })
 }
 
+export function deleteCompany(id) {
+  return http.delete(`/companies/${id}`)
+}
+
 export function getProductList(params) {
   return http.get('/products', { params })
 }
@@ -38,4 +42,8 @@ export function updateProduct(id, data) {
 
 export function updateProductStatus(id, status) {
   return http.post(`/products/${id}/status`, { status })
+}
+
+export function deleteProduct(id) {
+  return http.delete(`/products/${id}`)
 }

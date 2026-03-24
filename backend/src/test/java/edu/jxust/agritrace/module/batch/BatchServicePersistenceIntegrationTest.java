@@ -1,11 +1,13 @@
 package edu.jxust.agritrace.module.batch;
 
 import edu.jxust.agritrace.module.batch.dto.BatchCreateRequest;
+import edu.jxust.agritrace.module.batch.dto.BatchRiskActionCreateRequest;
 import edu.jxust.agritrace.module.batch.dto.BatchStatusActionRequest;
 import edu.jxust.agritrace.module.batch.dto.CompanySaveRequest;
 import edu.jxust.agritrace.module.batch.dto.ProductSaveRequest;
 import edu.jxust.agritrace.module.batch.dto.QualityReportCreateRequest;
 import edu.jxust.agritrace.module.batch.entity.BatchStatus;
+import edu.jxust.agritrace.module.batch.entity.RiskActionType;
 import edu.jxust.agritrace.module.batch.service.BatchService;
 import edu.jxust.agritrace.module.batch.service.MasterDataService;
 import edu.jxust.agritrace.module.publictrace.dto.PublicTraceAccessContext;
@@ -30,9 +32,9 @@ class BatchServicePersistenceIntegrationTest {
     private MasterDataService masterDataService;
 
     @Test
-    void shouldPersistBatchStatusTransitions() {
+    void shouldPersistBatchStatusTransitionsWithRiskClosure() {
         Long batchId = batchService.createBatch(new BatchCreateRequest(
-                "BATCH-STATE-ROUND5",
+                "BATCH-STATE-ROUND6",
                 1L,
                 1L,
                 "Jiangxi Ganzhou Xinfeng Orchard",
@@ -42,7 +44,7 @@ class BatchServicePersistenceIntegrationTest {
         )).batch().id();
 
         batchService.addQualityReport(batchId, new QualityReportCreateRequest(
-                "QA-STATE-ROUND5",
+                "QA-STATE-ROUND6",
                 "Jiangxi Quality Center",
                 "PASS",
                 "2026-03-24T10:00",
@@ -63,11 +65,43 @@ class BatchServicePersistenceIntegrationTest {
                 "tester"
         )).status().code());
 
-        assertEquals("PUBLISHED", batchService.changeStatus(batchId, new BatchStatusActionRequest(
+        batchService.addRiskAction(batchId, new BatchRiskActionCreateRequest(
+                RiskActionType.COMMENT,
+                "investigation started",
+                "Sampling issue found and handling comments recorded.",
+                "tester"
+        ));
+        batchService.addRiskAction(batchId, new BatchRiskActionCreateRequest(
+                RiskActionType.PROCESSING,
+                "processing",
+                "Team is handling the frozen batch.",
+                "tester"
+        ));
+        batchService.addRiskAction(batchId, new BatchRiskActionCreateRequest(
+                RiskActionType.RECTIFICATION,
+                "rectification note",
+                "Packaging labels and shelf stock have been corrected.",
+                "tester"
+        ));
+        var rectified = batchService.addRiskAction(batchId, new BatchRiskActionCreateRequest(
+                RiskActionType.RECTIFIED,
+                "rectified",
+                "Rectification completed and waiting for resume.",
+                "tester"
+        ));
+
+        assertEquals("RECTIFIED", rectified.risk().status());
+        assertEquals("RECTIFIED", rectified.riskHandling().currentStage());
+        assertTrue(rectified.riskHandling().canResume());
+
+        var resumed = batchService.changeStatus(batchId, new BatchStatusActionRequest(
                 BatchStatus.PUBLISHED,
                 "issue fixed",
                 "tester"
-        )).status().code());
+        ));
+
+        assertEquals("PUBLISHED", resumed.status().code());
+        assertEquals("NORMAL", resumed.risk().status());
 
         var recalled = batchService.changeStatus(batchId, new BatchStatusActionRequest(
                 BatchStatus.RECALLED,
@@ -82,7 +116,7 @@ class BatchServicePersistenceIntegrationTest {
     @Test
     void shouldKeepQrGenerationIdempotent() {
         Long batchId = batchService.createBatch(new BatchCreateRequest(
-                "BATCH-QR-ROUND5",
+                "BATCH-QR-ROUND6",
                 1L,
                 1L,
                 "Jiangxi Ganzhou Xinfeng Orchard",
@@ -92,7 +126,7 @@ class BatchServicePersistenceIntegrationTest {
         )).batch().id();
 
         batchService.addQualityReport(batchId, new QualityReportCreateRequest(
-                "QA-QR-ROUND5",
+                "QA-QR-ROUND6",
                 "Jiangxi Quality Center",
                 "PASS",
                 "2026-03-24T10:20",
@@ -141,8 +175,8 @@ class BatchServicePersistenceIntegrationTest {
     @Test
     void shouldValidateProductOwnershipForBatchCreation() {
         Long companyId = masterDataService.createCompany(new CompanySaveRequest(
-                "Round5 Ownership Company",
-                "LIC-ROUND5-OWNER",
+                "Round6 Ownership Company",
+                "LIC-ROUND6-OWNER",
                 "Owner",
                 "13900000005",
                 "Ji'an City",
@@ -150,8 +184,8 @@ class BatchServicePersistenceIntegrationTest {
         )).id();
 
         Long anotherCompanyId = masterDataService.createCompany(new CompanySaveRequest(
-                "Round5 Another Company",
-                "LIC-ROUND5-OWNER-2",
+                "Round6 Another Company",
+                "LIC-ROUND6-OWNER-2",
                 "Owner 2",
                 "13900000006",
                 "Fuzhou City",
@@ -172,7 +206,7 @@ class BatchServicePersistenceIntegrationTest {
 
         IllegalArgumentException mismatch = assertThrows(IllegalArgumentException.class, () ->
                 batchService.createBatch(new BatchCreateRequest(
-                        "BATCH-OWNERSHIP-ROUND5",
+                        "BATCH-OWNERSHIP-ROUND6",
                         productId,
                         anotherCompanyId,
                         "Ji'an Orchard",
@@ -187,7 +221,7 @@ class BatchServicePersistenceIntegrationTest {
     @Test
     void shouldAggregateScanStatsInWorkbench() {
         Long batchId = batchService.createBatch(new BatchCreateRequest(
-                "BATCH-SCAN-ROUND5",
+                "BATCH-SCAN-ROUND6",
                 1L,
                 1L,
                 "Jiangxi Ganzhou Xinfeng Orchard",
@@ -197,7 +231,7 @@ class BatchServicePersistenceIntegrationTest {
         )).batch().id();
 
         batchService.addQualityReport(batchId, new QualityReportCreateRequest(
-                "QA-SCAN-ROUND5",
+                "QA-SCAN-ROUND6",
                 "Jiangxi Quality Center",
                 "PASS",
                 "2026-03-24T11:00",
@@ -227,8 +261,8 @@ class BatchServicePersistenceIntegrationTest {
     @Test
     void shouldCreateBatchFromManagedCompanyAndProduct() {
         Long companyId = masterDataService.createCompany(new CompanySaveRequest(
-                "Round5 Managed Company",
-                "LIC-ROUND5-MANAGED",
+                "Round6 Managed Company",
+                "LIC-ROUND6-MANAGED",
                 "Delta",
                 "13900000007",
                 "Yingtan City",
@@ -237,8 +271,8 @@ class BatchServicePersistenceIntegrationTest {
 
         Long productId = masterDataService.createProduct(new ProductSaveRequest(
                 companyId,
-                "Round5 Managed Tea",
-                "TEA-ROUND5",
+                "Round6 Managed Tea",
+                "TEA-ROUND6",
                 "Tea",
                 "Yingtan Tea Base",
                 "/images/products/green-tea-batch.svg",
@@ -248,7 +282,7 @@ class BatchServicePersistenceIntegrationTest {
         )).id();
 
         var created = batchService.createBatch(new BatchCreateRequest(
-                "BATCH-MASTERDATA-ROUND5",
+                "BATCH-MASTERDATA-ROUND6",
                 productId,
                 companyId,
                 "Yingtan Tea Base",
@@ -259,36 +293,5 @@ class BatchServicePersistenceIntegrationTest {
 
         assertEquals(companyId, created.company().id());
         assertEquals(productId, created.product().id());
-    }
-
-    @Test
-    void shouldExposeRecallRiskInWorkbench() {
-        Long batchId = batchService.createBatch(new BatchCreateRequest(
-                "BATCH-RISK-ROUND5",
-                1L,
-                1L,
-                "Jiangxi Ganzhou Xinfeng Orchard",
-                "2026-03-24",
-                "risk test",
-                "test"
-        )).batch().id();
-
-        batchService.addQualityReport(batchId, new QualityReportCreateRequest(
-                "QA-RISK-ROUND5",
-                "Jiangxi Quality Center",
-                "PASS",
-                "2026-03-24T15:00",
-                List.of("pass"),
-                List.of()
-        ));
-        batchService.generateQr(batchId);
-        batchService.changeStatus(batchId, new BatchStatusActionRequest(BatchStatus.PUBLISHED, "ready", "tester"));
-        var recalled = batchService.changeStatus(batchId, new BatchStatusActionRequest(BatchStatus.RECALLED, "risk confirmed", "tester"));
-
-        assertEquals("RECALLED", recalled.status().code());
-        assertEquals("RECALLED", recalled.risk().status());
-        assertTrue(recalled.risk().hasRisk());
-        assertEquals("danger", recalled.risk().riskLevel());
-        assertEquals("risk confirmed", recalled.risk().reason());
     }
 }

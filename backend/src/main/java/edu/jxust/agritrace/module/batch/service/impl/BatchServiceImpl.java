@@ -5,15 +5,16 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import edu.jxust.agritrace.config.TraceProperties;
 import edu.jxust.agritrace.module.batch.dto.BatchCreateRequest;
 import edu.jxust.agritrace.module.batch.dto.BatchListQueryRequest;
+import edu.jxust.agritrace.module.batch.dto.BatchRiskActionCreateRequest;
 import edu.jxust.agritrace.module.batch.dto.BatchStatusActionRequest;
 import edu.jxust.agritrace.module.batch.dto.BatchUpdateRequest;
 import edu.jxust.agritrace.module.batch.dto.QualityReportCreateRequest;
 import edu.jxust.agritrace.module.batch.dto.TraceRecordCreateRequest;
 import edu.jxust.agritrace.module.batch.entity.AttachmentBusinessType;
 import edu.jxust.agritrace.module.batch.entity.BatchEntity;
+import edu.jxust.agritrace.module.batch.entity.BatchRiskActionEntity;
 import edu.jxust.agritrace.module.batch.entity.BatchStatus;
 import edu.jxust.agritrace.module.batch.entity.CompanyEntity;
 import edu.jxust.agritrace.module.batch.entity.FileAssetEntity;
@@ -21,11 +22,13 @@ import edu.jxust.agritrace.module.batch.entity.MasterDataStatus;
 import edu.jxust.agritrace.module.batch.entity.ProductEntity;
 import edu.jxust.agritrace.module.batch.entity.QrCodeEntity;
 import edu.jxust.agritrace.module.batch.entity.QualityReportEntity;
+import edu.jxust.agritrace.module.batch.entity.RiskActionType;
 import edu.jxust.agritrace.module.batch.entity.ScanRecordEntity;
 import edu.jxust.agritrace.module.batch.entity.StatusHistoryEntity;
 import edu.jxust.agritrace.module.batch.entity.TraceRecordEntity;
 import edu.jxust.agritrace.module.batch.entity.TraceStage;
 import edu.jxust.agritrace.module.batch.mapper.BaseProductMapper;
+import edu.jxust.agritrace.module.batch.mapper.BatchRiskActionMapper;
 import edu.jxust.agritrace.module.batch.mapper.BatchStatusLogMapper;
 import edu.jxust.agritrace.module.batch.mapper.BizAttachmentMapper;
 import edu.jxust.agritrace.module.batch.mapper.OrgCompanyMapper;
@@ -35,6 +38,7 @@ import edu.jxust.agritrace.module.batch.mapper.QualityReportMapper;
 import edu.jxust.agritrace.module.batch.mapper.TraceBatchMapper;
 import edu.jxust.agritrace.module.batch.mapper.TraceEventMapper;
 import edu.jxust.agritrace.module.batch.mapper.po.BaseProductPO;
+import edu.jxust.agritrace.module.batch.mapper.po.BatchRiskActionPO;
 import edu.jxust.agritrace.module.batch.mapper.po.BatchStatusLogPO;
 import edu.jxust.agritrace.module.batch.mapper.po.BizAttachmentPO;
 import edu.jxust.agritrace.module.batch.mapper.po.OrgCompanyPO;
@@ -45,13 +49,16 @@ import edu.jxust.agritrace.module.batch.mapper.po.TraceBatchPO;
 import edu.jxust.agritrace.module.batch.mapper.po.TraceEventPO;
 import edu.jxust.agritrace.module.batch.service.BatchService;
 import edu.jxust.agritrace.module.batch.service.MasterDataService;
+import edu.jxust.agritrace.module.batch.service.support.AttachmentGovernanceService;
 import edu.jxust.agritrace.module.batch.service.support.AttachmentStorageService;
 import edu.jxust.agritrace.module.batch.service.support.BatchRiskResolver;
 import edu.jxust.agritrace.module.batch.service.support.QrImageStorageService;
 import edu.jxust.agritrace.module.batch.service.support.TraceLinkBuilder;
+import edu.jxust.agritrace.module.batch.vo.AttachmentCleanupResultVO;
 import edu.jxust.agritrace.module.batch.vo.BatchActionVO;
 import edu.jxust.agritrace.module.batch.vo.BatchListItemVO;
 import edu.jxust.agritrace.module.batch.vo.BatchOverviewVO;
+import edu.jxust.agritrace.module.batch.vo.BatchRiskActionVO;
 import edu.jxust.agritrace.module.batch.vo.BatchRiskSummaryVO;
 import edu.jxust.agritrace.module.batch.vo.BatchStatusLogVO;
 import edu.jxust.agritrace.module.batch.vo.BatchStatusSummaryVO;
@@ -64,6 +71,7 @@ import edu.jxust.agritrace.module.batch.vo.ProductOptionVO;
 import edu.jxust.agritrace.module.batch.vo.QrSummaryVO;
 import edu.jxust.agritrace.module.batch.vo.QualityReportVO;
 import edu.jxust.agritrace.module.batch.vo.QualitySectionVO;
+import edu.jxust.agritrace.module.batch.vo.RiskHandlingSectionVO;
 import edu.jxust.agritrace.module.batch.vo.ScanRecordVO;
 import edu.jxust.agritrace.module.batch.vo.ScanStatsSectionVO;
 import edu.jxust.agritrace.module.batch.vo.ScanTrendPointVO;
@@ -104,15 +112,16 @@ public class BatchServiceImpl implements BatchService {
     private final TraceEventMapper traceEventMapper;
     private final QualityReportMapper qualityReportMapper;
     private final BizAttachmentMapper bizAttachmentMapper;
+    private final BatchRiskActionMapper batchRiskActionMapper;
     private final QrCodeMapper qrCodeMapper;
     private final BatchStatusLogMapper batchStatusLogMapper;
     private final QrQueryLogMapper qrQueryLogMapper;
     private final ObjectMapper objectMapper;
     private final MasterDataService masterDataService;
-    private final TraceProperties traceProperties;
     private final TraceLinkBuilder traceLinkBuilder;
     private final QrImageStorageService qrImageStorageService;
     private final AttachmentStorageService attachmentStorageService;
+    private final AttachmentGovernanceService attachmentGovernanceService;
     private final BatchRiskResolver batchRiskResolver;
 
     public BatchServiceImpl(
@@ -122,15 +131,16 @@ public class BatchServiceImpl implements BatchService {
             TraceEventMapper traceEventMapper,
             QualityReportMapper qualityReportMapper,
             BizAttachmentMapper bizAttachmentMapper,
+            BatchRiskActionMapper batchRiskActionMapper,
             QrCodeMapper qrCodeMapper,
             BatchStatusLogMapper batchStatusLogMapper,
             QrQueryLogMapper qrQueryLogMapper,
             ObjectMapper objectMapper,
             MasterDataService masterDataService,
-            TraceProperties traceProperties,
             TraceLinkBuilder traceLinkBuilder,
             QrImageStorageService qrImageStorageService,
             AttachmentStorageService attachmentStorageService,
+            AttachmentGovernanceService attachmentGovernanceService,
             BatchRiskResolver batchRiskResolver
     ) {
         this.traceBatchMapper = traceBatchMapper;
@@ -139,15 +149,16 @@ public class BatchServiceImpl implements BatchService {
         this.traceEventMapper = traceEventMapper;
         this.qualityReportMapper = qualityReportMapper;
         this.bizAttachmentMapper = bizAttachmentMapper;
+        this.batchRiskActionMapper = batchRiskActionMapper;
         this.qrCodeMapper = qrCodeMapper;
         this.batchStatusLogMapper = batchStatusLogMapper;
         this.qrQueryLogMapper = qrQueryLogMapper;
         this.objectMapper = objectMapper;
         this.masterDataService = masterDataService;
-        this.traceProperties = traceProperties;
         this.traceLinkBuilder = traceLinkBuilder;
         this.qrImageStorageService = qrImageStorageService;
         this.attachmentStorageService = attachmentStorageService;
+        this.attachmentGovernanceService = attachmentGovernanceService;
         this.batchRiskResolver = batchRiskResolver;
     }
 
@@ -198,7 +209,7 @@ public class BatchServiceImpl implements BatchService {
     @Transactional(rollbackFor = Exception.class)
     public List<FileAssetVO> uploadAttachments(String businessType, List<MultipartFile> files) {
         AttachmentBusinessType attachmentBusinessType = AttachmentBusinessType.fromCode(businessType);
-        cleanupExpiredOrphanAttachments();
+        attachmentGovernanceService.cleanupExpiredOrphans();
         if (files == null || files.isEmpty()) {
             throw new IllegalArgumentException("files cannot be empty");
         }
@@ -218,6 +229,12 @@ public class BatchServiceImpl implements BatchService {
             uploaded.add(toFileAssetVO(attachmentPO));
         }
         return uploaded;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public AttachmentCleanupResultVO cleanupExpiredOrphanAttachments() {
+        return attachmentGovernanceService.cleanupExpiredOrphans();
     }
 
     @Override
@@ -339,6 +356,33 @@ public class BatchServiceImpl implements BatchService {
         reportPO.setCreatedAt(reportTime);
         qualityReportMapper.insert(reportPO);
         bindAttachmentsToBusiness(attachments, reportPO.getId());
+
+        return toWorkbench(getBatchEntityById(batchId));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public BatchWorkbenchVO addRiskAction(Long batchId, BatchRiskActionCreateRequest request) {
+        TraceBatchPO batchPO = findBatchPO(batchId);
+        BatchEntity batch = loadBatchEntity(batchPO);
+        if (batch.getStatus() != BatchStatus.FROZEN && batch.getStatus() != BatchStatus.RECALLED) {
+            throw new IllegalArgumentException("risk handling can only be added when the batch is frozen or recalled");
+        }
+        validateRiskActionRequest(request);
+
+        BatchRiskActionPO actionPO = new BatchRiskActionPO();
+        actionPO.setBatchId(batchId);
+        actionPO.setActionType(request.actionType().code());
+        actionPO.setReason(trimToNull(request.reason()));
+        actionPO.setComment(trimToNull(request.comment()));
+        actionPO.setOperatorName(request.operatorName().trim());
+        actionPO.setCreatedAt(LocalDateTime.now());
+        batchRiskActionMapper.insert(actionPO);
+
+        if (request.actionType() == RiskActionType.PROCESSING || request.actionType() == RiskActionType.RECTIFIED) {
+            batchPO.setStatusReason(defaultValue(request.reason(), defaultValue(request.comment(), batchPO.getStatusReason())));
+            traceBatchMapper.updateById(batchPO);
+        }
 
         return toWorkbench(getBatchEntityById(batchId));
     }
@@ -467,6 +511,14 @@ public class BatchServiceImpl implements BatchService {
                 .map(this::toStatusHistoryEntity)
                 .toList();
 
+        List<BatchRiskActionEntity> riskActions = batchRiskActionMapper.selectList(new LambdaQueryWrapper<BatchRiskActionPO>()
+                        .eq(BatchRiskActionPO::getBatchId, batchPO.getId())
+                        .orderByDesc(BatchRiskActionPO::getCreatedAt)
+                        .orderByDesc(BatchRiskActionPO::getId))
+                .stream()
+                .map(this::toBatchRiskActionEntity)
+                .toList();
+
         QrCodePO qrCodePO = findQrByBatchId(batchPO.getId());
         List<QrQueryLogPO> qrLogs = qrCodePO == null
                 ? List.of()
@@ -492,8 +544,9 @@ public class BatchServiceImpl implements BatchService {
         batch.getTraceRecords().addAll(traceRecords);
         batch.getQualityReports().addAll(qualityReports);
         batch.getStatusHistory().addAll(statusHistory);
+        batch.getRiskActions().addAll(riskActions);
         batch.getScanRecords().addAll(qrLogs.stream().map(this::toScanRecordEntity).toList());
-        batch.setCurrentNode(resolveCurrentNode(batch.getStatus(), traceRecords));
+        batch.setCurrentNode(resolveCurrentNode(batch, traceRecords));
         batch.setQrCode(toQrCodeEntity(qrCodePO, qrLogs));
         return batch;
     }
@@ -569,6 +622,17 @@ public class BatchServiceImpl implements BatchService {
                 defaultValue(logPO.getReason(), "未填写原因"),
                 defaultValue(logPO.getOperatorName(), "未知操作人"),
                 logPO.getOperatedAt()
+        );
+    }
+
+    private BatchRiskActionEntity toBatchRiskActionEntity(BatchRiskActionPO actionPO) {
+        return new BatchRiskActionEntity(
+                actionPO.getId(),
+                RiskActionType.fromCode(actionPO.getActionType()),
+                actionPO.getReason(),
+                actionPO.getComment(),
+                defaultValue(actionPO.getOperatorName(), "Unknown"),
+                actionPO.getCreatedAt()
         );
     }
 
@@ -661,6 +725,7 @@ public class BatchServiceImpl implements BatchService {
                 ),
                 buildStatusSummary(batch, statusHistory),
                 buildRiskSummary(batch),
+                buildRiskHandlingSection(batch),
                 new TraceSectionVO(
                         sortedTraceRecords.size(),
                         sortedTraceRecords.isEmpty() ? null : sortedTraceRecords.get(0).eventTime(),
@@ -704,6 +769,19 @@ public class BatchServiceImpl implements BatchService {
                 risk.reason(),
                 formatDateTime(risk.updatedAt()),
                 risk.tip()
+        );
+    }
+
+    private RiskHandlingSectionVO buildRiskHandlingSection(BatchEntity batch) {
+        List<BatchRiskActionVO> history = batch.getRiskActions().stream()
+                .sorted(Comparator.comparing(BatchRiskActionEntity::createdAt).reversed())
+                .map(this::toRiskActionVO)
+                .toList();
+        return new RiskHandlingSectionVO(
+                batchRiskResolver.currentHandlingStage(batch),
+                batchRiskResolver.currentHandlingStageLabel(batch),
+                batchRiskResolver.canResume(batch),
+                history
         );
     }
 
@@ -826,12 +904,27 @@ public class BatchServiceImpl implements BatchService {
         );
     }
 
+    private BatchRiskActionVO toRiskActionVO(BatchRiskActionEntity action) {
+        return new BatchRiskActionVO(
+                action.id(),
+                action.actionType().code(),
+                action.actionType().label(),
+                action.reason(),
+                action.comment(),
+                action.operatorName(),
+                formatDateTime(action.createdAt())
+        );
+    }
+
     private List<BatchActionVO> buildActions(BatchEntity batch) {
         QualityReportEntity latestQuality = latestQuality(batch);
         boolean hasQualifiedReport = latestQuality != null && !"FAIL".equalsIgnoreCase(latestQuality.result());
         boolean hasQr = batch.getQrCode() != null;
         boolean canPublish = batch.getStatus() == BatchStatus.DRAFT && hasQualifiedReport && hasQr;
-        boolean canResume = batch.getStatus() == BatchStatus.FROZEN && hasQualifiedReport && hasQr;
+        boolean canResume = batch.getStatus() == BatchStatus.FROZEN
+                && hasQualifiedReport
+                && hasQr
+                && batchRiskResolver.canResume(batch);
         boolean canFreeze = batch.getStatus() == BatchStatus.PUBLISHED;
         boolean canRecall = batch.getStatus() == BatchStatus.PUBLISHED || batch.getStatus() == BatchStatus.FROZEN;
         boolean canGenerateQr = !hasQr;
@@ -843,7 +936,7 @@ public class BatchServiceImpl implements BatchService {
                 new BatchActionVO("GENERATE_QR", hasQr ? "查看二维码" : "生成二维码", canGenerateQr, hasQr ? "已存在二维码，继续返回已有结果。" : "同一批次默认只生成一次二维码。", "primary"),
                 new BatchActionVO("VIEW_PUBLIC", "公开页预览", hasQr, hasQr ? "可直接打开公开追溯页。" : "需先生成二维码。", "neutral"),
                 new BatchActionVO("PUBLISH", "发布批次", canPublish, hasQualifiedReport && hasQr ? "已满足发布条件。" : "需先补齐合格质检和二维码。", "success"),
-                new BatchActionVO("RESUME", "恢复发布", canResume, canResume ? "冻结问题已处理时可恢复公开展示。" : "仅冻结批次支持恢复。", "success"),
+                new BatchActionVO("RESUME", "恢复发布", canResume, canResume ? "整改已完成，满足恢复发布条件。" : "先补充处理意见并标记整改完成。", "success"),
                 new BatchActionVO("FREEZE", "冻结批次", canFreeze, "发现异常时应快速冻结，并写明原因。", "warning"),
                 new BatchActionVO("RECALL", "召回批次", canRecall, "召回后公开页首屏需展示风险提示。", "danger")
         );
@@ -870,6 +963,9 @@ public class BatchServiceImpl implements BatchService {
             if (currentStatus != BatchStatus.DRAFT && currentStatus != BatchStatus.FROZEN) {
                 throw new IllegalArgumentException("当前状态不支持发布或恢复发布");
             }
+            if (currentStatus == BatchStatus.FROZEN && !batchRiskResolver.canResume(batch)) {
+                throw new IllegalArgumentException("请先补充处理意见并标记整改完成，再恢复发布");
+            }
         }
         if (targetStatus == BatchStatus.FROZEN && currentStatus != BatchStatus.PUBLISHED) {
             throw new IllegalArgumentException("只有已发布批次可以冻结");
@@ -894,7 +990,7 @@ public class BatchServiceImpl implements BatchService {
             tags.add("已扫码 " + batch.getQrCode().pv() + " 次");
         }
         if (batch.getStatus() == BatchStatus.FROZEN || batch.getStatus() == BatchStatus.RECALLED) {
-            tags.add("风险批次");
+            tags.add(batchRiskResolver.currentHandlingStageLabel(batch));
         }
         return tags;
     }
@@ -906,12 +1002,10 @@ public class BatchServiceImpl implements BatchService {
         return latestQuality.resultLabel() + "，重点结果：" + String.join("、", latestQuality.highlights());
     }
 
-    private String resolveCurrentNode(BatchStatus status, List<TraceRecordEntity> traceRecords) {
-        if (status == BatchStatus.RECALLED) {
-            return "已召回，公开页需要明确提示风险";
-        }
-        if (status == BatchStatus.FROZEN) {
-            return "已冻结，等待补充说明或恢复";
+    private String resolveCurrentNode(BatchEntity batch, List<TraceRecordEntity> traceRecords) {
+        String riskNode = batchRiskResolver.resolveWorkbenchNode(batch);
+        if (riskNode != null) {
+            return riskNode;
         }
         if (!traceRecords.isEmpty()) {
             TraceRecordEntity latest = traceRecords.stream()
@@ -919,7 +1013,7 @@ public class BatchServiceImpl implements BatchService {
                     .orElse(traceRecords.get(0));
             return latest.stage().label();
         }
-        if (status == BatchStatus.PUBLISHED) {
+        if (batch.getStatus() == BatchStatus.PUBLISHED) {
             return "已发布，可对外扫码查看";
         }
         return "待补录追溯记录";
@@ -1047,8 +1141,8 @@ public class BatchServiceImpl implements BatchService {
         if (productPO == null) {
             throw new IllegalArgumentException("productId does not exist");
         }
-        if (MasterDataStatus.fromCode(productPO.getStatus()) == MasterDataStatus.DISABLED) {
-            throw new IllegalArgumentException("selected product is disabled");
+        if (!MasterDataStatus.fromCode(productPO.getStatus()).selectable()) {
+            throw new IllegalArgumentException("selected product is not available");
         }
         if (!notBlank(productPO.getImageUrl())) {
             productPO.setImageUrl(resolveProductImage(productPO.getName(), productPO.getCategory()));
@@ -1062,8 +1156,8 @@ public class BatchServiceImpl implements BatchService {
         if (companyPO == null) {
             throw new IllegalArgumentException("companyId does not exist");
         }
-        if (MasterDataStatus.fromCode(companyPO.getStatus()) == MasterDataStatus.DISABLED) {
-            throw new IllegalArgumentException("selected company is disabled");
+        if (!MasterDataStatus.fromCode(companyPO.getStatus()).selectable()) {
+            throw new IllegalArgumentException("selected company is not available");
         }
         return companyPO;
     }
@@ -1082,14 +1176,20 @@ public class BatchServiceImpl implements BatchService {
         return attachmentPO;
     }
 
-    private void cleanupExpiredOrphanAttachments() {
-        LocalDateTime deadline = LocalDateTime.now().minusHours(traceProperties.getAttachmentOrphanCleanupHours());
-        List<BizAttachmentPO> expired = bizAttachmentMapper.selectList(new LambdaQueryWrapper<BizAttachmentPO>()
-                .isNull(BizAttachmentPO::getBusinessId)
-                .le(BizAttachmentPO::getCreatedAt, deadline));
-        for (BizAttachmentPO attachment : expired) {
-            attachmentStorageService.delete(attachment.getFilePath());
-            bizAttachmentMapper.deleteById(attachment.getId());
+    private void validateRiskActionRequest(BatchRiskActionCreateRequest request) {
+        boolean hasReason = notBlank(request.reason());
+        boolean hasComment = notBlank(request.comment());
+        if (!hasReason && !hasComment) {
+            throw new IllegalArgumentException("reason or comment must be provided for risk handling");
+        }
+        if (request.actionType() == RiskActionType.COMMENT && !hasComment) {
+            throw new IllegalArgumentException("comment is required for a handling opinion");
+        }
+        if (request.actionType() == RiskActionType.RECTIFICATION && !hasComment) {
+            throw new IllegalArgumentException("comment is required for a rectification record");
+        }
+        if ((request.actionType() == RiskActionType.PROCESSING || request.actionType() == RiskActionType.RECTIFIED) && !hasReason) {
+            throw new IllegalArgumentException("reason is required when marking processing or rectification completed");
         }
     }
 

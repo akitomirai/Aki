@@ -2,11 +2,13 @@ package edu.jxust.agritrace.module.batch.service;
 
 import edu.jxust.agritrace.module.batch.dto.BatchCreateRequest;
 import edu.jxust.agritrace.module.batch.dto.BatchListQueryRequest;
+import edu.jxust.agritrace.module.batch.dto.BatchRiskActionCreateRequest;
 import edu.jxust.agritrace.module.batch.dto.BatchStatusActionRequest;
 import edu.jxust.agritrace.module.batch.dto.BatchUpdateRequest;
 import edu.jxust.agritrace.module.batch.dto.QualityReportCreateRequest;
 import edu.jxust.agritrace.module.batch.dto.TraceRecordCreateRequest;
 import edu.jxust.agritrace.module.batch.entity.BatchEntity;
+import edu.jxust.agritrace.module.batch.vo.AttachmentCleanupResultVO;
 import edu.jxust.agritrace.module.batch.vo.BatchListItemVO;
 import edu.jxust.agritrace.module.batch.vo.BatchWorkbenchVO;
 import edu.jxust.agritrace.module.batch.vo.CompanyOptionVO;
@@ -30,6 +32,8 @@ public interface BatchService {
 
     List<FileAssetVO> uploadAttachments(String businessType, List<MultipartFile> files);
 
+    AttachmentCleanupResultVO cleanupExpiredOrphanAttachments();
+
     BatchWorkbenchVO createBatch(BatchCreateRequest request);
 
     BatchWorkbenchVO updateBatch(Long batchId, BatchUpdateRequest request);
@@ -39,6 +43,8 @@ public interface BatchService {
     BatchWorkbenchVO addTraceRecord(Long batchId, TraceRecordCreateRequest request);
 
     BatchWorkbenchVO addQualityReport(Long batchId, QualityReportCreateRequest request);
+
+    BatchWorkbenchVO addRiskAction(Long batchId, BatchRiskActionCreateRequest request);
 
     BatchWorkbenchVO generateQr(Long batchId);
 

@@ -15,19 +15,14 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashSet;
 import java.util.Locale;
-import java.util.Set;
 import java.util.UUID;
 
 @Component
 public class AttachmentStorageService {
 
     private static final DateTimeFormatter FOLDER_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd");
-    private static final Set<String> TRACE_IMAGE_EXTENSIONS = Set.of(".png", ".jpg", ".jpeg", ".webp", ".gif");
-    private static final Set<String> TRACE_IMAGE_CONTENT_TYPES = Set.of("image/png", "image/jpeg", "image/webp", "image/gif");
-    private static final Set<String> QUALITY_ATTACHMENT_EXTENSIONS = Set.of(".pdf", ".png", ".jpg", ".jpeg", ".webp");
-    private static final Set<String> QUALITY_ATTACHMENT_CONTENT_TYPES = Set.of("application/pdf", "image/png", "image/jpeg", "image/webp");
-
     private final TraceProperties traceProperties;
 
     public AttachmentStorageService(TraceProperties traceProperties) {
@@ -35,7 +30,7 @@ public class AttachmentStorageService {
     }
 
     public StoredAttachment store(MultipartFile file, AttachmentBusinessType businessType) {
-        if (file == null || file.isEmpty()) {
+        if (file == null || file.getSize() == 0 || file.isEmpty()) {
             throw new IllegalArgumentException("uploaded file cannot be empty");
         }
 
@@ -74,40 +69,32 @@ public class AttachmentStorageService {
         return new FileSystemResource(target);
     }
 
-    public void delete(String relativePath) {
+    public boolean delete(String relativePath) {
         if (relativePath == null || relativePath.isBlank()) {
-            return;
+            return true;
         }
         Path root = Paths.get(traceProperties.getAttachmentStorageDir()).toAbsolutePath().normalize();
         Path target = root.resolve(relativePath).normalize();
         if (!target.startsWith(root)) {
-            return;
+            return false;
         }
         try {
-            Files.deleteIfExists(target);
+            return !Files.exists(target) || Files.deleteIfExists(target);
         } catch (IOException ignored) {
+            return false;
         }
     }
 
     private void validate(MultipartFile file, AttachmentBusinessType businessType, String extension) {
         long size = file.getSize();
         String contentType = file.getContentType() == null ? "" : file.getContentType().toLowerCase(Locale.ROOT);
+        AttachmentRules rules = resolveRules(businessType);
 
-        if (businessType == AttachmentBusinessType.TRACE_IMAGE) {
-            if (size > traceProperties.getTraceImageMaxSize().toBytes()) {
-                throw new IllegalArgumentException("trace image exceeds the 5 MB limit");
-            }
-            if (!TRACE_IMAGE_EXTENSIONS.contains(extension) || !TRACE_IMAGE_CONTENT_TYPES.contains(contentType)) {
-                throw new IllegalArgumentException("trace image only supports PNG, JPG, JPEG, WEBP or GIF");
-            }
-            return;
+        if (size > rules.maxBytes()) {
+            throw new IllegalArgumentException(rules.displayName() + " exceeds the " + rules.maxLabel() + " limit");
         }
-
-        if (size > traceProperties.getQualityAttachmentMaxSize().toBytes()) {
-            throw new IllegalArgumentException("quality attachment exceeds the 10 MB limit");
-        }
-        if (!QUALITY_ATTACHMENT_EXTENSIONS.contains(extension) || !QUALITY_ATTACHMENT_CONTENT_TYPES.contains(contentType)) {
-            throw new IllegalArgumentException("quality attachment only supports PDF, PNG, JPG, JPEG or WEBP");
+        if (!rules.allowedExtensions().contains(extension) || !rules.allowedContentTypes().contains(contentType)) {
+            throw new IllegalArgumentException(rules.displayName() + " only supports " + rules.allowedLabels());
         }
     }
 
@@ -125,6 +112,61 @@ public class AttachmentStorageService {
             String filePath,
             String contentType,
             long size
+    ) {
+    }
+
+    private AttachmentRules resolveRules(AttachmentBusinessType businessType) {
+        if (businessType == AttachmentBusinessType.TRACE_IMAGE) {
+            return new AttachmentRules(
+                    "trace image",
+                    traceProperties.getTraceImageMaxSize().toBytes(),
+                    traceProperties.getTraceImageMaxSize().toMegabytes() + " MB",
+                    normalizeList(traceProperties.getTraceImageAllowedExtensions()),
+                    normalizeList(traceProperties.getTraceImageAllowedContentTypes()),
+                    formatAllowedLabels(traceProperties.getTraceImageAllowedExtensions())
+            );
+        }
+        return new AttachmentRules(
+                "quality attachment",
+                traceProperties.getQualityAttachmentMaxSize().toBytes(),
+                traceProperties.getQualityAttachmentMaxSize().toMegabytes() + " MB",
+                normalizeList(traceProperties.getQualityAttachmentAllowedExtensions()),
+                normalizeList(traceProperties.getQualityAttachmentAllowedContentTypes()),
+                formatAllowedLabels(traceProperties.getQualityAttachmentAllowedExtensions())
+        );
+    }
+
+    private LinkedHashSet<String> normalizeList(java.util.List<String> values) {
+        LinkedHashSet<String> normalized = new LinkedHashSet<>();
+        if (values == null) {
+            return normalized;
+        }
+        values.stream()
+                .filter(value -> value != null && !value.isBlank())
+                .map(value -> value.trim().toLowerCase(Locale.ROOT))
+                .forEach(normalized::add);
+        return normalized;
+    }
+
+    private String formatAllowedLabels(java.util.List<String> extensions) {
+        if (extensions == null || extensions.isEmpty()) {
+            return "configured file types";
+        }
+        return extensions.stream()
+                .filter(value -> value != null && !value.isBlank())
+                .map(value -> value.replace(".", "").toUpperCase(Locale.ROOT))
+                .distinct()
+                .reduce((left, right) -> left + ", " + right)
+                .orElse("configured file types");
+    }
+
+    private record AttachmentRules(
+            String displayName,
+            long maxBytes,
+            String maxLabel,
+            LinkedHashSet<String> allowedExtensions,
+            LinkedHashSet<String> allowedContentTypes,
+            String allowedLabels
     ) {
     }
 }

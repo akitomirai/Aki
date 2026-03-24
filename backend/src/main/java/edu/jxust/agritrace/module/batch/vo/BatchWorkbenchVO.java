@@ -8,6 +8,7 @@ public record BatchWorkbenchVO(
         CompanySummaryVO company,
         BatchStatusSummaryVO status,
         BatchRiskSummaryVO risk,
+        RiskHandlingSectionVO riskHandling,
         TraceSectionVO trace,
         QualitySectionVO quality,
         QrSummaryVO qr,

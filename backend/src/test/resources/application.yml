@@ -14,3 +14,28 @@ app:
     backend-base-url: http://127.0.0.1:8080
     qr-storage-dir: ${java.io.tmpdir}/agritrace-test-qr
     attachment-storage-dir: ${java.io.tmpdir}/agritrace-test-attachments
+    trace-image-max-size: 5MB
+    trace-image-allowed-extensions:
+      - .png
+      - .jpg
+      - .jpeg
+      - .webp
+      - .gif
+    trace-image-allowed-content-types:
+      - image/png
+      - image/jpeg
+      - image/webp
+      - image/gif
+    quality-attachment-max-size: 10MB
+    quality-attachment-allowed-extensions:
+      - .pdf
+      - .png
+      - .jpg
+      - .jpeg
+      - .webp
+    quality-attachment-allowed-content-types:
+      - application/pdf
+      - image/png
+      - image/jpeg
+      - image/webp
+    attachment-orphan-cleanup-hours: 1

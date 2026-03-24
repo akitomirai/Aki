@@ -9,8 +9,10 @@ import edu.jxust.agritrace.module.batch.dto.StatusUpdateRequest;
 import edu.jxust.agritrace.module.batch.entity.MasterDataStatus;
 import edu.jxust.agritrace.module.batch.mapper.BaseProductMapper;
 import edu.jxust.agritrace.module.batch.mapper.OrgCompanyMapper;
+import edu.jxust.agritrace.module.batch.mapper.TraceBatchMapper;
 import edu.jxust.agritrace.module.batch.mapper.po.BaseProductPO;
 import edu.jxust.agritrace.module.batch.mapper.po.OrgCompanyPO;
+import edu.jxust.agritrace.module.batch.mapper.po.TraceBatchPO;
 import edu.jxust.agritrace.module.batch.service.MasterDataService;
 import edu.jxust.agritrace.module.batch.vo.CompanyAdminVO;
 import edu.jxust.agritrace.module.batch.vo.CompanyOptionVO;
@@ -29,10 +31,16 @@ public class MasterDataServiceImpl implements MasterDataService {
 
     private final OrgCompanyMapper orgCompanyMapper;
     private final BaseProductMapper baseProductMapper;
+    private final TraceBatchMapper traceBatchMapper;
 
-    public MasterDataServiceImpl(OrgCompanyMapper orgCompanyMapper, BaseProductMapper baseProductMapper) {
+    public MasterDataServiceImpl(
+            OrgCompanyMapper orgCompanyMapper,
+            BaseProductMapper baseProductMapper,
+            TraceBatchMapper traceBatchMapper
+    ) {
         this.orgCompanyMapper = orgCompanyMapper;
         this.baseProductMapper = baseProductMapper;
+        this.traceBatchMapper = traceBatchMapper;
     }
 
     @Override
@@ -110,6 +118,21 @@ public class MasterDataServiceImpl implements MasterDataService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteCompany(Long companyId) {
+        OrgCompanyPO companyPO = findCompanyRequired(companyId);
+        long productCount = countProductsByCompany(companyId);
+        long batchCount = countBatchesByCompany(companyId);
+        if (productCount > 0 || batchCount > 0) {
+            throw new IllegalArgumentException(
+                    "company cannot be deleted because it is still referenced by "
+                            + productCount + " products and " + batchCount + " batches"
+            );
+        }
+        orgCompanyMapper.deleteById(companyPO.getId());
+    }
+
+    @Override
     public List<CompanyOptionVO> listCompanyOptions(String keyword) {
         LambdaQueryWrapper<OrgCompanyPO> wrapper = new LambdaQueryWrapper<OrgCompanyPO>()
                 .eq(OrgCompanyPO::getStatus, MasterDataStatus.ENABLED.name())
@@ -170,8 +193,8 @@ public class MasterDataServiceImpl implements MasterDataService {
     @Transactional(rollbackFor = Exception.class)
     public ProductAdminVO createProduct(ProductSaveRequest request) {
         OrgCompanyPO company = findCompanyRequired(request.companyId());
-        if (isDisabled(company.getStatus())) {
-            throw new IllegalArgumentException("selected company is disabled");
+        if (!normalizeStatus(company.getStatus()).selectable()) {
+            throw new IllegalArgumentException("selected company is not available");
         }
         ensureProductUnique(request.companyId(), request.productName(), request.productCode(), null);
 
@@ -194,8 +217,8 @@ public class MasterDataServiceImpl implements MasterDataService {
     public ProductAdminVO updateProduct(Long productId, ProductSaveRequest request) {
         BaseProductPO productPO = findProductRequired(productId);
         OrgCompanyPO company = findCompanyRequired(request.companyId());
-        if (isDisabled(company.getStatus())) {
-            throw new IllegalArgumentException("selected company is disabled");
+        if (!normalizeStatus(company.getStatus()).selectable()) {
+            throw new IllegalArgumentException("selected company is not available");
         }
         ensureProductUnique(request.companyId(), request.productName(), request.productCode(), productId);
 
@@ -219,6 +242,19 @@ public class MasterDataServiceImpl implements MasterDataService {
         productPO.setStatus(normalizeStatus(request.status()).name());
         baseProductMapper.updateById(productPO);
         return toProductAdminVO(findProductRequired(productId));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteProduct(Long productId) {
+        BaseProductPO productPO = findProductRequired(productId);
+        long batchCount = countBatchesByProduct(productId);
+        if (batchCount > 0) {
+            throw new IllegalArgumentException(
+                    "product cannot be deleted because it is still referenced by " + batchCount + " batches"
+            );
+        }
+        baseProductMapper.deleteById(productPO.getId());
     }
 
     @Override
@@ -254,6 +290,8 @@ public class MasterDataServiceImpl implements MasterDataService {
 
     private CompanyAdminVO toCompanyAdminVO(OrgCompanyPO companyPO) {
         MasterDataStatus status = normalizeStatus(companyPO.getStatus());
+        long productCount = countProductsByCompany(companyPO.getId());
+        long batchCount = countBatchesByCompany(companyPO.getId());
         return new CompanyAdminVO(
                 companyPO.getId(),
                 companyPO.getName(),
@@ -262,13 +300,17 @@ public class MasterDataServiceImpl implements MasterDataService {
                 companyPO.getPhone(),
                 companyPO.getAddress(),
                 status.name(),
-                status.label()
+                status.label(),
+                productCount,
+                batchCount,
+                productCount == 0 && batchCount == 0
         );
     }
 
     private ProductAdminVO toProductAdminVO(BaseProductPO productPO) {
         OrgCompanyPO companyPO = findCompanyRequired(productPO.getCompanyId());
         MasterDataStatus status = normalizeStatus(productPO.getStatus());
+        long batchCount = countBatchesByProduct(productPO.getId());
         return new ProductAdminVO(
                 productPO.getId(),
                 productPO.getCompanyId(),
@@ -281,7 +323,9 @@ public class MasterDataServiceImpl implements MasterDataService {
                 productPO.getSpec(),
                 productPO.getUnit(),
                 status.name(),
-                status.label()
+                status.label(),
+                batchCount,
+                batchCount == 0
         );
     }
 
@@ -349,8 +393,19 @@ public class MasterDataServiceImpl implements MasterDataService {
         return MasterDataStatus.fromCode(value);
     }
 
-    private boolean isDisabled(String status) {
-        return normalizeStatus(status) == MasterDataStatus.DISABLED;
+    private long countProductsByCompany(Long companyId) {
+        return baseProductMapper.selectCount(new LambdaQueryWrapper<BaseProductPO>()
+                .eq(BaseProductPO::getCompanyId, companyId));
+    }
+
+    private long countBatchesByCompany(Long companyId) {
+        return traceBatchMapper.selectCount(new LambdaQueryWrapper<TraceBatchPO>()
+                .eq(TraceBatchPO::getCompanyId, companyId));
+    }
+
+    private long countBatchesByProduct(Long productId) {
+        return traceBatchMapper.selectCount(new LambdaQueryWrapper<TraceBatchPO>()
+                .eq(TraceBatchPO::getProductId, productId));
     }
 
     private String resolveProductImage(String productName, String category) {

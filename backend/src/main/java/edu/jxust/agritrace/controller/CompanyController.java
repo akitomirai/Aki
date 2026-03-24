@@ -7,6 +7,7 @@ import edu.jxust.agritrace.module.batch.dto.StatusUpdateRequest;
 import edu.jxust.agritrace.module.batch.service.MasterDataService;
 import edu.jxust.agritrace.module.batch.vo.CompanyAdminVO;
 import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -51,5 +52,11 @@ public class CompanyController {
     @PostMapping("/{companyId}/status")
     public ApiResponse<CompanyAdminVO> updateCompanyStatus(@PathVariable Long companyId, @Valid @RequestBody StatusUpdateRequest request) {
         return ApiResponse.ok("Company status updated.", masterDataService.updateCompanyStatus(companyId, request));
+    }
+
+    @DeleteMapping("/{companyId}")
+    public ApiResponse<Void> deleteCompany(@PathVariable Long companyId) {
+        masterDataService.deleteCompany(companyId);
+        return ApiResponse.ok("Company deleted.", null);
     }
 }

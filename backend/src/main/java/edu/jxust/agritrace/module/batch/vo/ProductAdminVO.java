@@ -12,6 +12,8 @@ public record ProductAdminVO(
         String specification,
         String unit,
         String status,
-        String statusLabel
+        String statusLabel,
+        long batchCount,
+        boolean canDelete
 ) {
 }

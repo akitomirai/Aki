@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   createCompany,
+  deleteCompany,
   getCompanyList,
   updateCompany,
   updateCompanyStatus
@@ -111,13 +112,10 @@ function closeDialog() {
 
 async function submitDialog() {
   try {
-    if (dialog.value.type === 'edit') {
-      const response = await updateCompany(dialog.value.companyId, form.value)
-      showMessage(response.message, 'success')
-    } else {
-      const response = await createCompany(form.value)
-      showMessage(response.message, 'success')
-    }
+    const response = dialog.value.type === 'edit'
+      ? await updateCompany(dialog.value.companyId, form.value)
+      : await createCompany(form.value)
+    showMessage(response.message, 'success')
     closeDialog()
     await fetchCompanies()
   } catch (error) {
@@ -136,8 +134,45 @@ async function toggleStatus(item) {
   }
 }
 
+async function archiveCompanyItem(item) {
+  try {
+    const response = await updateCompanyStatus(item.id, 'ARCHIVED')
+    showMessage(response.message, 'success')
+    await fetchCompanies()
+  } catch (error) {
+    showMessage(getErrorMessage(error), 'error')
+  }
+}
+
+async function deleteCompanyItem(item) {
+  if (!window.confirm(`Delete company "${item.name}"? This only works when no product or batch still references it.`)) {
+    return
+  }
+  try {
+    const response = await deleteCompany(item.id)
+    showMessage(response.message, 'success')
+    await fetchCompanies()
+  } catch (error) {
+    showMessage(getErrorMessage(error), 'error')
+  }
+}
+
 function statusClass(status) {
-  return status === 'ENABLED' ? 'enabled' : 'disabled'
+  return {
+    ENABLED: 'enabled',
+    DISABLED: 'disabled',
+    ARCHIVED: 'archived'
+  }[status] ?? 'disabled'
+}
+
+function statusActionLabel(status) {
+  if (status === 'ENABLED') {
+    return 'Disable'
+  }
+  if (status === 'ARCHIVED') {
+    return 'Restore'
+  }
+  return 'Enable'
 }
 
 function getErrorMessage(error) {
@@ -152,7 +187,7 @@ function getErrorMessage(error) {
         <p class="eyebrow">Master data</p>
         <h1>Company maintenance</h1>
         <p class="lead">
-          Keep the batch selector backed by real company data instead of only SQL seeds.
+          Maintain real companies, archive historical ones, and prevent unsafe deletion when products or batches still depend on them.
         </p>
       </div>
       <div class="hero-actions">
@@ -174,6 +209,7 @@ function getErrorMessage(error) {
             <option value="">All status</option>
             <option value="ENABLED">Enabled</option>
             <option value="DISABLED">Disabled</option>
+            <option value="ARCHIVED">Archived</option>
           </select>
         </label>
       </div>
@@ -215,6 +251,14 @@ function getErrorMessage(error) {
             <span>Phone</span>
             <strong>{{ item.contactPhone }}</strong>
           </div>
+          <div>
+            <span>Products</span>
+            <strong>{{ item.productCount }}</strong>
+          </div>
+          <div>
+            <span>Batches</span>
+            <strong>{{ item.batchCount }}</strong>
+          </div>
           <div class="full-width">
             <span>Address</span>
             <strong>{{ item.address }}</strong>
@@ -224,7 +268,13 @@ function getErrorMessage(error) {
         <div class="toolbar">
           <button class="ghost" @click="openEditDialog(item)">Edit</button>
           <button :class="item.status === 'ENABLED' ? 'warning' : 'success'" @click="toggleStatus(item)">
-            {{ item.status === 'ENABLED' ? 'Disable' : 'Enable' }}
+            {{ statusActionLabel(item.status) }}
+          </button>
+          <button class="neutral" :disabled="item.status === 'ARCHIVED'" @click="archiveCompanyItem(item)">
+            Archive
+          </button>
+          <button class="danger" @click="deleteCompanyItem(item)">
+            Delete
           </button>
         </div>
       </article>
@@ -254,6 +304,7 @@ function getErrorMessage(error) {
             <select v-model="form.status">
               <option value="ENABLED">Enabled</option>
               <option value="DISABLED">Disabled</option>
+              <option value="ARCHIVED">Archived</option>
             </select>
           </label>
           <label>
@@ -329,7 +380,7 @@ h1 {
 .lead {
   margin: 0;
   line-height: 1.8;
-  max-width: 680px;
+  max-width: 700px;
 }
 
 .hero-actions,
@@ -455,6 +506,11 @@ button {
   color: #8f2f29;
 }
 
+.status-badge.archived {
+  background: rgba(96, 120, 109, 0.16);
+  color: #53675e;
+}
+
 input,
 select,
 textarea {
@@ -494,6 +550,16 @@ button {
 .warning {
   background: rgba(214, 137, 58, 0.16);
   color: #8b4c13;
+}
+
+.neutral {
+  background: rgba(96, 120, 109, 0.14);
+  color: #53675e;
+}
+
+.danger {
+  background: rgba(190, 70, 58, 0.14);
+  color: #8f2f29;
 }
 
 .dialog-mask {

@@ -1,3 +1,4 @@
+DROP TABLE IF EXISTS batch_risk_action;
 DROP TABLE IF EXISTS batch_status_log;
 DROP TABLE IF EXISTS qr_query_log;
 DROP TABLE IF EXISTS qr_code;
@@ -5,8 +6,19 @@ DROP TABLE IF EXISTS biz_attachment;
 DROP TABLE IF EXISTS quality_report;
 DROP TABLE IF EXISTS trace_event;
 DROP TABLE IF EXISTS trace_batch;
-DROP TABLE IF EXISTS org_company;
 DROP TABLE IF EXISTS base_product;
+DROP TABLE IF EXISTS org_company;
+
+CREATE TABLE org_company (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(128) NOT NULL,
+  license_no VARCHAR(64),
+  address VARCHAR(255),
+  contact VARCHAR(64),
+  phone VARCHAR(32),
+  status VARCHAR(20) DEFAULT 'ENABLED',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
 CREATE TABLE base_product (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -19,18 +31,8 @@ CREATE TABLE base_product (
   unit VARCHAR(16),
   image_url VARCHAR(255),
   status VARCHAR(20) DEFAULT 'ENABLED',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE org_company (
-  id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  name VARCHAR(128) NOT NULL,
-  license_no VARCHAR(64),
-  address VARCHAR(255),
-  contact VARCHAR(64),
-  phone VARCHAR(32),
-  status VARCHAR(20) DEFAULT 'ENABLED',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_base_product_company FOREIGN KEY (company_id) REFERENCES org_company(id)
 );
 
 CREATE TABLE trace_batch (
@@ -128,4 +130,15 @@ CREATE TABLE batch_status_log (
   operated_at TIMESTAMP NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_batch_status_log_batch FOREIGN KEY (batch_id) REFERENCES trace_batch(id)
+);
+
+CREATE TABLE batch_risk_action (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  batch_id BIGINT NOT NULL,
+  action_type VARCHAR(32) NOT NULL,
+  reason VARCHAR(500),
+  comment VARCHAR(1000),
+  operator_name VARCHAR(100),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_batch_risk_action_batch FOREIGN KEY (batch_id) REFERENCES trace_batch(id)
 );

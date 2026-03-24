@@ -7,6 +7,7 @@ import edu.jxust.agritrace.module.batch.dto.StatusUpdateRequest;
 import edu.jxust.agritrace.module.batch.service.MasterDataService;
 import edu.jxust.agritrace.module.batch.vo.ProductAdminVO;
 import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -51,5 +52,11 @@ public class ProductController {
     @PostMapping("/{productId}/status")
     public ApiResponse<ProductAdminVO> updateProductStatus(@PathVariable Long productId, @Valid @RequestBody StatusUpdateRequest request) {
         return ApiResponse.ok("Product status updated.", masterDataService.updateProductStatus(productId, request));
+    }
+
+    @DeleteMapping("/{productId}")
+    public ApiResponse<Void> deleteProduct(@PathVariable Long productId) {
+        masterDataService.deleteProduct(productId);
+        return ApiResponse.ok("Product deleted.", null);
     }
 }

@@ -2,6 +2,8 @@ package edu.jxust.agritrace.module.batch;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import edu.jxust.agritrace.module.batch.mapper.BizAttachmentMapper;
+import edu.jxust.agritrace.module.batch.mapper.po.BizAttachmentPO;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -11,6 +13,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.time.LocalDateTime;
 import java.util.Arrays;
 
 import static org.hamcrest.Matchers.containsString;
@@ -30,13 +33,16 @@ class BatchControllerIntegrationTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private BizAttachmentMapper bizAttachmentMapper;
+
     @Test
     void shouldRejectBatchCreationWithoutExplicitCompanyId() throws Exception {
         mockMvc.perform(post("/api/batches")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "batchCode": "ROUND5-CONTROLLER-001",
+                                  "batchCode": "ROUND6-CONTROLLER-001",
                                   "productId": 1,
                                   "originPlace": "Ganzhou Xinfeng",
                                   "productionDate": "2026-03-24"
@@ -52,7 +58,7 @@ class BatchControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "batchCode": "ROUND5-CONTROLLER-002",
+                                  "batchCode": "ROUND6-CONTROLLER-002",
                                   "companyId": 1,
                                   "originPlace": "Ganzhou Xinfeng",
                                   "productionDate": "2026-03-24"
@@ -130,7 +136,7 @@ class BatchControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "reportNo": "QA-ROUND5-UPLOADED",
+                                  "reportNo": "QA-ROUND6-UPLOADED",
                                   "agency": "Jiangxi Quality Center",
                                   "result": "PASS",
                                   "reportTime": "2026-03-24T14:30",
@@ -144,6 +150,22 @@ class BatchControllerIntegrationTest {
 
         mockMvc.perform(get(filePath))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void shouldRejectEmptyFileUpload() throws Exception {
+        MockMultipartFile empty = new MockMultipartFile(
+                "files",
+                "empty.png",
+                MediaType.IMAGE_PNG_VALUE,
+                new byte[0]
+        );
+
+        mockMvc.perform(multipart("/api/batches/files/upload")
+                        .file(empty)
+                        .param("businessType", "trace-image"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", containsString("cannot be empty")));
     }
 
     @Test
@@ -178,5 +200,33 @@ class BatchControllerIntegrationTest {
                         .param("businessType", "trace-image"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message", containsString("5 MB")));
+    }
+
+    @Test
+    void shouldCleanupExpiredOrphanAttachments() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "files",
+                "cleanup.png",
+                MediaType.IMAGE_PNG_VALUE,
+                "cleanup".getBytes()
+        );
+
+        MvcResult uploadResult = mockMvc.perform(multipart("/api/batches/files/upload")
+                        .file(file)
+                        .param("businessType", "trace-image"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode uploadJson = objectMapper.readTree(uploadResult.getResponse().getContentAsString());
+        long fileId = uploadJson.path("data").get(0).path("id").asLong();
+
+        BizAttachmentPO attachmentPO = bizAttachmentMapper.selectById(fileId);
+        attachmentPO.setCreatedAt(LocalDateTime.now().minusHours(3));
+        bizAttachmentMapper.updateById(attachmentPO);
+
+        mockMvc.perform(post("/api/batches/files/cleanup"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.cleanedCount").value(1))
+                .andExpect(jsonPath("$.data.cleanedIds[0]").value(fileId));
     }
 }

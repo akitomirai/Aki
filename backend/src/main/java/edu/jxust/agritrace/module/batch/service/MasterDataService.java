@@ -24,6 +24,8 @@ public interface MasterDataService {
 
     CompanyAdminVO updateCompanyStatus(Long companyId, StatusUpdateRequest request);
 
+    void deleteCompany(Long companyId);
+
     List<CompanyOptionVO> listCompanyOptions(String keyword);
 
     List<ProductAdminVO> listProducts(ProductListQueryRequest request);
@@ -35,6 +37,8 @@ public interface MasterDataService {
     ProductAdminVO updateProduct(Long productId, ProductSaveRequest request);
 
     ProductAdminVO updateProductStatus(Long productId, StatusUpdateRequest request);
+
+    void deleteProduct(Long productId);
 
     List<ProductOptionVO> listProductOptions(Long companyId, String keyword);
 }

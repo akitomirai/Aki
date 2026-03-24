@@ -3,6 +3,8 @@ package edu.jxust.agritrace.config;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.util.unit.DataSize;
 
+import java.util.List;
+
 @ConfigurationProperties(prefix = "app.trace")
 public class TraceProperties {
 
@@ -12,6 +14,10 @@ public class TraceProperties {
     private String attachmentStorageDir = "storage/attachments";
     private DataSize traceImageMaxSize = DataSize.ofMegabytes(5);
     private DataSize qualityAttachmentMaxSize = DataSize.ofMegabytes(10);
+    private List<String> traceImageAllowedExtensions = List.of(".png", ".jpg", ".jpeg", ".webp", ".gif");
+    private List<String> traceImageAllowedContentTypes = List.of("image/png", "image/jpeg", "image/webp", "image/gif");
+    private List<String> qualityAttachmentAllowedExtensions = List.of(".pdf", ".png", ".jpg", ".jpeg", ".webp");
+    private List<String> qualityAttachmentAllowedContentTypes = List.of("application/pdf", "image/png", "image/jpeg", "image/webp");
     private int attachmentOrphanCleanupHours = 24;
 
     public String getPublicBaseUrl() {
@@ -60,6 +66,38 @@ public class TraceProperties {
 
     public void setQualityAttachmentMaxSize(DataSize qualityAttachmentMaxSize) {
         this.qualityAttachmentMaxSize = qualityAttachmentMaxSize;
+    }
+
+    public List<String> getTraceImageAllowedExtensions() {
+        return traceImageAllowedExtensions;
+    }
+
+    public void setTraceImageAllowedExtensions(List<String> traceImageAllowedExtensions) {
+        this.traceImageAllowedExtensions = traceImageAllowedExtensions;
+    }
+
+    public List<String> getTraceImageAllowedContentTypes() {
+        return traceImageAllowedContentTypes;
+    }
+
+    public void setTraceImageAllowedContentTypes(List<String> traceImageAllowedContentTypes) {
+        this.traceImageAllowedContentTypes = traceImageAllowedContentTypes;
+    }
+
+    public List<String> getQualityAttachmentAllowedExtensions() {
+        return qualityAttachmentAllowedExtensions;
+    }
+
+    public void setQualityAttachmentAllowedExtensions(List<String> qualityAttachmentAllowedExtensions) {
+        this.qualityAttachmentAllowedExtensions = qualityAttachmentAllowedExtensions;
+    }
+
+    public List<String> getQualityAttachmentAllowedContentTypes() {
+        return qualityAttachmentAllowedContentTypes;
+    }
+
+    public void setQualityAttachmentAllowedContentTypes(List<String> qualityAttachmentAllowedContentTypes) {
+        this.qualityAttachmentAllowedContentTypes = qualityAttachmentAllowedContentTypes;
     }
 
     public int getAttachmentOrphanCleanupHours() {

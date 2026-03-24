@@ -25,6 +25,10 @@ export function uploadBatchFiles(businessType, files) {
   })
 }
 
+export function cleanupBatchFiles() {
+  return http.post('/batches/files/cleanup')
+}
+
 export function getBatchDetail(id) {
   return http.get(`/batches/${id}`)
 }
@@ -43,6 +47,10 @@ export function createTraceRecord(id, data) {
 
 export function createQualityReport(id, data) {
   return http.post(`/batches/${id}/quality-reports`, data)
+}
+
+export function createRiskAction(id, data) {
+  return http.post(`/batches/${id}/risk-actions`, data)
 }
 
 export function generateBatchQr(id) {

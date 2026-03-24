@@ -11,6 +11,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -28,13 +29,13 @@ class MasterDataControllerIntegrationTest {
     private ObjectMapper objectMapper;
 
     @Test
-    void shouldCreateUpdateAndToggleCompany() throws Exception {
+    void shouldCreateUpdateArchiveAndDeleteCompany() throws Exception {
         MvcResult createResult = mockMvc.perform(post("/api/companies")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "name": "Round5 Company",
-                                  "licenseNo": "LIC-ROUND5-COMPANY",
+                                  "name": "Round6 Company",
+                                  "licenseNo": "LIC-ROUND6-COMPANY",
                                   "contactPerson": "Alice",
                                   "contactPhone": "13900000001",
                                   "address": "Nanchang City",
@@ -42,7 +43,7 @@ class MasterDataControllerIntegrationTest {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.name").value("Round5 Company"))
+                .andExpect(jsonPath("$.data.name").value("Round6 Company"))
                 .andReturn();
 
         JsonNode created = objectMapper.readTree(createResult.getResponse().getContentAsString());
@@ -52,8 +53,8 @@ class MasterDataControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "name": "Round5 Company Updated",
-                                  "licenseNo": "LIC-ROUND5-COMPANY",
+                                  "name": "Round6 Company Updated",
+                                  "licenseNo": "LIC-ROUND6-COMPANY",
                                   "contactPerson": "Alice Updated",
                                   "contactPhone": "13900000002",
                                   "address": "Ganzhou City",
@@ -61,33 +62,44 @@ class MasterDataControllerIntegrationTest {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.name").value("Round5 Company Updated"))
+                .andExpect(jsonPath("$.data.name").value("Round6 Company Updated"))
                 .andExpect(jsonPath("$.data.contactPerson").value("Alice Updated"));
 
         mockMvc.perform(post("/api/companies/{companyId}/status", companyId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "status": "DISABLED"
+                                  "status": "ARCHIVED"
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("DISABLED"));
+                .andExpect(jsonPath("$.data.status").value("ARCHIVED"));
 
         mockMvc.perform(get("/api/companies")
-                        .param("keyword", "Round5 Company Updated"))
+                        .param("status", "ARCHIVED"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].name").value("Round5 Company Updated"));
+                .andExpect(jsonPath("$.data[0].status").value("ARCHIVED"));
+
+        mockMvc.perform(delete("/api/companies/{companyId}", companyId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Company deleted."));
     }
 
     @Test
-    void shouldCreateUpdateAndFilterProductByCompany() throws Exception {
-        MvcResult createCompanyResult = mockMvc.perform(post("/api/companies")
+    void shouldRejectDeletingReferencedCompany() throws Exception {
+        mockMvc.perform(delete("/api/companies/{companyId}", 1))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", containsString("referenced")));
+    }
+
+    @Test
+    void shouldCreateUpdateArchiveAndDeleteProductWithCompanyFilter() throws Exception {
+        long companyId = objectMapper.readTree(mockMvc.perform(post("/api/companies")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "name": "Round5 Product Company",
-                                  "licenseNo": "LIC-ROUND5-PRODUCT",
+                                  "name": "Round6 Product Company",
+                                  "licenseNo": "LIC-ROUND6-PRODUCT",
                                   "contactPerson": "Bob",
                                   "contactPhone": "13900000003",
                                   "address": "Yichun City",
@@ -95,18 +107,15 @@ class MasterDataControllerIntegrationTest {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andReturn();
-
-        long companyId = objectMapper.readTree(createCompanyResult.getResponse().getContentAsString())
-                .path("data").path("id").asLong();
+                .andReturn().getResponse().getContentAsString()).path("data").path("id").asLong();
 
         MvcResult createProductResult = mockMvc.perform(post("/api/products")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                   "companyId": %d,
-                                  "productName": "Round5 Rice",
-                                  "productCode": "RICE-ROUND5",
+                                  "productName": "Round6 Rice",
+                                  "productCode": "RICE-ROUND6",
                                   "category": "Grain",
                                   "originPlace": "Yichun",
                                   "coverImage": "/images/products/rice-batch.svg",
@@ -127,8 +136,8 @@ class MasterDataControllerIntegrationTest {
                         .content("""
                                 {
                                   "companyId": %d,
-                                  "productName": "Round5 Rice Premium",
-                                  "productCode": "RICE-ROUND5",
+                                  "productName": "Round6 Rice Premium",
+                                  "productCode": "RICE-ROUND6",
                                   "category": "Grain",
                                   "originPlace": "Yichun High-standard Farm",
                                   "coverImage": "/images/products/rice-batch.svg",
@@ -138,23 +147,46 @@ class MasterDataControllerIntegrationTest {
                                 }
                                 """.formatted(companyId)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.productName").value("Round5 Rice Premium"))
+                .andExpect(jsonPath("$.data.productName").value("Round6 Rice Premium"))
                 .andExpect(jsonPath("$.data.originPlace").value("Yichun High-standard Farm"));
 
-        mockMvc.perform(get("/api/products")
-                        .param("companyId", String.valueOf(companyId)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].companyId").value(companyId));
-    }
-
-    @Test
-    void shouldRejectProductCreationWhenCompanyIsDisabled() throws Exception {
-        MvcResult createCompanyResult = mockMvc.perform(post("/api/companies")
+        mockMvc.perform(post("/api/products/{productId}/status", productId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "name": "Round5 Disabled Company",
-                                  "licenseNo": "LIC-ROUND5-DISABLED",
+                                  "status": "ARCHIVED"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("ARCHIVED"));
+
+        mockMvc.perform(get("/api/products")
+                        .param("companyId", String.valueOf(companyId))
+                        .param("status", "ARCHIVED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].companyId").value(companyId))
+                .andExpect(jsonPath("$.data[0].status").value("ARCHIVED"));
+
+        mockMvc.perform(delete("/api/products/{productId}", productId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Product deleted."));
+    }
+
+    @Test
+    void shouldRejectDeletingReferencedProduct() throws Exception {
+        mockMvc.perform(delete("/api/products/{productId}", 1))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", containsString("referenced")));
+    }
+
+    @Test
+    void shouldRejectProductCreationWhenCompanyIsNotAvailable() throws Exception {
+        long companyId = objectMapper.readTree(mockMvc.perform(post("/api/companies")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Round6 Disabled Company",
+                                  "licenseNo": "LIC-ROUND6-DISABLED",
                                   "contactPerson": "Carol",
                                   "contactPhone": "13900000004",
                                   "address": "Shangrao City",
@@ -162,10 +194,7 @@ class MasterDataControllerIntegrationTest {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andReturn();
-
-        long companyId = objectMapper.readTree(createCompanyResult.getResponse().getContentAsString())
-                .path("data").path("id").asLong();
+                .andReturn().getResponse().getContentAsString()).path("data").path("id").asLong();
 
         mockMvc.perform(post("/api/products")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -183,6 +212,6 @@ class MasterDataControllerIntegrationTest {
                                 }
                                 """.formatted(companyId)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", containsString("disabled")));
+                .andExpect(jsonPath("$.message", containsString("not available")));
     }
 }

@@ -24,6 +24,7 @@ public class BatchEntity {
     private final List<TraceRecordEntity> traceRecords = new ArrayList<>();
     private final List<QualityReportEntity> qualityReports = new ArrayList<>();
     private final List<StatusHistoryEntity> statusHistory = new ArrayList<>();
+    private final List<BatchRiskActionEntity> riskActions = new ArrayList<>();
     private final List<ScanRecordEntity> scanRecords = new ArrayList<>();
     private QrCodeEntity qrCode;
 
@@ -149,6 +150,10 @@ public class BatchEntity {
 
     public List<StatusHistoryEntity> getStatusHistory() {
         return statusHistory;
+    }
+
+    public List<BatchRiskActionEntity> getRiskActions() {
+        return riskActions;
     }
 
     public List<ScanRecordEntity> getScanRecords() {
