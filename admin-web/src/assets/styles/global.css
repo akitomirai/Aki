@@ -1,0 +1,34 @@
+:root {
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: #16302b;
+  background:
+    radial-gradient(circle at top left, rgba(242, 214, 128, 0.45), transparent 38%),
+    linear-gradient(180deg, #f7f1df 0%, #edf4ea 48%, #f6fbf8 100%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
