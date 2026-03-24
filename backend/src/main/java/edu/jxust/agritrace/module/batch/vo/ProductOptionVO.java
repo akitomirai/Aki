@@ -1,6 +1,6 @@
-package edu.jxust.agritrace.module.batch.entity;
+package edu.jxust.agritrace.module.batch.vo;
 
-public record ProductEntity(
+public record ProductOptionVO(
         Long id,
         Long companyId,
         String name,

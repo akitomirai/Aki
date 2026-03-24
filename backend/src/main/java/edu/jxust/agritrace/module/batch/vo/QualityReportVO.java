@@ -9,6 +9,7 @@ public record QualityReportVO(
         String result,
         String resultLabel,
         String reportTime,
-        List<String> highlights
+        List<String> highlights,
+        List<FileAssetVO> attachments
 ) {
 }

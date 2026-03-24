@@ -11,6 +11,7 @@ public class BaseProductPO {
 
     @TableId(type = IdType.AUTO)
     private Long id;
+    private Long companyId;
     private String name;
     private String category;
     private String spec;
@@ -24,6 +25,14 @@ public class BaseProductPO {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public Long getCompanyId() {
+        return companyId;
+    }
+
+    public void setCompanyId(Long companyId) {
+        this.companyId = companyId;
     }
 
     public String getName() {

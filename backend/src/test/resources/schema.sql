@@ -1,6 +1,7 @@
 DROP TABLE IF EXISTS batch_status_log;
 DROP TABLE IF EXISTS qr_query_log;
 DROP TABLE IF EXISTS qr_code;
+DROP TABLE IF EXISTS biz_attachment;
 DROP TABLE IF EXISTS quality_report;
 DROP TABLE IF EXISTS trace_event;
 DROP TABLE IF EXISTS trace_batch;
@@ -9,6 +10,7 @@ DROP TABLE IF EXISTS base_product;
 
 CREATE TABLE base_product (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  company_id BIGINT,
   name VARCHAR(128) NOT NULL,
   category VARCHAR(64),
   spec VARCHAR(64),
@@ -69,9 +71,22 @@ CREATE TABLE quality_report (
   report_no VARCHAR(64),
   agency VARCHAR(128),
   result VARCHAR(64),
+  report_file_url VARCHAR(255),
   report_json CLOB,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_quality_report_batch FOREIGN KEY (batch_id) REFERENCES trace_batch(id)
+);
+
+CREATE TABLE biz_attachment (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  file_name VARCHAR(255) NOT NULL,
+  file_path VARCHAR(500) NOT NULL,
+  file_url VARCHAR(500),
+  content_type VARCHAR(128),
+  size BIGINT DEFAULT 0,
+  business_type VARCHAR(64) NOT NULL,
+  business_id BIGINT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE qr_code (

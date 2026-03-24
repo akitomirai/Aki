@@ -9,8 +9,12 @@ import edu.jxust.agritrace.module.batch.dto.TraceRecordCreateRequest;
 import edu.jxust.agritrace.module.batch.entity.BatchEntity;
 import edu.jxust.agritrace.module.batch.vo.BatchListItemVO;
 import edu.jxust.agritrace.module.batch.vo.BatchWorkbenchVO;
+import edu.jxust.agritrace.module.batch.vo.CompanyOptionVO;
+import edu.jxust.agritrace.module.batch.vo.FileAssetVO;
+import edu.jxust.agritrace.module.batch.vo.ProductOptionVO;
 import edu.jxust.agritrace.module.publictrace.dto.PublicTraceAccessContext;
 import org.springframework.core.io.Resource;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -19,6 +23,12 @@ public interface BatchService {
     List<BatchListItemVO> listBatches(BatchListQueryRequest request);
 
     BatchWorkbenchVO getBatchWorkbench(Long batchId);
+
+    List<CompanyOptionVO> listCompanyOptions(String keyword);
+
+    List<ProductOptionVO> listProductOptions(Long companyId, String keyword);
+
+    List<FileAssetVO> uploadAttachments(String businessType, List<MultipartFile> files);
 
     BatchWorkbenchVO createBatch(BatchCreateRequest request);
 
@@ -39,4 +49,6 @@ public interface BatchService {
     void recordPublicTraceAccess(String token, PublicTraceAccessContext accessContext);
 
     Resource loadQrImage(String token);
+
+    Resource loadAttachment(Long fileId);
 }

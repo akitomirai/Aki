@@ -7,7 +7,10 @@ import {
   createTraceRecord,
   generateBatchQr,
   getBatchDetail,
-  updateBatch
+  getCompanyOptions,
+  getProductOptions,
+  updateBatch,
+  uploadBatchFiles
 } from '../api/batch'
 
 const route = useRoute()
@@ -28,33 +31,38 @@ const traceForm = ref(createTraceForm())
 const qualityForm = ref(createQualityForm())
 const statusForm = ref(createStatusForm())
 
+const formCompanyOptions = ref([])
+const formProductOptions = ref([])
+const traceUploading = ref(false)
+const qualityUploading = ref(false)
+
 const stageOptions = [
-  { value: 'ARCHIVE', label: '建档' },
-  { value: 'PRODUCE', label: '生产' },
-  { value: 'QUALITY', label: '质检' },
-  { value: 'TRANSPORT', label: '运输' },
-  { value: 'WAREHOUSE', label: '仓储' },
-  { value: 'DELIVERY', label: '出库' },
-  { value: 'MARKET', label: '上市' },
-  { value: 'REGULATION', label: '监管' }
+  { value: 'ARCHIVE', label: 'Archive' },
+  { value: 'PRODUCE', label: 'Produce' },
+  { value: 'QUALITY', label: 'Quality' },
+  { value: 'TRANSPORT', label: 'Transport' },
+  { value: 'WAREHOUSE', label: 'Warehouse' },
+  { value: 'DELIVERY', label: 'Delivery' },
+  { value: 'MARKET', label: 'Market' },
+  { value: 'REGULATION', label: 'Regulation' }
 ]
 
 const qualityOptions = [
-  { value: 'PASS', label: '合格' },
-  { value: 'FAIL', label: '不合格' },
-  { value: 'REVIEW', label: '待确认' }
+  { value: 'PASS', label: 'Pass' },
+  { value: 'FAIL', label: 'Fail' },
+  { value: 'REVIEW', label: 'Review' }
 ]
 
 const dialogTitle = computed(() => {
   switch (dialog.value.type) {
     case 'edit':
-      return '编辑批次信息'
+      return 'Edit batch'
     case 'trace':
-      return '新增追溯记录'
+      return 'Add trace record'
     case 'quality':
-      return '上传质检摘要'
+      return 'Upload quality'
     case 'status':
-      return '批次状态操作'
+      return 'Change status'
     default:
       return ''
   }
@@ -62,14 +70,19 @@ const dialogTitle = computed(() => {
 
 const canPreviewPublic = computed(() => detail.value?.qr?.generated && detail.value?.qr?.publicUrl)
 
-onMounted(() => {
-  loadDetail(route.params.id)
+const selectedProductOption = computed(() => {
+  return formProductOptions.value.find((item) => item.id === batchForm.value.productId) ?? null
+})
+
+onMounted(async () => {
+  await loadCompanyOptions()
+  await loadDetail(route.params.id)
 })
 
 watch(
   () => route.params.id,
-  (id) => {
-    loadDetail(id)
+  async (id) => {
+    await loadDetail(id)
   }
 )
 
@@ -88,11 +101,30 @@ async function loadDetail(id) {
   }
 }
 
+async function loadCompanyOptions(keyword = '') {
+  const params = keyword ? { keyword } : {}
+  const response = await getCompanyOptions(params)
+  formCompanyOptions.value = response.data ?? []
+}
+
+async function loadProductOptions(companyId, keyword = '') {
+  if (!companyId) {
+    formProductOptions.value = []
+    return
+  }
+  const params = { companyId }
+  if (keyword) {
+    params.keyword = keyword
+  }
+  const response = await getProductOptions(params)
+  formProductOptions.value = response.data ?? []
+}
+
 function createBatchForm() {
   return {
-    productName: '',
-    category: '',
-    companyName: '',
+    batchCode: '',
+    productId: null,
+    companyId: null,
     originPlace: '',
     productionDate: '',
     publicRemark: '',
@@ -105,10 +137,12 @@ function createTraceForm() {
     stage: 'PRODUCE',
     title: '',
     eventTime: currentDateTime(),
-    operatorName: '企业录入员',
+    operatorName: 'Entry Operator',
     location: '',
     summary: '',
     imageUrl: '',
+    attachmentIds: [],
+    uploadedFiles: [],
     visibleToConsumer: true
   }
 }
@@ -119,7 +153,9 @@ function createQualityForm() {
     agency: '',
     result: 'PASS',
     reportTime: currentDateTime(),
-    highlightsText: '检测通过'
+    highlightsText: 'passed',
+    attachmentIds: [],
+    uploadedFiles: []
   }
 }
 
@@ -127,7 +163,7 @@ function createStatusForm(targetStatus = 'PUBLISHED') {
   return {
     targetStatus,
     reason: defaultReason(targetStatus),
-    operatorName: '企业管理员'
+    operatorName: 'Admin'
   }
 }
 
@@ -142,11 +178,13 @@ function showMessage(text, type = 'info') {
   messageType.value = type
 }
 
-function openEditDialog() {
+async function openEditDialog() {
+  await loadCompanyOptions()
+  await loadProductOptions(detail.value.company.id)
   batchForm.value = {
-    productName: detail.value.product.name,
-    category: detail.value.product.category,
-    companyName: detail.value.company.name,
+    batchCode: detail.value.batch.batchCode,
+    productId: detail.value.product.id,
+    companyId: detail.value.company.id,
     originPlace: detail.value.batch.originPlace,
     productionDate: detail.value.batch.productionDate,
     publicRemark: detail.value.batch.publicRemark ?? '',
@@ -194,16 +232,34 @@ async function submitDialog() {
     let response
 
     if (dialog.value.type === 'edit') {
-      response = await updateBatch(route.params.id, batchForm.value)
+      response = await updateBatch(route.params.id, {
+        productId: batchForm.value.productId,
+        companyId: batchForm.value.companyId,
+        originPlace: batchForm.value.originPlace,
+        productionDate: batchForm.value.productionDate,
+        publicRemark: batchForm.value.publicRemark,
+        internalRemark: batchForm.value.internalRemark
+      })
     } else if (dialog.value.type === 'trace') {
-      response = await createTraceRecord(route.params.id, traceForm.value)
+      response = await createTraceRecord(route.params.id, {
+        stage: traceForm.value.stage,
+        title: traceForm.value.title,
+        eventTime: traceForm.value.eventTime,
+        operatorName: traceForm.value.operatorName,
+        location: traceForm.value.location,
+        summary: traceForm.value.summary,
+        imageUrl: traceForm.value.imageUrl,
+        attachmentIds: traceForm.value.attachmentIds,
+        visibleToConsumer: traceForm.value.visibleToConsumer
+      })
     } else if (dialog.value.type === 'quality') {
       response = await createQualityReport(route.params.id, {
         reportNo: qualityForm.value.reportNo,
         agency: qualityForm.value.agency,
         result: qualityForm.value.result,
         reportTime: qualityForm.value.reportTime,
-        highlights: splitHighlights(qualityForm.value.highlightsText)
+        highlights: splitHighlights(qualityForm.value.highlightsText),
+        attachmentIds: qualityForm.value.attachmentIds
       })
     } else if (dialog.value.type === 'status') {
       response = await changeBatchStatus(route.params.id, statusForm.value)
@@ -229,6 +285,70 @@ async function handleQrAction() {
   }
 }
 
+async function handleBatchCompanyChange(resetProduct = true) {
+  const companyId = batchForm.value.companyId
+  if (resetProduct) {
+    batchForm.value.productId = null
+  }
+  await loadProductOptions(companyId)
+}
+
+async function handleTraceFilesChange(event) {
+  const files = [...(event.target.files ?? [])]
+  if (!files.length) {
+    return
+  }
+  traceUploading.value = true
+  try {
+    const response = await uploadBatchFiles('trace-image', files)
+    const uploadedFiles = response.data ?? []
+    traceForm.value.uploadedFiles = [...traceForm.value.uploadedFiles, ...uploadedFiles]
+    traceForm.value.attachmentIds = traceForm.value.uploadedFiles.map((item) => item.id)
+    if (!traceForm.value.imageUrl && uploadedFiles[0]?.fileUrl) {
+      traceForm.value.imageUrl = uploadedFiles[0].fileUrl
+    }
+    showMessage('Trace image uploaded', 'success')
+  } catch (error) {
+    showMessage(getErrorMessage(error), 'error')
+  } finally {
+    traceUploading.value = false
+    event.target.value = ''
+  }
+}
+
+async function handleQualityFilesChange(event) {
+  const files = [...(event.target.files ?? [])]
+  if (!files.length) {
+    return
+  }
+  qualityUploading.value = true
+  try {
+    const response = await uploadBatchFiles('quality-attachment', files)
+    const uploadedFiles = response.data ?? []
+    qualityForm.value.uploadedFiles = [...qualityForm.value.uploadedFiles, ...uploadedFiles]
+    qualityForm.value.attachmentIds = qualityForm.value.uploadedFiles.map((item) => item.id)
+    showMessage('Quality attachment uploaded', 'success')
+  } catch (error) {
+    showMessage(getErrorMessage(error), 'error')
+  } finally {
+    qualityUploading.value = false
+    event.target.value = ''
+  }
+}
+
+function removeTraceAttachment(fileId) {
+  traceForm.value.uploadedFiles = traceForm.value.uploadedFiles.filter((item) => item.id !== fileId)
+  traceForm.value.attachmentIds = traceForm.value.uploadedFiles.map((item) => item.id)
+  if (traceForm.value.imageUrl && !traceForm.value.uploadedFiles.some((item) => item.fileUrl === traceForm.value.imageUrl)) {
+    traceForm.value.imageUrl = traceForm.value.uploadedFiles[0]?.fileUrl ?? ''
+  }
+}
+
+function removeQualityAttachment(fileId) {
+  qualityForm.value.uploadedFiles = qualityForm.value.uploadedFiles.filter((item) => item.id !== fileId)
+  qualityForm.value.attachmentIds = qualityForm.value.uploadedFiles.map((item) => item.id)
+}
+
 function actionOf(code) {
   return detail.value?.actions?.find((action) => action.code === code) ?? {
     code,
@@ -251,14 +371,14 @@ function splitHighlights(text) {
 }
 
 function getErrorMessage(error) {
-  return error?.response?.data?.message || error?.message || '操作失败，请稍后重试。'
+  return error?.response?.data?.message || error?.message || 'Operation failed. Please try again.'
 }
 
 function defaultReason(targetStatus) {
   return {
-    PUBLISHED: '资料和二维码已准备完成，允许正式发布。',
-    FROZEN: '发现异常，先冻结公开展示并继续排查。',
-    RECALLED: '确认存在风险，需要立即召回。'
+    PUBLISHED: 'Quality and QR are ready for publish.',
+    FROZEN: 'An issue was found and the batch is frozen for review.',
+    RECALLED: 'A risk was confirmed and recall is required.'
   }[targetStatus] ?? ''
 }
 
@@ -270,45 +390,62 @@ function statusClass(status) {
     RECALLED: 'recalled'
   }[status] ?? 'draft'
 }
+
+function formatFileSize(size) {
+  if (!size) {
+    return '0 B'
+  }
+  if (size < 1024) {
+    return `${size} B`
+  }
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1)} KB`
+  }
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function fileLabel(file) {
+  return file.fileName || file.fileUrl || 'Uploaded file'
+}
 </script>
 
 <template>
   <div class="page-shell">
-    <div v-if="loading" class="loading-card">正在加载批次工作台...</div>
+    <div v-if="loading" class="loading-card">Loading batch workbench...</div>
 
     <template v-else-if="detail">
       <header class="hero-card">
         <div class="hero-main">
           <img class="hero-image" :src="detail.product.imageUrl || detail.batch.coverImageUrl" :alt="detail.product.name">
           <div class="hero-copy">
-            <p class="eyebrow">批次工作台</p>
+            <p class="eyebrow">Batch workbench</p>
             <h1>{{ detail.product.name }}</h1>
             <p class="batch-code">{{ detail.batch.batchCode }}</p>
-            <p class="hero-intro">{{ detail.batch.publicRemark || '当前批次已收敛为围绕扫码追溯的工作台视图。' }}</p>
+            <p class="hero-intro">{{ detail.batch.publicRemark || 'This page keeps the batch flow focused on trace, quality, QR and scan stats.' }}</p>
 
             <div class="hero-grid">
               <div>
-                <span>企业</span>
+                <span>Company</span>
                 <strong>{{ detail.company.name }}</strong>
               </div>
               <div>
-                <span>产地</span>
+                <span>Origin</span>
                 <strong>{{ detail.batch.originPlace }}</strong>
               </div>
               <div>
-                <span>生产日期</span>
+                <span>Production date</span>
                 <strong>{{ detail.batch.productionDate }}</strong>
               </div>
               <div>
-                <span>上市日期</span>
-                <strong>{{ detail.batch.marketDate || '未发布' }}</strong>
+                <span>Market date</span>
+                <strong>{{ detail.batch.marketDate || 'Not published' }}</strong>
               </div>
               <div>
-                <span>最近记录</span>
-                <strong>{{ detail.trace.latestRecordedAt || '暂未补录' }}</strong>
+                <span>Product spec</span>
+                <strong>{{ detail.product.specification || 'N/A' }}</strong>
               </div>
               <div>
-                <span>质检摘要</span>
+                <span>Quality</span>
                 <strong>{{ detail.quality.label }}</strong>
               </div>
             </div>
@@ -317,10 +454,10 @@ function statusClass(status) {
 
         <aside class="hero-side">
           <span class="status-badge" :class="statusClass(detail.status.code)">{{ detail.status.label }}</span>
-          <p><strong>当前节点：</strong>{{ detail.status.currentNode }}</p>
-          <p><strong>状态原因：</strong>{{ detail.status.reason || '当前没有额外风险说明。' }}</p>
-          <p><strong>最近操作：</strong>{{ detail.status.operatorName || '暂无' }}</p>
-          <p><strong>操作时间：</strong>{{ detail.status.changedAt || '暂无' }}</p>
+          <p><strong>Current node:</strong> {{ detail.status.currentNode }}</p>
+          <p><strong>Status reason:</strong> {{ detail.status.reason || 'No extra risk note.' }}</p>
+          <p><strong>Last operator:</strong> {{ detail.status.operatorName || 'N/A' }}</p>
+          <p><strong>Changed at:</strong> {{ detail.status.changedAt || 'N/A' }}</p>
         </aside>
       </header>
 
@@ -331,23 +468,23 @@ function statusClass(status) {
       <section class="quick-panel">
         <div class="section-head">
           <div>
-            <p class="eyebrow">快捷操作区</p>
-            <h2>让高频动作直接可见</h2>
+            <p class="eyebrow">Quick actions</p>
+            <h2>Keep high-frequency actions visible</h2>
           </div>
-          <button class="ghost" @click="router.push('/batches')">返回批次列表</button>
+          <button class="ghost" @click="router.push('/batches')">Back to list</button>
         </div>
 
         <div class="quick-actions">
-          <button class="ghost" @click="openEditDialog">编辑批次</button>
-          <button class="primary" @click="openTraceDialog">新增追溯记录</button>
-          <button class="success" @click="openQualityDialog">上传质检</button>
+          <button class="ghost" @click="openEditDialog">Edit batch</button>
+          <button class="primary" @click="openTraceDialog">Add trace</button>
+          <button class="success" @click="openQualityDialog">Upload quality</button>
           <button
             :class="actionClass('GENERATE_QR')"
             :disabled="!actionOf('GENERATE_QR').enabled"
             :title="actionOf('GENERATE_QR').hint"
             @click="handleQrAction"
           >
-            生成二维码
+            Generate QR
           </button>
           <button
             :class="actionClass('PUBLISH')"
@@ -355,7 +492,7 @@ function statusClass(status) {
             :title="actionOf('PUBLISH').hint"
             @click="openStatusDialog('PUBLISHED')"
           >
-            发布
+            Publish
           </button>
           <button
             :class="actionClass('RESUME')"
@@ -363,7 +500,7 @@ function statusClass(status) {
             :title="actionOf('RESUME').hint"
             @click="openStatusDialog('PUBLISHED')"
           >
-            恢复发布
+            Resume
           </button>
           <button
             :class="actionClass('FREEZE')"
@@ -371,7 +508,7 @@ function statusClass(status) {
             :title="actionOf('FREEZE').hint"
             @click="openStatusDialog('FROZEN')"
           >
-            冻结
+            Freeze
           </button>
           <button
             :class="actionClass('RECALL')"
@@ -379,10 +516,10 @@ function statusClass(status) {
             :title="actionOf('RECALL').hint"
             @click="openStatusDialog('RECALLED')"
           >
-            召回
+            Recall
           </button>
           <a v-if="canPreviewPublic" class="preview-link" :href="detail.qr.publicUrl" target="_blank" rel="noreferrer">
-            公开页预览
+            Public preview
           </a>
         </div>
       </section>
@@ -391,23 +528,23 @@ function statusClass(status) {
         <article class="panel">
           <div class="section-head">
             <div>
-              <p class="eyebrow">追溯记录区</p>
-              <h2>最近记录与快速补录</h2>
+              <p class="eyebrow">Trace records</p>
+              <h2>Recent records and fast entry</h2>
             </div>
-            <button class="ghost" @click="openTraceDialog">继续补录</button>
+            <button class="ghost" @click="openTraceDialog">Add more</button>
           </div>
 
           <div class="trace-summary">
             <div>
-              <span>记录总数</span>
+              <span>Total records</span>
               <strong>{{ detail.trace.totalCount }}</strong>
             </div>
             <div>
-              <span>最近更新时间</span>
-              <strong>{{ detail.trace.latestRecordedAt || '暂未补录' }}</strong>
+              <span>Latest update</span>
+              <strong>{{ detail.trace.latestRecordedAt || 'No record yet' }}</strong>
             </div>
             <div>
-              <span>录入提示</span>
+              <span>Hint</span>
               <strong>{{ detail.trace.quickEntryHint }}</strong>
             </div>
           </div>
@@ -421,10 +558,22 @@ function statusClass(status) {
                 </div>
                 <span>{{ item.eventTime }}</span>
               </div>
-              <p class="trace-meta">{{ item.location }} · {{ item.operatorName }}</p>
+              <p class="trace-meta">{{ item.location }} | {{ item.operatorName }}</p>
               <p class="trace-summary-text">{{ item.summary }}</p>
               <img v-if="item.imageUrl" class="trace-image" :src="item.imageUrl" :alt="item.title">
-              <small>{{ item.visibleToConsumer ? '公开页可见' : '仅后台可见' }}</small>
+              <div v-if="item.attachments?.length" class="attachment-list">
+                <a
+                  v-for="attachment in item.attachments"
+                  :key="attachment.id"
+                  class="preview-link"
+                  :href="attachment.fileUrl"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {{ fileLabel(attachment) }}
+                </a>
+              </div>
+              <small>{{ item.visibleToConsumer ? 'Public page visible' : 'Internal only' }}</small>
             </article>
           </div>
         </article>
@@ -432,10 +581,10 @@ function statusClass(status) {
         <article class="panel">
           <div class="section-head">
             <div>
-              <p class="eyebrow">质检摘要区</p>
-              <h2>保留高价值检测结果</h2>
+              <p class="eyebrow">Quality</p>
+              <h2>High-value quality summary</h2>
             </div>
-            <button class="ghost" @click="openQualityDialog">上传新质检</button>
+            <button class="ghost" @click="openQualityDialog">Upload new report</button>
           </div>
 
           <div class="quality-hero">
@@ -455,6 +604,18 @@ function statusClass(status) {
             <div class="pill-row">
               <span v-for="item in detail.quality.latestReport.highlights" :key="item">{{ item }}</span>
             </div>
+            <div v-if="detail.quality.latestReport.attachments?.length" class="attachment-list">
+              <a
+                v-for="attachment in detail.quality.latestReport.attachments"
+                :key="attachment.id"
+                class="preview-link"
+                :href="attachment.fileUrl"
+                target="_blank"
+                rel="noreferrer"
+              >
+                {{ fileLabel(attachment) }}
+              </a>
+            </div>
           </article>
 
           <ul class="quality-history">
@@ -469,62 +630,113 @@ function statusClass(status) {
         <article class="panel">
           <div class="section-head">
             <div>
-              <p class="eyebrow">二维码区</p>
-              <h2>给工作台和公开页稳定使用</h2>
+              <p class="eyebrow">QR</p>
+              <h2>Stable QR for workbench and public page</h2>
             </div>
             <button
               class="ghost"
               :disabled="!actionOf('GENERATE_QR').enabled"
               @click="handleQrAction"
             >
-              生成二维码
+              Generate QR
             </button>
           </div>
 
           <div class="qr-grid">
             <div>
-              <span>二维码状态</span>
-              <strong>{{ detail.qr.generated ? '已生成' : '待生成' }}</strong>
+              <span>QR status</span>
+              <strong>{{ detail.qr.generated ? 'Generated' : 'Pending' }}</strong>
             </div>
             <div>
-              <span>公开令牌</span>
-              <strong>{{ detail.qr.token || '暂未生成' }}</strong>
+              <span>Public token</span>
+              <strong>{{ detail.qr.token || 'N/A' }}</strong>
             </div>
             <div>
-              <span>生成时间</span>
-              <strong>{{ detail.qr.generatedAt || '暂未生成' }}</strong>
+              <span>Generated at</span>
+              <strong>{{ detail.qr.generatedAt || 'N/A' }}</strong>
             </div>
             <div>
-              <span>最近扫码</span>
-              <strong>{{ detail.qr.lastScanAt || '暂无' }}</strong>
+              <span>Last scan</span>
+              <strong>{{ detail.qr.lastScanAt || 'N/A' }}</strong>
             </div>
             <div>
-              <span>扫码 PV</span>
+              <span>PV</span>
               <strong>{{ detail.qr.pv }}</strong>
             </div>
             <div>
-              <span>扫码 UV</span>
+              <span>UV</span>
               <strong>{{ detail.qr.uv }}</strong>
             </div>
           </div>
 
           <div v-if="detail.qr.generated && detail.qr.imageUrl" class="qr-preview">
-            <img :src="detail.qr.imageUrl" :alt="`${detail.batch.batchCode} 二维码`">
+            <img :src="detail.qr.imageUrl" :alt="`${detail.batch.batchCode} QR`">
             <a class="preview-link" :href="detail.qr.imageUrl" target="_blank" rel="noreferrer" download>
-              下载二维码
+              Download QR
             </a>
           </div>
 
           <a v-if="canPreviewPublic" class="preview-block" :href="detail.qr.publicUrl" target="_blank" rel="noreferrer">
-            打开公开追溯页，检查扫码首屏是否 3 秒可读
+            Open the public page and verify the first screen is readable within 3 seconds.
           </a>
         </article>
 
         <article class="panel">
           <div class="section-head">
             <div>
-              <p class="eyebrow">状态留痕</p>
-              <h2>记录原因、操作人和时间</h2>
+              <p class="eyebrow">Scan stats</p>
+              <h2>Readable scan summary for the workbench</h2>
+            </div>
+          </div>
+
+          <div class="scan-grid">
+            <div>
+              <span>PV</span>
+              <strong>{{ detail.scanStats.pv }}</strong>
+            </div>
+            <div>
+              <span>UV</span>
+              <strong>{{ detail.scanStats.uv }}</strong>
+            </div>
+            <div>
+              <span>Last scan</span>
+              <strong>{{ detail.scanStats.lastScanAt || 'N/A' }}</strong>
+            </div>
+          </div>
+
+          <div class="scan-section">
+            <h3>Recent scan records</h3>
+            <ul class="scan-record-list">
+              <li v-for="item in detail.scanStats.recentRecords" :key="`${item.scanTime}-${item.ip}-${item.device}`">
+                <strong>{{ item.scanTime }}</strong>
+                <span>{{ item.device }}</span>
+                <small>{{ item.ip }} {{ item.referer ? `| ${item.referer}` : '' }}</small>
+              </li>
+            </ul>
+          </div>
+
+          <div class="scan-section">
+            <h3>Last 7 days</h3>
+            <div class="trend-table">
+              <div class="trend-row trend-head">
+                <strong>Day</strong>
+                <strong>PV</strong>
+                <strong>UV</strong>
+              </div>
+              <div v-for="item in detail.scanStats.trend" :key="item.day" class="trend-row">
+                <span>{{ item.day }}</span>
+                <span>{{ item.pv }}</span>
+                <span>{{ item.uv }}</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Status log</p>
+              <h2>Reason, operator and timestamp</h2>
             </div>
           </div>
 
@@ -534,7 +746,7 @@ function statusClass(status) {
               <div>
                 <h3>{{ item.status }}</h3>
                 <p>{{ item.reason }}</p>
-                <small>{{ item.operatorName }} · {{ item.operatedAt }}</small>
+                <small>{{ item.operatorName }} | {{ item.operatedAt }}</small>
               </div>
             </li>
           </ol>
@@ -546,127 +758,180 @@ function statusClass(status) {
       <section class="dialog-card">
         <div class="dialog-head">
           <div>
-            <p class="eyebrow">批次工作台</p>
+            <p class="eyebrow">Workbench</p>
             <h3>{{ dialogTitle }}</h3>
           </div>
-          <button class="ghost icon-button" @click="closeDialog">关闭</button>
+          <button class="ghost icon-button" @click="closeDialog">Close</button>
         </div>
 
         <div v-if="dialog.type === 'edit'" class="form-grid">
           <label>
-            <span>产品名称</span>
-            <input v-model.trim="batchForm.productName" type="text">
+            <span>Batch code</span>
+            <input :value="batchForm.batchCode" type="text" disabled>
           </label>
           <label>
-            <span>品类</span>
-            <input v-model.trim="batchForm.category" type="text">
+            <span>Company</span>
+            <select v-model="batchForm.companyId" @change="handleBatchCompanyChange()">
+              <option :value="null">Select company</option>
+              <option v-for="item in formCompanyOptions" :key="item.id" :value="item.id">{{ item.name }}</option>
+            </select>
           </label>
           <label>
-            <span>企业名称</span>
-            <input v-model.trim="batchForm.companyName" type="text">
+            <span>Product</span>
+            <select v-model="batchForm.productId" :disabled="!batchForm.companyId">
+              <option :value="null">{{ batchForm.companyId ? 'Select product' : 'Select company first' }}</option>
+              <option v-for="item in formProductOptions" :key="item.id" :value="item.id">{{ item.name }}</option>
+            </select>
           </label>
           <label>
-            <span>产地</span>
+            <span>Origin</span>
             <input v-model.trim="batchForm.originPlace" type="text">
           </label>
           <label>
-            <span>生产日期</span>
+            <span>Production date</span>
             <input v-model="batchForm.productionDate" type="date">
           </label>
-          <label class="full-width">
-            <span>公开说明</span>
-            <textarea v-model.trim="batchForm.publicRemark" rows="3" />
+          <label v-if="selectedProductOption" class="full-width">
+            <span>Product summary</span>
+            <div class="field-note">
+              <strong>{{ selectedProductOption.name }}</strong>
+              <small>Category: {{ selectedProductOption.category || 'N/A' }}, Spec: {{ selectedProductOption.specification || 'N/A' }}</small>
+            </div>
           </label>
           <label class="full-width">
-            <span>内部备注</span>
-            <textarea v-model.trim="batchForm.internalRemark" rows="3" />
+            <span>Public remark</span>
+            <textarea v-model.trim="batchForm.publicRemark" rows="3"></textarea>
+          </label>
+          <label class="full-width">
+            <span>Internal remark</span>
+            <textarea v-model.trim="batchForm.internalRemark" rows="3"></textarea>
           </label>
         </div>
 
         <div v-else-if="dialog.type === 'trace'" class="form-grid">
           <label>
-            <span>阶段</span>
+            <span>Stage</span>
             <select v-model="traceForm.stage">
               <option v-for="item in stageOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
             </select>
           </label>
           <label>
-            <span>发生时间</span>
+            <span>Event time</span>
             <input v-model="traceForm.eventTime" type="datetime-local">
           </label>
           <label>
-            <span>操作人</span>
+            <span>Operator</span>
             <input v-model.trim="traceForm.operatorName" type="text">
           </label>
           <label>
-            <span>地点</span>
+            <span>Location</span>
             <input v-model.trim="traceForm.location" type="text">
           </label>
           <label class="full-width">
-            <span>记录标题</span>
+            <span>Title</span>
             <input v-model.trim="traceForm.title" type="text">
           </label>
           <label class="full-width">
-            <span>摘要说明</span>
-            <textarea v-model.trim="traceForm.summary" rows="4" />
+            <span>Summary</span>
+            <textarea v-model.trim="traceForm.summary" rows="4"></textarea>
           </label>
           <label class="full-width">
-            <span>现场图片链接</span>
-            <input v-model.trim="traceForm.imageUrl" type="url">
+            <span>Trace images</span>
+            <div class="upload-box">
+              <input type="file" accept="image/*" multiple @change="handleTraceFilesChange">
+              <small>Uploaded files will be linked to this trace record.</small>
+            </div>
           </label>
+          <label class="full-width">
+            <span>Image URL fallback</span>
+            <input v-model.trim="traceForm.imageUrl" type="url" placeholder="Optional external image URL">
+          </label>
+          <div v-if="traceUploading" class="full-width upload-hint">Uploading trace images...</div>
+          <div v-if="traceForm.uploadedFiles.length" class="full-width uploaded-file-list">
+            <article v-for="item in traceForm.uploadedFiles" :key="item.id" class="uploaded-file-item">
+              <div>
+                <strong>{{ fileLabel(item) }}</strong>
+                <small>{{ formatFileSize(item.size) }}</small>
+              </div>
+              <div class="inline-actions">
+                <a class="preview-link" :href="item.fileUrl" target="_blank" rel="noreferrer">Open</a>
+                <button class="ghost" @click="removeTraceAttachment(item.id)">Remove</button>
+              </div>
+            </article>
+          </div>
           <label class="checkbox-field full-width">
             <input v-model="traceForm.visibleToConsumer" type="checkbox">
-            <span>允许公开页展示本条记录</span>
+            <span>Show this record on the public page</span>
           </label>
         </div>
 
         <div v-else-if="dialog.type === 'quality'" class="form-grid">
           <label>
-            <span>报告编号</span>
+            <span>Report no</span>
             <input v-model.trim="qualityForm.reportNo" type="text">
           </label>
           <label>
-            <span>检测机构</span>
+            <span>Agency</span>
             <input v-model.trim="qualityForm.agency" type="text">
           </label>
           <label>
-            <span>检测结果</span>
+            <span>Result</span>
             <select v-model="qualityForm.result">
               <option v-for="item in qualityOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
             </select>
           </label>
           <label>
-            <span>检测时间</span>
+            <span>Report time</span>
             <input v-model="qualityForm.reportTime" type="datetime-local">
           </label>
           <label class="full-width">
-            <span>检测亮点</span>
-            <textarea v-model.trim="qualityForm.highlightsText" rows="4" />
+            <span>Highlights</span>
+            <textarea v-model.trim="qualityForm.highlightsText" rows="4"></textarea>
           </label>
+          <label class="full-width">
+            <span>Quality attachments</span>
+            <div class="upload-box">
+              <input type="file" multiple @change="handleQualityFilesChange">
+              <small>Upload report or support files.</small>
+            </div>
+          </label>
+          <div v-if="qualityUploading" class="full-width upload-hint">Uploading quality attachments...</div>
+          <div v-if="qualityForm.uploadedFiles.length" class="full-width uploaded-file-list">
+            <article v-for="item in qualityForm.uploadedFiles" :key="item.id" class="uploaded-file-item">
+              <div>
+                <strong>{{ fileLabel(item) }}</strong>
+                <small>{{ formatFileSize(item.size) }}</small>
+              </div>
+              <div class="inline-actions">
+                <a class="preview-link" :href="item.fileUrl" target="_blank" rel="noreferrer">Open</a>
+                <button class="ghost" @click="removeQualityAttachment(item.id)">Remove</button>
+              </div>
+            </article>
+          </div>
         </div>
 
         <div v-else-if="dialog.type === 'status'" class="form-grid">
           <label>
-            <span>目标状态</span>
+            <span>Target status</span>
             <select v-model="statusForm.targetStatus">
-              <option value="PUBLISHED">发布</option>
-              <option value="FROZEN">冻结</option>
-              <option value="RECALLED">召回</option>
+              <option value="PUBLISHED">Publish</option>
+              <option value="FROZEN">Freeze</option>
+              <option value="RECALLED">Recall</option>
             </select>
           </label>
           <label>
-            <span>操作人</span>
+            <span>Operator</span>
             <input v-model.trim="statusForm.operatorName" type="text">
           </label>
           <label class="full-width">
-            <span>变更原因</span>
-            <textarea v-model.trim="statusForm.reason" rows="4" />
+            <span>Reason</span>
+            <textarea v-model.trim="statusForm.reason" rows="4"></textarea>
           </label>
         </div>
 
         <div class="dialog-actions">
-          <button class="ghost" @click="closeDialog">取消</button>
-          <button class="primary" @click="submitDialog">提交</button>
+          <button class="ghost" @click="closeDialog">Cancel</button>
+          <button class="primary" @click="submitDialog">Submit</button>
         </div>
       </section>
     </div>
@@ -753,7 +1018,8 @@ h1 {
 .hero-grid,
 .trace-summary,
 .qr-grid,
-.form-grid {
+.form-grid,
+.scan-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
@@ -761,7 +1027,8 @@ h1 {
 
 .hero-grid div,
 .trace-summary div,
-.qr-grid div {
+.qr-grid div,
+.scan-grid div {
   padding: 14px;
   border-radius: 18px;
   background: rgba(245, 248, 244, 0.96);
@@ -770,6 +1037,7 @@ h1 {
 .hero-grid span,
 .trace-summary span,
 .qr-grid span,
+.scan-grid span,
 label span {
   display: block;
   color: #688176;
@@ -778,7 +1046,8 @@ label span {
 
 .hero-grid strong,
 .trace-summary strong,
-.qr-grid strong {
+.qr-grid strong,
+.scan-grid strong {
   display: block;
   margin-top: 8px;
   color: #17362d;
@@ -879,7 +1148,9 @@ label span {
 
 .quick-actions,
 .dialog-actions,
-.pill-row {
+.pill-row,
+.attachment-list,
+.inline-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
@@ -1013,6 +1284,53 @@ label span {
   background: #ffffff;
 }
 
+.scan-section {
+  margin-top: 18px;
+}
+
+.scan-section h3 {
+  margin-bottom: 12px;
+  color: #17362d;
+}
+
+.scan-record-list {
+  display: grid;
+  gap: 10px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.scan-record-list li,
+.trend-row {
+  display: grid;
+  grid-template-columns: 1.3fr 0.8fr 1fr;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: rgba(245, 248, 244, 0.96);
+}
+
+.scan-record-list strong,
+.trend-row strong {
+  color: #17362d;
+}
+
+.scan-record-list span,
+.scan-record-list small,
+.trend-row span {
+  color: #60786d;
+}
+
+.trend-table {
+  display: grid;
+  gap: 10px;
+}
+
+.trend-head {
+  background: rgba(36, 88, 70, 0.08);
+}
+
 .status-timeline {
   list-style: none;
   margin: 18px 0 0;
@@ -1056,7 +1374,7 @@ label span {
 }
 
 .dialog-card {
-  width: min(820px, 100%);
+  width: min(860px, 100%);
   max-height: calc(100vh - 40px);
   overflow: auto;
   padding: 24px;
@@ -1092,6 +1410,63 @@ textarea {
 
 textarea {
   resize: vertical;
+}
+
+.field-note,
+.upload-box,
+.uploaded-file-item {
+  border: 1px solid rgba(45, 85, 71, 0.12);
+  border-radius: 18px;
+  background: rgba(245, 248, 244, 0.96);
+}
+
+.field-note {
+  padding: 14px;
+}
+
+.field-note strong,
+.uploaded-file-item strong {
+  display: block;
+  color: #17362d;
+}
+
+.field-note small,
+.upload-box small,
+.uploaded-file-item small,
+.upload-hint {
+  color: #60786d;
+}
+
+.upload-box {
+  padding: 14px;
+}
+
+.upload-box input {
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.upload-box small {
+  display: block;
+  margin-top: 8px;
+}
+
+.uploaded-file-list {
+  display: grid;
+  gap: 10px;
+}
+
+.uploaded-file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+}
+
+.upload-hint {
+  padding: 4px 2px;
 }
 
 .full-width {
@@ -1188,6 +1563,7 @@ button:disabled {
   .hero-grid,
   .trace-summary,
   .qr-grid,
+  .scan-grid,
   .form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1216,6 +1592,11 @@ button:disabled {
     height: auto;
     max-width: 260px;
   }
+
+  .uploaded-file-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 @media (max-width: 640px) {
@@ -1226,8 +1607,11 @@ button:disabled {
   .hero-grid,
   .trace-summary,
   .qr-grid,
+  .scan-grid,
   .form-grid,
-  .quality-history li {
+  .quality-history li,
+  .scan-record-list li,
+  .trend-row {
     grid-template-columns: 1fr;
   }
 }

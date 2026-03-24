@@ -4,6 +4,27 @@ export function getBatchList(params) {
   return http.get('/batches', { params })
 }
 
+export function getCompanyOptions(params) {
+  return http.get('/batches/lookup/companies', { params })
+}
+
+export function getProductOptions(params) {
+  return http.get('/batches/lookup/products', { params })
+}
+
+export function uploadBatchFiles(businessType, files) {
+  const formData = new FormData()
+  formData.append('businessType', businessType)
+  for (const file of files) {
+    formData.append('files', file)
+  }
+  return http.post('/batches/files/upload', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  })
+}
+
 export function getBatchDetail(id) {
   return http.get(`/batches/${id}`)
 }

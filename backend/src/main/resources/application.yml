@@ -35,6 +35,7 @@ app:
     public-base-url: ${PUBLIC_TRACE_BASE_URL:http://127.0.0.1:5173}
     backend-base-url: ${BACKEND_BASE_URL:http://127.0.0.1:8080}
     qr-storage-dir: ${QR_STORAGE_DIR:${user.dir}/storage/qr}
+    attachment-storage-dir: ${ATTACHMENT_STORAGE_DIR:${user.dir}/storage/attachments}
 
 springdoc:
   swagger-ui:

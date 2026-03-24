@@ -9,6 +9,7 @@ public record QualityReportCreateRequest(
         @NotBlank String agency,
         @NotBlank String result,
         String reportTime,
-        List<String> highlights
+        List<String> highlights,
+        List<Long> attachmentIds
 ) {
 }

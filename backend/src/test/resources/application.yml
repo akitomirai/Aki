@@ -13,3 +13,4 @@ app:
     public-base-url: http://127.0.0.1:5173
     backend-base-url: http://127.0.0.1:8080
     qr-storage-dir: ${java.io.tmpdir}/agritrace-test-qr
+    attachment-storage-dir: ${java.io.tmpdir}/agritrace-test-attachments

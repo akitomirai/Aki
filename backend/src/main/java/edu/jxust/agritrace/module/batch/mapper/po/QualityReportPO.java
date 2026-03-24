@@ -15,6 +15,7 @@ public class QualityReportPO {
     private String reportNo;
     private String agency;
     private String result;
+    private String reportFileUrl;
     private String reportJson;
     private LocalDateTime createdAt;
 
@@ -56,6 +57,14 @@ public class QualityReportPO {
 
     public void setResult(String result) {
         this.result = result;
+    }
+
+    public String getReportFileUrl() {
+        return reportFileUrl;
+    }
+
+    public void setReportFileUrl(String reportFileUrl) {
+        this.reportFileUrl = reportFileUrl;
     }
 
     public String getReportJson() {

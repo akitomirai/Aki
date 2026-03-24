@@ -20,6 +20,10 @@ public class TraceLinkBuilder {
         return join(traceProperties.getBackendBaseUrl(), "/api/public/qr-images/" + token);
     }
 
+    public String buildAttachmentUrl(Long fileId) {
+        return join(traceProperties.getBackendBaseUrl(), "/api/public/files/" + fileId);
+    }
+
     private String join(String baseUrl, String path) {
         String normalizedBase = baseUrl == null ? "" : baseUrl.trim();
         if (normalizedBase.endsWith("/")) {

@@ -32,3 +32,5 @@ INSERT INTO qr_code (id, batch_id, qr_token, status, created_at, remark, last_qu
 
 INSERT INTO qr_query_log (id, qr_id, batch_id, query_time, ip, ua, referer) VALUES
 (1, 1, 1, '2026-03-24 10:15:00', '127.0.0.1', 'DemoBrowser/Desktop', 'http://127.0.0.1:5173');
+
+UPDATE base_product SET company_id = 1 WHERE id = 1;

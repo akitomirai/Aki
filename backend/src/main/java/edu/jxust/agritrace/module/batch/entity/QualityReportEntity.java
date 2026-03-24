@@ -9,6 +9,7 @@ public record QualityReportEntity(
         String agency,
         String result,
         LocalDateTime reportTime,
-        List<String> highlights
+        List<String> highlights,
+        List<FileAssetEntity> attachments
 ) {
 }

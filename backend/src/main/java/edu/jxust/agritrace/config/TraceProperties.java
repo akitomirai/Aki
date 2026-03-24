@@ -8,6 +8,7 @@ public class TraceProperties {
     private String publicBaseUrl = "http://127.0.0.1:5173";
     private String backendBaseUrl = "http://127.0.0.1:8080";
     private String qrStorageDir = "storage/qr";
+    private String attachmentStorageDir = "storage/attachments";
 
     public String getPublicBaseUrl() {
         return publicBaseUrl;
@@ -31,5 +32,13 @@ public class TraceProperties {
 
     public void setQrStorageDir(String qrStorageDir) {
         this.qrStorageDir = qrStorageDir;
+    }
+
+    public String getAttachmentStorageDir() {
+        return attachmentStorageDir;
+    }
+
+    public void setAttachmentStorageDir(String attachmentStorageDir) {
+        this.attachmentStorageDir = attachmentStorageDir;
     }
 }

@@ -9,7 +9,10 @@ import {
   generateBatchQr,
   getBatchDetail,
   getBatchList,
-  updateBatch
+  getCompanyOptions,
+  getProductOptions,
+  updateBatch,
+  uploadBatchFiles
 } from '../api/batch'
 
 const router = useRouter()
@@ -26,33 +29,41 @@ const traceForm = ref(createTraceForm())
 const qualityForm = ref(createQualityForm())
 const statusForm = ref(createStatusForm())
 
+const formCompanyOptions = ref([])
+const formProductOptions = ref([])
+const traceUploading = ref(false)
+const qualityUploading = ref(false)
+
 const statusOptions = [
-  { value: '', label: '全部状态' },
-  { value: 'DRAFT', label: '草稿' },
-  { value: 'PUBLISHED', label: '已发布' },
-  { value: 'FROZEN', label: '已冻结' },
-  { value: 'RECALLED', label: '已召回' }
+  { value: '', label: 'All status' },
+  { value: 'DRAFT', label: 'Draft' },
+  { value: 'PUBLISHED', label: 'Published' },
+  { value: 'FROZEN', label: 'Frozen' },
+  { value: 'RECALLED', label: 'Recalled' }
 ]
 
 const stageOptions = [
-  { value: 'ARCHIVE', label: '建档' },
-  { value: 'PRODUCE', label: '生产' },
-  { value: 'QUALITY', label: '质检' },
-  { value: 'TRANSPORT', label: '运输' },
-  { value: 'WAREHOUSE', label: '仓储' },
-  { value: 'DELIVERY', label: '出库' },
-  { value: 'MARKET', label: '上市' },
-  { value: 'REGULATION', label: '监管' }
+  { value: 'ARCHIVE', label: 'Archive' },
+  { value: 'PRODUCE', label: 'Produce' },
+  { value: 'QUALITY', label: 'Quality' },
+  { value: 'TRANSPORT', label: 'Transport' },
+  { value: 'WAREHOUSE', label: 'Warehouse' },
+  { value: 'DELIVERY', label: 'Delivery' },
+  { value: 'MARKET', label: 'Market' },
+  { value: 'REGULATION', label: 'Regulation' }
 ]
 
 const qualityOptions = [
-  { value: 'PASS', label: '合格' },
-  { value: 'FAIL', label: '不合格' },
-  { value: 'REVIEW', label: '待确认' }
+  { value: 'PASS', label: 'Pass' },
+  { value: 'FAIL', label: 'Fail' },
+  { value: 'REVIEW', label: 'Review' }
 ]
 
 const companyOptions = computed(() => {
-  return [...new Set(batches.value.map((item) => item.companyName).filter(Boolean))]
+  const source = formCompanyOptions.value.length
+    ? formCompanyOptions.value.map((item) => item.name)
+    : batches.value.map((item) => item.companyName)
+  return [...new Set(source.filter(Boolean))]
 })
 
 const listStats = computed(() => {
@@ -63,25 +74,30 @@ const listStats = computed(() => {
   return { total, published, draft, risk }
 })
 
+const selectedProductOption = computed(() => {
+  return formProductOptions.value.find((item) => item.id === batchForm.value.productId) ?? null
+})
+
 const dialogTitle = computed(() => {
   switch (dialog.value.type) {
     case 'create':
-      return '新建批次'
+      return 'Create batch'
     case 'edit':
-      return `编辑批次：${dialog.value.batchName}`
+      return `Edit batch: ${dialog.value.batchName}`
     case 'trace':
-      return `新增追溯记录：${dialog.value.batchName}`
+      return `Add trace record: ${dialog.value.batchName}`
     case 'quality':
-      return `上传质检摘要：${dialog.value.batchName}`
+      return `Upload quality summary: ${dialog.value.batchName}`
     case 'status':
-      return `变更批次状态：${dialog.value.batchName}`
+      return `Change status: ${dialog.value.batchName}`
     default:
       return ''
   }
 })
 
-onMounted(() => {
-  fetchBatches()
+onMounted(async () => {
+  await loadCompanyOptions()
+  await fetchBatches()
 })
 
 async function fetchBatches() {
@@ -94,6 +110,20 @@ async function fetchBatches() {
   } finally {
     loading.value = false
   }
+}
+
+async function loadCompanyOptions(keyword = '') {
+  const response = await getCompanyOptions(cleanObject({ keyword }))
+  formCompanyOptions.value = response.data ?? []
+}
+
+async function loadProductOptions(companyId, keyword = '') {
+  if (!companyId) {
+    formProductOptions.value = []
+    return
+  }
+  const response = await getProductOptions(cleanObject({ companyId, keyword }))
+  formProductOptions.value = response.data ?? []
 }
 
 function createFilterState() {
@@ -119,9 +149,8 @@ function createDialogState() {
 function createBatchForm() {
   return {
     batchCode: createBatchCode(),
-    productName: '',
-    category: '水果',
-    companyName: '赣南脐橙示范基地',
+    productId: null,
+    companyId: null,
     originPlace: '',
     productionDate: todayString(),
     publicRemark: '',
@@ -134,10 +163,12 @@ function createTraceForm() {
     stage: 'PRODUCE',
     title: '',
     eventTime: currentDateTime(),
-    operatorName: '企业录入员',
+    operatorName: 'Entry Operator',
     location: '',
     summary: '',
     imageUrl: '',
+    attachmentIds: [],
+    uploadedFiles: [],
     visibleToConsumer: true
   }
 }
@@ -148,7 +179,9 @@ function createQualityForm() {
     agency: '',
     result: 'PASS',
     reportTime: currentDateTime(),
-    highlightsText: '检测通过'
+    highlightsText: 'passed',
+    attachmentIds: [],
+    uploadedFiles: []
   }
 }
 
@@ -156,7 +189,7 @@ function createStatusForm(targetStatus = 'PUBLISHED') {
   return {
     targetStatus,
     reason: defaultReason(targetStatus),
-    operatorName: '企业管理员'
+    operatorName: 'Admin'
   }
 }
 
@@ -176,25 +209,28 @@ function resetFilters() {
   fetchBatches()
 }
 
-function openCreateDialog() {
+async function openCreateDialog() {
+  await loadCompanyOptions()
+  batchForm.value = createBatchForm()
+  formProductOptions.value = []
   dialog.value = {
     visible: true,
     type: 'create',
     batchId: null,
     batchName: ''
   }
-  batchForm.value = createBatchForm()
 }
 
 async function openEditDialog(item) {
   try {
     const response = await getBatchDetail(item.id)
     const detail = response.data
+    await loadCompanyOptions()
+    await loadProductOptions(detail.company.id)
     batchForm.value = {
       batchCode: detail.batch.batchCode,
-      productName: detail.product.name,
-      category: detail.product.category,
-      companyName: detail.company.name,
+      productId: detail.product.id,
+      companyId: detail.company.id,
       originPlace: detail.batch.originPlace,
       productionDate: detail.batch.productionDate,
       publicRemark: detail.batch.publicRemark ?? '',
@@ -248,7 +284,15 @@ function closeDialog() {
 async function submitDialog() {
   try {
     if (dialog.value.type === 'create') {
-      const response = await createBatch(batchForm.value)
+      const response = await createBatch({
+        batchCode: batchForm.value.batchCode,
+        productId: batchForm.value.productId,
+        companyId: batchForm.value.companyId,
+        originPlace: batchForm.value.originPlace,
+        productionDate: batchForm.value.productionDate,
+        publicRemark: batchForm.value.publicRemark,
+        internalRemark: batchForm.value.internalRemark
+      })
       showMessage(response.message, 'success')
       closeDialog()
       await fetchBatches()
@@ -258,9 +302,8 @@ async function submitDialog() {
 
     if (dialog.value.type === 'edit') {
       const response = await updateBatch(dialog.value.batchId, {
-        productName: batchForm.value.productName,
-        category: batchForm.value.category,
-        companyName: batchForm.value.companyName,
+        productId: batchForm.value.productId,
+        companyId: batchForm.value.companyId,
         originPlace: batchForm.value.originPlace,
         productionDate: batchForm.value.productionDate,
         publicRemark: batchForm.value.publicRemark,
@@ -274,7 +317,17 @@ async function submitDialog() {
     }
 
     if (dialog.value.type === 'trace') {
-      const response = await createTraceRecord(dialog.value.batchId, traceForm.value)
+      const response = await createTraceRecord(dialog.value.batchId, {
+        stage: traceForm.value.stage,
+        title: traceForm.value.title,
+        eventTime: traceForm.value.eventTime,
+        operatorName: traceForm.value.operatorName,
+        location: traceForm.value.location,
+        summary: traceForm.value.summary,
+        imageUrl: traceForm.value.imageUrl,
+        attachmentIds: traceForm.value.attachmentIds,
+        visibleToConsumer: traceForm.value.visibleToConsumer
+      })
       showMessage(response.message, 'success')
       closeDialog()
       await fetchBatches()
@@ -287,7 +340,8 @@ async function submitDialog() {
         agency: qualityForm.value.agency,
         result: qualityForm.value.result,
         reportTime: qualityForm.value.reportTime,
-        highlights: splitHighlights(qualityForm.value.highlightsText)
+        highlights: splitHighlights(qualityForm.value.highlightsText),
+        attachmentIds: qualityForm.value.attachmentIds
       })
       showMessage(response.message, 'success')
       closeDialog()
@@ -318,6 +372,70 @@ async function handleGenerateQr(item) {
   }
 }
 
+async function handleBatchCompanyChange(resetProduct = true) {
+  const companyId = batchForm.value.companyId
+  if (resetProduct) {
+    batchForm.value.productId = null
+  }
+  await loadProductOptions(companyId)
+}
+
+async function handleTraceFilesChange(event) {
+  const files = [...(event.target.files ?? [])]
+  if (!files.length) {
+    return
+  }
+  traceUploading.value = true
+  try {
+    const response = await uploadBatchFiles('trace-image', files)
+    const uploadedFiles = response.data ?? []
+    traceForm.value.uploadedFiles = [...traceForm.value.uploadedFiles, ...uploadedFiles]
+    traceForm.value.attachmentIds = traceForm.value.uploadedFiles.map((item) => item.id)
+    if (!traceForm.value.imageUrl && uploadedFiles[0]?.fileUrl) {
+      traceForm.value.imageUrl = uploadedFiles[0].fileUrl
+    }
+    showMessage('Trace image uploaded', 'success')
+  } catch (error) {
+    showMessage(getErrorMessage(error), 'error')
+  } finally {
+    traceUploading.value = false
+    event.target.value = ''
+  }
+}
+
+async function handleQualityFilesChange(event) {
+  const files = [...(event.target.files ?? [])]
+  if (!files.length) {
+    return
+  }
+  qualityUploading.value = true
+  try {
+    const response = await uploadBatchFiles('quality-attachment', files)
+    const uploadedFiles = response.data ?? []
+    qualityForm.value.uploadedFiles = [...qualityForm.value.uploadedFiles, ...uploadedFiles]
+    qualityForm.value.attachmentIds = qualityForm.value.uploadedFiles.map((item) => item.id)
+    showMessage('Quality attachment uploaded', 'success')
+  } catch (error) {
+    showMessage(getErrorMessage(error), 'error')
+  } finally {
+    qualityUploading.value = false
+    event.target.value = ''
+  }
+}
+
+function removeTraceAttachment(fileId) {
+  traceForm.value.uploadedFiles = traceForm.value.uploadedFiles.filter((item) => item.id !== fileId)
+  traceForm.value.attachmentIds = traceForm.value.uploadedFiles.map((item) => item.id)
+  if (traceForm.value.imageUrl && !traceForm.value.uploadedFiles.some((item) => item.fileUrl === traceForm.value.imageUrl)) {
+    traceForm.value.imageUrl = traceForm.value.uploadedFiles[0]?.fileUrl ?? ''
+  }
+}
+
+function removeQualityAttachment(fileId) {
+  qualityForm.value.uploadedFiles = qualityForm.value.uploadedFiles.filter((item) => item.id !== fileId)
+  qualityForm.value.attachmentIds = qualityForm.value.uploadedFiles.map((item) => item.id)
+}
+
 function splitHighlights(text) {
   return text
     .split(/[\n,，;；]/)
@@ -341,14 +459,14 @@ function currentDateTime() {
 }
 
 function getErrorMessage(error) {
-  return error?.response?.data?.message || error?.message || '操作失败，请稍后重试。'
+  return error?.response?.data?.message || error?.message || 'Operation failed. Please try again.'
 }
 
 function defaultReason(targetStatus) {
   return {
-    PUBLISHED: '资料与二维码已准备完成，可以对外发布。',
-    FROZEN: '发现异常，先冻结公开展示并排查原因。',
-    RECALLED: '检测或监管提示存在风险，立即召回处理。'
+    PUBLISHED: 'Quality and QR are ready for publish.',
+    FROZEN: 'An issue was found and the batch is frozen for review.',
+    RECALLED: 'A risk was confirmed and recall is required.'
   }[targetStatus] ?? ''
 }
 
@@ -372,7 +490,24 @@ function statusClass(status) {
 }
 
 function qrStatusLabel(status) {
-  return status && status !== 'NOT_GENERATED' ? '已生成' : '待生成'
+  return status && status !== 'NOT_GENERATED' ? 'Ready' : 'Pending'
+}
+
+function formatFileSize(size) {
+  if (!size) {
+    return '0 B'
+  }
+  if (size < 1024) {
+    return `${size} B`
+  }
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1)} KB`
+  }
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function fileLabel(file) {
+  return file.fileName || file.fileUrl || 'Uploaded file'
 }
 </script>
 
@@ -380,33 +515,34 @@ function qrStatusLabel(status) {
   <div class="page-shell">
     <header class="hero-card">
       <div>
-        <p class="eyebrow">批次中心后台</p>
-        <h1>把批次列表做成主入口</h1>
+        <p class="eyebrow">Batch center</p>
+        <h1>Keep the list as the main entry</h1>
         <p class="lead">
-          这里优先服务企业建档、批次创建、过程补录、质检上传、二维码生成和发布操作，减少跳转，保证主流程顺手。
+          This page keeps the batch-centered flow simple: choose company and product,
+          create a batch, add trace records, upload quality files, generate QR, and publish.
         </p>
       </div>
       <div class="hero-actions">
-        <button class="primary" @click="openCreateDialog">新建批次</button>
-        <button class="ghost" @click="router.push('/dashboard')">返回概览</button>
+        <button class="primary" @click="openCreateDialog">Create batch</button>
+        <button class="ghost" @click="router.push('/dashboard')">Back to dashboard</button>
       </div>
     </header>
 
     <section class="stats-grid">
       <article class="stat-card">
-        <span>当前列表批次数</span>
+        <span>Total</span>
         <strong>{{ listStats.total }}</strong>
       </article>
       <article class="stat-card">
-        <span>已发布</span>
+        <span>Published</span>
         <strong>{{ listStats.published }}</strong>
       </article>
       <article class="stat-card">
-        <span>草稿</span>
+        <span>Draft</span>
         <strong>{{ listStats.draft }}</strong>
       </article>
       <article class="stat-card warning">
-        <span>风险批次</span>
+        <span>Risk</span>
         <strong>{{ listStats.risk }}</strong>
       </article>
     </section>
@@ -414,51 +550,51 @@ function qrStatusLabel(status) {
     <section class="panel">
       <div class="panel-head">
         <div>
-          <p class="eyebrow">筛选条件</p>
-          <h2>围绕批次快速找到要处理的记录</h2>
+          <p class="eyebrow">Filters</p>
+          <h2>Find the batch to process</h2>
         </div>
       </div>
 
       <div class="filter-grid">
         <label>
-          <span>批次号</span>
-          <input v-model.trim="filters.batchCode" type="text" placeholder="例如 BATCH2026032401">
+          <span>Batch code</span>
+          <input v-model.trim="filters.batchCode" type="text" placeholder="BATCH2026032401">
         </label>
         <label>
-          <span>产品名称</span>
-          <input v-model.trim="filters.productName" type="text" placeholder="例如 赣南脐橙">
+          <span>Product</span>
+          <input v-model.trim="filters.productName" type="text" placeholder="navel orange">
         </label>
         <label>
-          <span>状态</span>
+          <span>Status</span>
           <select v-model="filters.status">
             <option v-for="item in statusOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
           </select>
         </label>
         <label>
-          <span>企业</span>
+          <span>Company</span>
           <input
             v-model.trim="filters.companyName"
             type="text"
             list="company-options"
-            placeholder="输入或选择企业名"
+            placeholder="Type or select company"
           >
           <datalist id="company-options">
             <option v-for="item in companyOptions" :key="item" :value="item" />
           </datalist>
         </label>
         <label>
-          <span>生产日期起</span>
+          <span>Date from</span>
           <input v-model="filters.dateFrom" type="date">
         </label>
         <label>
-          <span>生产日期止</span>
+          <span>Date to</span>
           <input v-model="filters.dateTo" type="date">
         </label>
       </div>
 
       <div class="toolbar">
-        <button class="primary" :disabled="loading" @click="fetchBatches">查询批次</button>
-        <button class="ghost" :disabled="loading" @click="resetFilters">重置筛选</button>
+        <button class="primary" :disabled="loading" @click="fetchBatches">Search</button>
+        <button class="ghost" :disabled="loading" @click="resetFilters">Reset</button>
       </div>
     </section>
 
@@ -467,11 +603,11 @@ function qrStatusLabel(status) {
     </section>
 
     <section v-if="loading" class="panel empty-state">
-      正在加载批次列表...
+      Loading batches...
     </section>
 
     <section v-else-if="!batches.length" class="panel empty-state">
-      当前没有匹配的批次，可以直接新建一个批次进入主流程。
+      No batch matched the filter. Create one to continue the main flow.
     </section>
 
     <section v-else class="batch-list">
@@ -489,31 +625,31 @@ function qrStatusLabel(status) {
 
             <div class="meta-grid">
               <div>
-                <span>企业</span>
+                <span>Company</span>
                 <strong>{{ item.companyName }}</strong>
               </div>
               <div>
-                <span>产地</span>
+                <span>Origin</span>
                 <strong>{{ item.originPlace }}</strong>
               </div>
               <div>
-                <span>当前节点</span>
+                <span>Current node</span>
                 <strong>{{ item.currentNode }}</strong>
               </div>
               <div>
-                <span>生产日期</span>
+                <span>Production date</span>
                 <strong>{{ item.productionDate }}</strong>
               </div>
               <div>
-                <span>上市日期</span>
-                <strong>{{ item.marketDate || '未发布' }}</strong>
+                <span>Market date</span>
+                <strong>{{ item.marketDate || 'Not published' }}</strong>
               </div>
               <div>
-                <span>二维码</span>
+                <span>QR</span>
                 <strong>{{ qrStatusLabel(item.qrStatus) }}</strong>
               </div>
               <div>
-                <span>质检</span>
+                <span>Quality</span>
                 <strong>{{ item.qualityStatus }}</strong>
               </div>
             </div>
@@ -525,16 +661,16 @@ function qrStatusLabel(status) {
         </div>
 
         <div class="action-row">
-          <button class="ghost" @click="router.push(`/batches/${item.id}`)">查看详情</button>
-          <button class="ghost" @click="openEditDialog(item)">编辑</button>
-          <button class="neutral" @click="openTraceDialog(item)">追溯记录</button>
-          <button class="success" @click="openQualityDialog(item)">质检</button>
+          <button class="ghost" @click="router.push(`/batches/${item.id}`)">Workbench</button>
+          <button class="ghost" @click="openEditDialog(item)">Edit</button>
+          <button class="neutral" @click="openTraceDialog(item)">Trace</button>
+          <button class="success" @click="openQualityDialog(item)">Quality</button>
           <button
             class="neutral"
             :title="actionOf(item, 'GENERATE_QR').hint"
             @click="handleGenerateQr(item)"
           >
-            二维码
+            QR
           </button>
           <button
             class="primary"
@@ -542,7 +678,7 @@ function qrStatusLabel(status) {
             :title="actionOf(item, 'PUBLISH').hint"
             @click="openStatusDialog(item, 'PUBLISHED')"
           >
-            发布
+            Publish
           </button>
           <button
             class="success"
@@ -550,7 +686,7 @@ function qrStatusLabel(status) {
             :title="actionOf(item, 'RESUME').hint"
             @click="openStatusDialog(item, 'PUBLISHED')"
           >
-            恢复
+            Resume
           </button>
           <button
             class="warning"
@@ -558,7 +694,7 @@ function qrStatusLabel(status) {
             :title="actionOf(item, 'FREEZE').hint"
             @click="openStatusDialog(item, 'FROZEN')"
           >
-            冻结
+            Freeze
           </button>
           <button
             class="danger"
@@ -566,7 +702,7 @@ function qrStatusLabel(status) {
             :title="actionOf(item, 'RECALL').hint"
             @click="openStatusDialog(item, 'RECALLED')"
           >
-            召回
+            Recall
           </button>
         </div>
       </article>
@@ -576,135 +712,188 @@ function qrStatusLabel(status) {
       <section class="dialog-card">
         <div class="dialog-head">
           <div>
-            <p class="eyebrow">快速处理</p>
+            <p class="eyebrow">Quick action</p>
             <h3>{{ dialogTitle }}</h3>
           </div>
-          <button class="ghost icon-button" @click="closeDialog">关闭</button>
+          <button class="ghost icon-button" @click="closeDialog">Close</button>
         </div>
 
         <div v-if="dialog.type === 'create' || dialog.type === 'edit'" class="form-grid">
           <label v-if="dialog.type === 'create'">
-            <span>批次号</span>
+            <span>Batch code</span>
             <input v-model.trim="batchForm.batchCode" type="text">
           </label>
-          <label>
-            <span>产品名称</span>
-            <input v-model.trim="batchForm.productName" type="text">
+          <label v-else>
+            <span>Batch code</span>
+            <input :value="batchForm.batchCode" type="text" disabled>
           </label>
           <label>
-            <span>品类</span>
-            <input v-model.trim="batchForm.category" type="text">
+            <span>Company</span>
+            <select v-model="batchForm.companyId" @change="handleBatchCompanyChange()">
+              <option :value="null">Select company</option>
+              <option v-for="item in formCompanyOptions" :key="item.id" :value="item.id">{{ item.name }}</option>
+            </select>
           </label>
           <label>
-            <span>企业名称</span>
-            <input v-model.trim="batchForm.companyName" type="text">
+            <span>Product</span>
+            <select v-model="batchForm.productId" :disabled="!batchForm.companyId">
+              <option :value="null">{{ batchForm.companyId ? 'Select product' : 'Select company first' }}</option>
+              <option v-for="item in formProductOptions" :key="item.id" :value="item.id">{{ item.name }}</option>
+            </select>
           </label>
           <label>
-            <span>产地</span>
+            <span>Origin</span>
             <input v-model.trim="batchForm.originPlace" type="text">
           </label>
           <label>
-            <span>生产日期</span>
+            <span>Production date</span>
             <input v-model="batchForm.productionDate" type="date">
           </label>
-          <label class="full-width">
-            <span>公开说明</span>
-            <textarea v-model.trim="batchForm.publicRemark" rows="3" placeholder="面向消费者展示的简短说明" />
+          <label v-if="selectedProductOption" class="full-width">
+            <span>Product summary</span>
+            <div class="field-note">
+              <strong>{{ selectedProductOption.name }}</strong>
+              <small>Category: {{ selectedProductOption.category || 'N/A' }}, Spec: {{ selectedProductOption.specification || 'N/A' }}</small>
+            </div>
           </label>
           <label class="full-width">
-            <span>内部备注</span>
-            <textarea v-model.trim="batchForm.internalRemark" rows="3" placeholder="内部工作备注" />
+            <span>Public remark</span>
+            <textarea v-model.trim="batchForm.publicRemark" rows="3" placeholder="Shown on public trace page"></textarea>
+          </label>
+          <label class="full-width">
+            <span>Internal remark</span>
+            <textarea v-model.trim="batchForm.internalRemark" rows="3" placeholder="Internal note"></textarea>
           </label>
         </div>
 
         <div v-else-if="dialog.type === 'trace'" class="form-grid">
           <label>
-            <span>阶段</span>
+            <span>Stage</span>
             <select v-model="traceForm.stage">
               <option v-for="item in stageOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
             </select>
           </label>
           <label>
-            <span>发生时间</span>
+            <span>Event time</span>
             <input v-model="traceForm.eventTime" type="datetime-local">
           </label>
           <label>
-            <span>操作人</span>
+            <span>Operator</span>
             <input v-model.trim="traceForm.operatorName" type="text">
           </label>
           <label>
-            <span>地点</span>
+            <span>Location</span>
             <input v-model.trim="traceForm.location" type="text">
           </label>
           <label class="full-width">
-            <span>记录标题</span>
-            <input v-model.trim="traceForm.title" type="text" placeholder="可选，默认会按阶段自动命名">
+            <span>Title</span>
+            <input v-model.trim="traceForm.title" type="text" placeholder="Optional title">
           </label>
           <label class="full-width">
-            <span>摘要说明</span>
-            <textarea v-model.trim="traceForm.summary" rows="4" placeholder="尽量一句话说明本次处理结果" />
+            <span>Summary</span>
+            <textarea v-model.trim="traceForm.summary" rows="4" placeholder="Short summary of this record"></textarea>
           </label>
           <label class="full-width">
-            <span>现场图片链接</span>
-            <input v-model.trim="traceForm.imageUrl" type="url" placeholder="可选，用于工作台与公开页展示">
+            <span>Trace images</span>
+            <div class="upload-box">
+              <input type="file" accept="image/*" multiple @change="handleTraceFilesChange">
+              <small>Upload real images. URL fallback is still supported.</small>
+            </div>
           </label>
+          <label class="full-width">
+            <span>Image URL fallback</span>
+            <input v-model.trim="traceForm.imageUrl" type="url" placeholder="Optional external image URL">
+          </label>
+          <div v-if="traceUploading" class="full-width upload-hint">Uploading trace images...</div>
+          <div v-if="traceForm.uploadedFiles.length" class="full-width uploaded-file-list">
+            <article v-for="item in traceForm.uploadedFiles" :key="item.id" class="uploaded-file-item">
+              <div>
+                <strong>{{ fileLabel(item) }}</strong>
+                <small>{{ formatFileSize(item.size) }}</small>
+              </div>
+              <div class="inline-actions">
+                <a class="preview-link" :href="item.fileUrl" target="_blank" rel="noreferrer">Open</a>
+                <button class="ghost" @click="removeTraceAttachment(item.id)">Remove</button>
+              </div>
+            </article>
+          </div>
           <label class="checkbox-field full-width">
             <input v-model="traceForm.visibleToConsumer" type="checkbox">
-            <span>允许在公开追溯页展示这条记录</span>
+            <span>Show this record on the public page</span>
           </label>
         </div>
 
         <div v-else-if="dialog.type === 'quality'" class="form-grid">
           <label>
-            <span>报告编号</span>
+            <span>Report no</span>
             <input v-model.trim="qualityForm.reportNo" type="text">
           </label>
           <label>
-            <span>检测机构</span>
+            <span>Agency</span>
             <input v-model.trim="qualityForm.agency" type="text">
           </label>
           <label>
-            <span>检测结果</span>
+            <span>Result</span>
             <select v-model="qualityForm.result">
               <option v-for="item in qualityOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
             </select>
           </label>
           <label>
-            <span>检测时间</span>
+            <span>Report time</span>
             <input v-model="qualityForm.reportTime" type="datetime-local">
           </label>
           <label class="full-width">
-            <span>检测亮点</span>
+            <span>Highlights</span>
             <textarea
               v-model.trim="qualityForm.highlightsText"
               rows="4"
-              placeholder="多个要点可用逗号、分号或换行分隔"
+              placeholder="Use comma, semicolon or line breaks"
             />
           </label>
+          <label class="full-width">
+            <span>Quality attachments</span>
+            <div class="upload-box">
+              <input type="file" multiple @change="handleQualityFilesChange">
+              <small>Upload report files or supporting attachments.</small>
+            </div>
+          </label>
+          <div v-if="qualityUploading" class="full-width upload-hint">Uploading quality attachments...</div>
+          <div v-if="qualityForm.uploadedFiles.length" class="full-width uploaded-file-list">
+            <article v-for="item in qualityForm.uploadedFiles" :key="item.id" class="uploaded-file-item">
+              <div>
+                <strong>{{ fileLabel(item) }}</strong>
+                <small>{{ formatFileSize(item.size) }}</small>
+              </div>
+              <div class="inline-actions">
+                <a class="preview-link" :href="item.fileUrl" target="_blank" rel="noreferrer">Open</a>
+                <button class="ghost" @click="removeQualityAttachment(item.id)">Remove</button>
+              </div>
+            </article>
+          </div>
         </div>
 
         <div v-else-if="dialog.type === 'status'" class="form-grid">
           <label>
-            <span>目标状态</span>
+            <span>Target status</span>
             <select v-model="statusForm.targetStatus">
-              <option value="PUBLISHED">发布</option>
-              <option value="FROZEN">冻结</option>
-              <option value="RECALLED">召回</option>
+              <option value="PUBLISHED">Publish</option>
+              <option value="FROZEN">Freeze</option>
+              <option value="RECALLED">Recall</option>
             </select>
           </label>
           <label>
-            <span>操作人</span>
+            <span>Operator</span>
             <input v-model.trim="statusForm.operatorName" type="text">
           </label>
           <label class="full-width">
-            <span>变更原因</span>
-            <textarea v-model.trim="statusForm.reason" rows="4" placeholder="请写明状态变更原因" />
+            <span>Reason</span>
+            <textarea v-model.trim="statusForm.reason" rows="4" placeholder="Write the reason for status change"></textarea>
           </label>
         </div>
 
         <div class="dialog-actions">
-          <button class="ghost" @click="closeDialog">取消</button>
-          <button class="primary" @click="submitDialog">提交</button>
+          <button class="ghost" @click="closeDialog">Cancel</button>
+          <button class="primary" @click="submitDialog">Submit</button>
         </div>
       </section>
     </div>
@@ -855,6 +1044,69 @@ textarea {
 
 textarea {
   resize: vertical;
+}
+
+.field-note,
+.upload-box,
+.uploaded-file-item {
+  border: 1px solid rgba(45, 85, 71, 0.12);
+  border-radius: 18px;
+  background: rgba(245, 248, 244, 0.96);
+}
+
+.field-note {
+  padding: 14px;
+}
+
+.field-note strong,
+.uploaded-file-item strong {
+  display: block;
+  color: #17362d;
+}
+
+.field-note small,
+.upload-box small,
+.uploaded-file-item small,
+.upload-hint {
+  color: #60786d;
+}
+
+.upload-box {
+  padding: 14px;
+}
+
+.upload-box input {
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.upload-box small {
+  display: block;
+  margin-top: 8px;
+}
+
+.upload-hint {
+  padding: 4px 2px;
+}
+
+.uploaded-file-list {
+  display: grid;
+  gap: 10px;
+}
+
+.uploaded-file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+}
+
+.inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .full-width {
@@ -1104,7 +1356,7 @@ button:disabled {
 }
 
 .dialog-card {
-  width: min(820px, 100%);
+  width: min(860px, 100%);
   max-height: calc(100vh - 40px);
   overflow: auto;
   padding: 24px;
@@ -1157,6 +1409,11 @@ button:disabled {
 
   .title-row {
     flex-direction: column;
+  }
+
+  .uploaded-file-item {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 

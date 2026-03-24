@@ -10,6 +10,7 @@ public record BatchWorkbenchVO(
         TraceSectionVO trace,
         QualitySectionVO quality,
         QrSummaryVO qr,
+        ScanStatsSectionVO scanStats,
         List<BatchStatusLogVO> statusHistory,
         List<BatchActionVO> actions
 ) {

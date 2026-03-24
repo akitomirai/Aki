@@ -10,6 +10,7 @@ public record TraceRecordVO(
         String location,
         boolean visibleToConsumer,
         String summary,
-        String imageUrl
+        String imageUrl,
+        java.util.List<FileAssetVO> attachments
 ) {
 }

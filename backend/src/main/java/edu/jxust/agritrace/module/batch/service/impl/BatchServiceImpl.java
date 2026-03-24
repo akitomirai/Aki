@@ -11,17 +11,21 @@ import edu.jxust.agritrace.module.batch.dto.BatchStatusActionRequest;
 import edu.jxust.agritrace.module.batch.dto.BatchUpdateRequest;
 import edu.jxust.agritrace.module.batch.dto.QualityReportCreateRequest;
 import edu.jxust.agritrace.module.batch.dto.TraceRecordCreateRequest;
+import edu.jxust.agritrace.module.batch.entity.AttachmentBusinessType;
 import edu.jxust.agritrace.module.batch.entity.BatchEntity;
 import edu.jxust.agritrace.module.batch.entity.BatchStatus;
 import edu.jxust.agritrace.module.batch.entity.CompanyEntity;
+import edu.jxust.agritrace.module.batch.entity.FileAssetEntity;
 import edu.jxust.agritrace.module.batch.entity.ProductEntity;
 import edu.jxust.agritrace.module.batch.entity.QrCodeEntity;
 import edu.jxust.agritrace.module.batch.entity.QualityReportEntity;
+import edu.jxust.agritrace.module.batch.entity.ScanRecordEntity;
 import edu.jxust.agritrace.module.batch.entity.StatusHistoryEntity;
 import edu.jxust.agritrace.module.batch.entity.TraceRecordEntity;
 import edu.jxust.agritrace.module.batch.entity.TraceStage;
 import edu.jxust.agritrace.module.batch.mapper.BaseProductMapper;
 import edu.jxust.agritrace.module.batch.mapper.BatchStatusLogMapper;
+import edu.jxust.agritrace.module.batch.mapper.BizAttachmentMapper;
 import edu.jxust.agritrace.module.batch.mapper.OrgCompanyMapper;
 import edu.jxust.agritrace.module.batch.mapper.QrCodeMapper;
 import edu.jxust.agritrace.module.batch.mapper.QrQueryLogMapper;
@@ -30,6 +34,7 @@ import edu.jxust.agritrace.module.batch.mapper.TraceBatchMapper;
 import edu.jxust.agritrace.module.batch.mapper.TraceEventMapper;
 import edu.jxust.agritrace.module.batch.mapper.po.BaseProductPO;
 import edu.jxust.agritrace.module.batch.mapper.po.BatchStatusLogPO;
+import edu.jxust.agritrace.module.batch.mapper.po.BizAttachmentPO;
 import edu.jxust.agritrace.module.batch.mapper.po.OrgCompanyPO;
 import edu.jxust.agritrace.module.batch.mapper.po.QrCodePO;
 import edu.jxust.agritrace.module.batch.mapper.po.QrQueryLogPO;
@@ -37,6 +42,7 @@ import edu.jxust.agritrace.module.batch.mapper.po.QualityReportPO;
 import edu.jxust.agritrace.module.batch.mapper.po.TraceBatchPO;
 import edu.jxust.agritrace.module.batch.mapper.po.TraceEventPO;
 import edu.jxust.agritrace.module.batch.service.BatchService;
+import edu.jxust.agritrace.module.batch.service.support.AttachmentStorageService;
 import edu.jxust.agritrace.module.batch.service.support.QrImageStorageService;
 import edu.jxust.agritrace.module.batch.service.support.TraceLinkBuilder;
 import edu.jxust.agritrace.module.batch.vo.BatchActionVO;
@@ -45,30 +51,41 @@ import edu.jxust.agritrace.module.batch.vo.BatchOverviewVO;
 import edu.jxust.agritrace.module.batch.vo.BatchStatusLogVO;
 import edu.jxust.agritrace.module.batch.vo.BatchStatusSummaryVO;
 import edu.jxust.agritrace.module.batch.vo.BatchWorkbenchVO;
+import edu.jxust.agritrace.module.batch.vo.CompanyOptionVO;
 import edu.jxust.agritrace.module.batch.vo.CompanySummaryVO;
+import edu.jxust.agritrace.module.batch.vo.FileAssetVO;
 import edu.jxust.agritrace.module.batch.vo.ProductSummaryVO;
+import edu.jxust.agritrace.module.batch.vo.ProductOptionVO;
 import edu.jxust.agritrace.module.batch.vo.QrSummaryVO;
 import edu.jxust.agritrace.module.batch.vo.QualityReportVO;
 import edu.jxust.agritrace.module.batch.vo.QualitySectionVO;
+import edu.jxust.agritrace.module.batch.vo.ScanRecordVO;
+import edu.jxust.agritrace.module.batch.vo.ScanStatsSectionVO;
+import edu.jxust.agritrace.module.batch.vo.ScanTrendPointVO;
 import edu.jxust.agritrace.module.batch.vo.TraceRecordVO;
 import edu.jxust.agritrace.module.batch.vo.TraceSectionVO;
 import edu.jxust.agritrace.module.publictrace.dto.PublicTraceAccessContext;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.temporal.ChronoUnit;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 @Service
 @Transactional(readOnly = true)
@@ -82,12 +99,14 @@ public class BatchServiceImpl implements BatchService {
     private final OrgCompanyMapper orgCompanyMapper;
     private final TraceEventMapper traceEventMapper;
     private final QualityReportMapper qualityReportMapper;
+    private final BizAttachmentMapper bizAttachmentMapper;
     private final QrCodeMapper qrCodeMapper;
     private final BatchStatusLogMapper batchStatusLogMapper;
     private final QrQueryLogMapper qrQueryLogMapper;
     private final ObjectMapper objectMapper;
     private final TraceLinkBuilder traceLinkBuilder;
     private final QrImageStorageService qrImageStorageService;
+    private final AttachmentStorageService attachmentStorageService;
 
     public BatchServiceImpl(
             TraceBatchMapper traceBatchMapper,
@@ -95,24 +114,28 @@ public class BatchServiceImpl implements BatchService {
             OrgCompanyMapper orgCompanyMapper,
             TraceEventMapper traceEventMapper,
             QualityReportMapper qualityReportMapper,
+            BizAttachmentMapper bizAttachmentMapper,
             QrCodeMapper qrCodeMapper,
             BatchStatusLogMapper batchStatusLogMapper,
             QrQueryLogMapper qrQueryLogMapper,
             ObjectMapper objectMapper,
             TraceLinkBuilder traceLinkBuilder,
-            QrImageStorageService qrImageStorageService
+            QrImageStorageService qrImageStorageService,
+            AttachmentStorageService attachmentStorageService
     ) {
         this.traceBatchMapper = traceBatchMapper;
         this.baseProductMapper = baseProductMapper;
         this.orgCompanyMapper = orgCompanyMapper;
         this.traceEventMapper = traceEventMapper;
         this.qualityReportMapper = qualityReportMapper;
+        this.bizAttachmentMapper = bizAttachmentMapper;
         this.qrCodeMapper = qrCodeMapper;
         this.batchStatusLogMapper = batchStatusLogMapper;
         this.qrQueryLogMapper = qrQueryLogMapper;
         this.objectMapper = objectMapper;
         this.traceLinkBuilder = traceLinkBuilder;
         this.qrImageStorageService = qrImageStorageService;
+        this.attachmentStorageService = attachmentStorageService;
     }
 
     @Override
@@ -149,11 +172,85 @@ public class BatchServiceImpl implements BatchService {
     }
 
     @Override
+    public List<CompanyOptionVO> listCompanyOptions(String keyword) {
+        LambdaQueryWrapper<OrgCompanyPO> wrapper = new LambdaQueryWrapper<OrgCompanyPO>()
+                .orderByAsc(OrgCompanyPO::getName)
+                .orderByAsc(OrgCompanyPO::getId);
+        if (notBlank(keyword)) {
+            wrapper.and(item -> item
+                    .like(OrgCompanyPO::getName, keyword.trim())
+                    .or()
+                    .like(OrgCompanyPO::getLicenseNo, keyword.trim()));
+        }
+        return orgCompanyMapper.selectList(wrapper).stream()
+                .map(company -> new CompanyOptionVO(
+                        company.getId(),
+                        company.getName(),
+                        company.getLicenseNo(),
+                        company.getAddress()
+                ))
+                .toList();
+    }
+
+    @Override
+    public List<ProductOptionVO> listProductOptions(Long companyId, String keyword) {
+        LambdaQueryWrapper<BaseProductPO> wrapper = new LambdaQueryWrapper<BaseProductPO>()
+                .orderByAsc(BaseProductPO::getName)
+                .orderByAsc(BaseProductPO::getId);
+        if (companyId != null) {
+            wrapper.eq(BaseProductPO::getCompanyId, companyId);
+        }
+        if (notBlank(keyword)) {
+            wrapper.and(item -> item
+                    .like(BaseProductPO::getName, keyword.trim())
+                    .or()
+                    .like(BaseProductPO::getCategory, keyword.trim()));
+        }
+        return baseProductMapper.selectList(wrapper).stream()
+                .map(product -> new ProductOptionVO(
+                        product.getId(),
+                        product.getCompanyId(),
+                        product.getName(),
+                        product.getCategory(),
+                        defaultValue(product.getSpec(), null),
+                        defaultValue(product.getUnit(), null),
+                        defaultValue(product.getImageUrl(), resolveProductImage(product.getName(), product.getCategory()))
+                ))
+                .toList();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public List<FileAssetVO> uploadAttachments(String businessType, List<MultipartFile> files) {
+        AttachmentBusinessType attachmentBusinessType = AttachmentBusinessType.fromCode(businessType);
+        if (files == null || files.isEmpty()) {
+            throw new IllegalArgumentException("files cannot be empty");
+        }
+        List<FileAssetVO> uploaded = new ArrayList<>();
+        for (MultipartFile file : files) {
+            AttachmentStorageService.StoredAttachment storedAttachment = attachmentStorageService.store(file, attachmentBusinessType);
+            BizAttachmentPO attachmentPO = new BizAttachmentPO();
+            attachmentPO.setFileName(storedAttachment.fileName());
+            attachmentPO.setFilePath(storedAttachment.filePath());
+            attachmentPO.setContentType(storedAttachment.contentType());
+            attachmentPO.setSize(storedAttachment.size());
+            attachmentPO.setBusinessType(attachmentBusinessType.code());
+            attachmentPO.setBusinessId(null);
+            bizAttachmentMapper.insert(attachmentPO);
+            attachmentPO.setFileUrl(traceLinkBuilder.buildAttachmentUrl(attachmentPO.getId()));
+            bizAttachmentMapper.updateById(attachmentPO);
+            uploaded.add(toFileAssetVO(attachmentPO));
+        }
+        return uploaded;
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public BatchWorkbenchVO createBatch(BatchCreateRequest request) {
         ensureBatchCodeUnique(request.batchCode(), null);
-        BaseProductPO product = findOrCreateProduct(request.productName(), request.category());
-        OrgCompanyPO company = findOrCreateCompany(request.companyName(), request.originPlace());
+        OrgCompanyPO company = findCompanyRequired(request.companyId());
+        BaseProductPO product = findProductRequired(request.productId());
+        validateProductCompany(product, company.getId());
 
         TraceBatchPO batchPO = new TraceBatchPO();
         batchPO.setBatchCode(request.batchCode().trim());
@@ -174,8 +271,9 @@ public class BatchServiceImpl implements BatchService {
     @Transactional(rollbackFor = Exception.class)
     public BatchWorkbenchVO updateBatch(Long batchId, BatchUpdateRequest request) {
         TraceBatchPO batchPO = findBatchPO(batchId);
-        BaseProductPO product = findOrCreateProduct(request.productName(), request.category());
-        OrgCompanyPO company = findOrCreateCompany(request.companyName(), request.originPlace());
+        OrgCompanyPO company = findCompanyRequired(request.companyId());
+        BaseProductPO product = findProductRequired(request.productId());
+        validateProductCompany(product, company.getId());
 
         batchPO.setProductId(product.getId());
         batchPO.setCompanyId(company.getId());
@@ -228,6 +326,8 @@ public class BatchServiceImpl implements BatchService {
         TraceBatchPO batchPO = findBatchPO(batchId);
         LocalDateTime eventTime = parseFlexibleDateTime(request.eventTime(), LocalDateTime.now());
         TraceStage stage = request.stage() == null ? TraceStage.PRODUCE : request.stage();
+        List<BizAttachmentPO> attachments = claimAttachments(request.attachmentIds(), AttachmentBusinessType.TRACE_IMAGE, null);
+        String resolvedImageUrl = firstAttachmentUrl(attachments, request.imageUrl());
 
         TraceEventPO eventPO = new TraceEventPO();
         eventPO.setBatchId(batchId);
@@ -238,9 +338,10 @@ public class BatchServiceImpl implements BatchService {
         eventPO.setOperatorName(request.operatorName().trim());
         eventPO.setLocation(request.location().trim());
         eventPO.setIsPublic(request.visibleToConsumer());
-        eventPO.setContentJson(writeTraceContent(request.summary(), request.imageUrl()));
-        eventPO.setAttachmentsJson(writeAttachments(request.imageUrl()));
+        eventPO.setContentJson(writeTraceContent(request.summary(), resolvedImageUrl));
+        eventPO.setAttachmentsJson(writeAttachments(attachments, resolvedImageUrl));
         traceEventMapper.insert(eventPO);
+        bindAttachmentsToBusiness(attachments, eventPO.getId());
 
         return toWorkbench(getBatchEntityById(batchId));
     }
@@ -250,15 +351,18 @@ public class BatchServiceImpl implements BatchService {
     public BatchWorkbenchVO addQualityReport(Long batchId, QualityReportCreateRequest request) {
         findBatchPO(batchId);
         LocalDateTime reportTime = parseFlexibleDateTime(request.reportTime(), LocalDateTime.now());
+        List<BizAttachmentPO> attachments = claimAttachments(request.attachmentIds(), AttachmentBusinessType.QUALITY_ATTACHMENT, null);
 
         QualityReportPO reportPO = new QualityReportPO();
         reportPO.setBatchId(batchId);
         reportPO.setReportNo(request.reportNo().trim());
         reportPO.setAgency(request.agency().trim());
         reportPO.setResult(request.result().trim().toUpperCase(Locale.ROOT));
-        reportPO.setReportJson(writeQualityJson(request.highlights()));
+        reportPO.setReportFileUrl(firstAttachmentUrl(attachments, null));
+        reportPO.setReportJson(writeQualityJson(request.highlights(), attachments));
         reportPO.setCreatedAt(reportTime);
         qualityReportMapper.insert(reportPO);
+        bindAttachmentsToBusiness(attachments, reportPO.getId());
 
         return toWorkbench(getBatchEntityById(batchId));
     }
@@ -323,6 +427,12 @@ public class BatchServiceImpl implements BatchService {
         QrCodePO qrCodePO = findQrByToken(token);
         qrImageStorageService.ensureQrImage(qrCodePO.getQrToken(), traceLinkBuilder.buildPublicTraceUrl(qrCodePO.getQrToken()));
         return qrImageStorageService.loadQrImage(qrCodePO.getQrToken());
+    }
+
+    @Override
+    public Resource loadAttachment(Long fileId) {
+        BizAttachmentPO attachmentPO = findAttachmentRequired(fileId);
+        return attachmentStorageService.load(attachmentPO.getFilePath());
     }
 
     private TraceBatchPO findBatchPO(Long batchId) {
@@ -406,6 +516,7 @@ public class BatchServiceImpl implements BatchService {
         batch.getTraceRecords().addAll(traceRecords);
         batch.getQualityReports().addAll(qualityReports);
         batch.getStatusHistory().addAll(statusHistory);
+        batch.getScanRecords().addAll(qrLogs.stream().map(this::toScanRecordEntity).toList());
         batch.setCurrentNode(resolveCurrentNode(batch.getStatus(), traceRecords));
         batch.setQrCode(toQrCodeEntity(qrCodePO, qrLogs));
         return batch;
@@ -414,6 +525,7 @@ public class BatchServiceImpl implements BatchService {
     private ProductEntity toProductEntity(BaseProductPO productPO) {
         return new ProductEntity(
                 productPO.getId(),
+                productPO.getCompanyId(),
                 productPO.getName(),
                 productPO.getCategory(),
                 defaultValue(productPO.getSpec(), "待补充"),
@@ -434,6 +546,12 @@ public class BatchServiceImpl implements BatchService {
     }
 
     private TraceRecordEntity toTraceRecordEntity(TraceEventPO eventPO) {
+        List<FileAssetEntity> attachments = readAttachmentAssets(
+                eventPO.getAttachmentsJson(),
+                null,
+                AttachmentBusinessType.TRACE_IMAGE.code(),
+                eventPO.getId()
+        );
         return new TraceRecordEntity(
                 eventPO.getId(),
                 TraceStage.fromCode(eventPO.getStage()),
@@ -443,7 +561,8 @@ public class BatchServiceImpl implements BatchService {
                 defaultValue(eventPO.getLocation(), "未填写地点"),
                 Boolean.TRUE.equals(eventPO.getIsPublic()),
                 readTraceSummary(eventPO.getContentJson()),
-                readTraceImage(eventPO.getAttachmentsJson(), eventPO.getContentJson())
+                readTraceImage(eventPO.getAttachmentsJson(), eventPO.getContentJson()),
+                attachments
         );
     }
 
@@ -454,7 +573,17 @@ public class BatchServiceImpl implements BatchService {
                 defaultValue(reportPO.getAgency(), "未填写检测机构"),
                 defaultValue(reportPO.getResult(), "REVIEW"),
                 reportPO.getCreatedAt(),
-                readQualityHighlights(reportPO.getReportJson())
+                readQualityHighlights(reportPO.getReportJson()),
+                readQualityAttachments(reportPO)
+        );
+    }
+
+    private ScanRecordEntity toScanRecordEntity(QrQueryLogPO logPO) {
+        return new ScanRecordEntity(
+                logPO.getQueryTime(),
+                defaultValue(logPO.getIp(), "unknown"),
+                defaultValue(logPO.getUa(), "unknown"),
+                defaultValue(logPO.getReferer(), "")
         );
     }
 
@@ -539,6 +668,7 @@ public class BatchServiceImpl implements BatchService {
                 ),
                 new ProductSummaryVO(
                         batch.getProduct().id(),
+                        batch.getProduct().companyId(),
                         batch.getProduct().name(),
                         batch.getProduct().category(),
                         batch.getProduct().specification(),
@@ -569,6 +699,7 @@ public class BatchServiceImpl implements BatchService {
                         sortedQualityReports
                 ),
                 toQrSummary(batch.getQrCode()),
+                buildScanStats(batch),
                 statusHistory,
                 buildActions(batch)
         );
@@ -604,6 +735,69 @@ public class BatchServiceImpl implements BatchService {
         );
     }
 
+    private ScanStatsSectionVO buildScanStats(BatchEntity batch) {
+        List<ScanRecordEntity> sortedRecords = batch.getScanRecords().stream()
+                .sorted(Comparator.comparing(ScanRecordEntity::scanTime).reversed())
+                .toList();
+        long pv = batch.getQrCode() == null ? 0 : batch.getQrCode().pv();
+        long uv = batch.getQrCode() == null ? 0 : batch.getQrCode().uv();
+        LocalDate today = LocalDate.now();
+        List<ScanTrendPointVO> trend = new ArrayList<>();
+        for (int offset = 6; offset >= 0; offset--) {
+            LocalDate day = today.minusDays(offset);
+            List<ScanRecordEntity> dayRecords = sortedRecords.stream()
+                    .filter(record -> record.scanTime() != null && day.equals(record.scanTime().toLocalDate()))
+                    .toList();
+            long dayUv = dayRecords.stream()
+                    .map(record -> visitorKey(record.ip(), record.userAgent()))
+                    .filter(this::notBlank)
+                    .distinct()
+                    .count();
+            trend.add(new ScanTrendPointVO(formatDate(day), dayRecords.size(), dayUv));
+        }
+        return new ScanStatsSectionVO(
+                pv,
+                uv,
+                formatDateTime(sortedRecords.isEmpty() ? null : sortedRecords.get(0).scanTime()),
+                sortedRecords.stream()
+                        .limit(5)
+                        .map(record -> new ScanRecordVO(
+                                formatDateTime(record.scanTime()),
+                                record.ip(),
+                                summarizeDevice(record.userAgent()),
+                                defaultValue(record.referer(), "")
+                        ))
+                        .toList(),
+                trend
+        );
+    }
+
+    private FileAssetVO toFileAssetVO(FileAssetEntity asset) {
+        return new FileAssetVO(
+                asset.id(),
+                asset.fileName(),
+                asset.filePath(),
+                asset.fileUrl(),
+                asset.contentType(),
+                asset.size(),
+                asset.businessType(),
+                asset.businessId()
+        );
+    }
+
+    private FileAssetVO toFileAssetVO(BizAttachmentPO attachmentPO) {
+        return new FileAssetVO(
+                attachmentPO.getId(),
+                attachmentPO.getFileName(),
+                attachmentPO.getFilePath(),
+                attachmentPO.getFileUrl(),
+                attachmentPO.getContentType(),
+                defaultLong(attachmentPO.getSize()),
+                attachmentPO.getBusinessType(),
+                attachmentPO.getBusinessId()
+        );
+    }
+
     private TraceRecordVO toTraceRecordVO(TraceRecordEntity record) {
         return new TraceRecordVO(
                 record.id(),
@@ -615,7 +809,8 @@ public class BatchServiceImpl implements BatchService {
                 record.location(),
                 record.visibleToConsumer(),
                 record.summary(),
-                record.imageUrl()
+                record.imageUrl(),
+                record.attachments().stream().map(this::toFileAssetVO).toList()
         );
     }
 
@@ -627,7 +822,8 @@ public class BatchServiceImpl implements BatchService {
                 report.result(),
                 toQualityLabel(report.result()),
                 formatDateTime(report.reportTime()),
-                report.highlights()
+                report.highlights(),
+                report.attachments().stream().map(this::toFileAssetVO).toList()
         );
     }
 
@@ -856,6 +1052,73 @@ public class BatchServiceImpl implements BatchService {
         return companyPO;
     }
 
+    private BaseProductPO findProductRequired(Long productId) {
+        BaseProductPO productPO = baseProductMapper.selectById(productId);
+        if (productPO == null) {
+            throw new IllegalArgumentException("productId does not exist");
+        }
+        if (!notBlank(productPO.getImageUrl())) {
+            productPO.setImageUrl(resolveProductImage(productPO.getName(), productPO.getCategory()));
+            baseProductMapper.updateById(productPO);
+        }
+        return productPO;
+    }
+
+    private OrgCompanyPO findCompanyRequired(Long companyId) {
+        OrgCompanyPO companyPO = orgCompanyMapper.selectById(companyId);
+        if (companyPO == null) {
+            throw new IllegalArgumentException("companyId does not exist");
+        }
+        return companyPO;
+    }
+
+    private void validateProductCompany(BaseProductPO productPO, Long companyId) {
+        if (productPO.getCompanyId() != null && !Objects.equals(productPO.getCompanyId(), companyId)) {
+            throw new IllegalArgumentException("product does not belong to the selected company");
+        }
+    }
+
+    private BizAttachmentPO findAttachmentRequired(Long fileId) {
+        BizAttachmentPO attachmentPO = bizAttachmentMapper.selectById(fileId);
+        if (attachmentPO == null) {
+            throw new IllegalArgumentException("attachment does not exist");
+        }
+        return attachmentPO;
+    }
+
+    private List<BizAttachmentPO> claimAttachments(List<Long> attachmentIds, AttachmentBusinessType businessType, Long existingBusinessId) {
+        if (attachmentIds == null || attachmentIds.isEmpty()) {
+            return List.of();
+        }
+        Set<Long> distinctIds = new LinkedHashSet<>(attachmentIds);
+        List<BizAttachmentPO> attachments = new ArrayList<>();
+        for (Long attachmentId : distinctIds) {
+            BizAttachmentPO attachmentPO = findAttachmentRequired(attachmentId);
+            if (!businessType.code().equalsIgnoreCase(attachmentPO.getBusinessType())) {
+                throw new IllegalArgumentException("attachment businessType mismatch");
+            }
+            if (attachmentPO.getBusinessId() != null && !Objects.equals(attachmentPO.getBusinessId(), existingBusinessId)) {
+                throw new IllegalArgumentException("attachment already linked");
+            }
+            attachments.add(attachmentPO);
+        }
+        return attachments;
+    }
+
+    private void bindAttachmentsToBusiness(List<BizAttachmentPO> attachments, Long businessId) {
+        for (BizAttachmentPO attachment : attachments) {
+            attachment.setBusinessId(businessId);
+            bizAttachmentMapper.updateById(attachment);
+        }
+    }
+
+    private String firstAttachmentUrl(List<BizAttachmentPO> attachments, String fallbackUrl) {
+        if (attachments != null && !attachments.isEmpty()) {
+            return attachments.get(0).getFileUrl();
+        }
+        return trimToNull(fallbackUrl);
+    }
+
     private void writeStatusLog(Long batchId, BatchStatus status, String reason, String operatorName, LocalDateTime operatedAt) {
         BatchStatusLogPO logPO = new BatchStatusLogPO();
         logPO.setBatchId(batchId);
@@ -910,8 +1173,26 @@ public class BatchServiceImpl implements BatchService {
         return writeJson(List.of(imageUrl.trim()));
     }
 
+    private String writeAttachments(List<BizAttachmentPO> attachments, String imageUrl) {
+        List<FileAssetVO> payload = new ArrayList<>();
+        if (attachments != null) {
+            attachments.forEach(attachment -> payload.add(toFileAssetVO(attachment)));
+        }
+        if (payload.isEmpty() && notBlank(imageUrl)) {
+            payload.add(new FileAssetVO(null, imageUrl.trim(), imageUrl.trim(), imageUrl.trim(), "image/*", 0, AttachmentBusinessType.TRACE_IMAGE.code(), null));
+        }
+        return writeJson(payload);
+    }
+
     private String writeQualityJson(List<String> highlights) {
         return writeJson(Map.of("highlights", highlights == null ? List.of() : highlights));
+    }
+
+    private String writeQualityJson(List<String> highlights, List<BizAttachmentPO> attachments) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("highlights", highlights == null ? List.of() : highlights);
+        payload.put("attachments", attachments == null ? List.of() : attachments.stream().map(this::toFileAssetVO).toList());
+        return writeJson(payload);
     }
 
     private String readTraceSummary(String contentJson) {
@@ -933,11 +1214,15 @@ public class BatchServiceImpl implements BatchService {
 
     private String readTraceImage(String attachmentsJson, String contentJson) {
         try {
+            List<FileAssetEntity> attachments = readAttachmentAssets(attachmentsJson, null, AttachmentBusinessType.TRACE_IMAGE.code(), null);
+            if (!attachments.isEmpty() && notBlank(attachments.get(0).fileUrl())) {
+                return attachments.get(0).fileUrl();
+            }
             if (notBlank(attachmentsJson)) {
-                List<String> attachments = objectMapper.readValue(attachmentsJson, new TypeReference<>() {
+                List<String> legacyAttachments = objectMapper.readValue(attachmentsJson, new TypeReference<>() {
                 });
-                if (!attachments.isEmpty() && notBlank(attachments.get(0))) {
-                    return attachments.get(0);
+                if (!legacyAttachments.isEmpty() && notBlank(legacyAttachments.get(0))) {
+                    return legacyAttachments.get(0);
                 }
             }
             if (notBlank(contentJson)) {
@@ -972,6 +1257,86 @@ public class BatchServiceImpl implements BatchService {
         return List.of();
     }
 
+    private List<FileAssetEntity> readQualityAttachments(QualityReportPO reportPO) {
+        List<FileAssetEntity> attachments = readAttachmentAssets(
+                reportPO.getReportJson(),
+                "attachments",
+                AttachmentBusinessType.QUALITY_ATTACHMENT.code(),
+                reportPO.getId()
+        );
+        if (!attachments.isEmpty()) {
+            return attachments;
+        }
+        if (notBlank(reportPO.getReportFileUrl())) {
+            return List.of(new FileAssetEntity(
+                    null,
+                    reportPO.getReportFileUrl(),
+                    reportPO.getReportFileUrl(),
+                    reportPO.getReportFileUrl(),
+                    "application/octet-stream",
+                    0,
+                    AttachmentBusinessType.QUALITY_ATTACHMENT.code(),
+                    reportPO.getId()
+            ));
+        }
+        return List.of();
+    }
+
+    private List<FileAssetEntity> readAttachmentAssets(String json, String fieldName, String businessType, Long businessId) {
+        if (!notBlank(json)) {
+            return List.of();
+        }
+        try {
+            JsonNode node = objectMapper.readTree(json);
+            JsonNode attachmentNode = node;
+            if (fieldName != null && node.isObject()) {
+                attachmentNode = node.get(fieldName);
+            }
+            if (attachmentNode == null || attachmentNode.isNull()) {
+                return List.of();
+            }
+            if (attachmentNode.isArray()) {
+                List<FileAssetEntity> attachments = new ArrayList<>();
+                for (JsonNode item : attachmentNode) {
+                    FileAssetEntity asset = readAttachmentAsset(item, businessType, businessId);
+                    if (asset != null) {
+                        attachments.add(asset);
+                    }
+                }
+                return attachments;
+            }
+            FileAssetEntity asset = readAttachmentAsset(attachmentNode, businessType, businessId);
+            return asset == null ? List.of() : List.of(asset);
+        } catch (JsonProcessingException ignored) {
+            return List.of();
+        }
+    }
+
+    private FileAssetEntity readAttachmentAsset(JsonNode node, String businessType, Long businessId) {
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        if (node.isTextual()) {
+            String url = node.asText();
+            if (!notBlank(url)) {
+                return null;
+            }
+            return new FileAssetEntity(null, url, url, url, "application/octet-stream", 0, businessType, businessId);
+        }
+        if (!node.isObject()) {
+            return null;
+        }
+        Long id = node.hasNonNull("id") ? Long.valueOf(node.get("id").asLong()) : null;
+        String fileName = node.hasNonNull("fileName") ? node.get("fileName").asText() : null;
+        String filePath = node.hasNonNull("filePath") ? node.get("filePath").asText() : null;
+        String fileUrl = node.hasNonNull("fileUrl") ? node.get("fileUrl").asText() : null;
+        String contentType = node.hasNonNull("contentType") ? node.get("contentType").asText() : "application/octet-stream";
+        long size = node.hasNonNull("size") ? node.get("size").asLong() : 0;
+        String storedBusinessType = node.hasNonNull("businessType") ? node.get("businessType").asText() : businessType;
+        Long storedBusinessId = node.hasNonNull("businessId") ? Long.valueOf(node.get("businessId").asLong()) : businessId;
+        return new FileAssetEntity(id, fileName, filePath, fileUrl, contentType, size, storedBusinessType, storedBusinessId);
+    }
+
     private String writeJson(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
@@ -981,7 +1346,25 @@ public class BatchServiceImpl implements BatchService {
     }
 
     private String visitorKey(QrQueryLogPO logPO) {
-        return (defaultValue(logPO.getIp(), "unknown") + "|" + defaultValue(logPO.getUa(), "unknown")).trim();
+        return visitorKey(logPO.getIp(), logPO.getUa());
+    }
+
+    private String visitorKey(String ip, String userAgent) {
+        return (defaultValue(ip, "unknown") + "|" + defaultValue(userAgent, "unknown")).trim();
+    }
+
+    private String summarizeDevice(String userAgent) {
+        String normalized = defaultValue(userAgent, "").toLowerCase(Locale.ROOT);
+        if (normalized.contains("mobile") || normalized.contains("iphone") || normalized.contains("android")) {
+            return "Mobile";
+        }
+        if (normalized.contains("ipad") || normalized.contains("tablet")) {
+            return "Tablet";
+        }
+        if (!normalized.isBlank()) {
+            return "Desktop/Web";
+        }
+        return "Unknown";
     }
 
     private long defaultLong(Long value) {
