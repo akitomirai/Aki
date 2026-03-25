@@ -4,6 +4,7 @@ trace-web/node_modules/
 backend/target/
 logs/
 output/
+artifacts/
 .playwright-cli/
 .vscode/
 backend/.idea/
@@ -12,3 +13,4 @@ trace-web/.idea/
 admin-web/dist/
 trace-web/dist/
 backend/logs/
+tests/e2e/node_modules/

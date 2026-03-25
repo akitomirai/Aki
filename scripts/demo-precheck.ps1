@@ -1,9 +1,11 @@
 $ErrorActionPreference = 'Stop'
+. "$PSScriptRoot\round8-demo-common.ps1"
 
 $backendBase = 'http://127.0.0.1:8080'
 $adminBase = 'http://127.0.0.1:5174'
 $traceBase = 'http://127.0.0.1:5173'
 $demoToken = 'demo-normal-2026'
+$failures = 0
 
 function Write-Step($text) {
     Write-Host ""
@@ -15,6 +17,7 @@ function Write-Pass($text) {
 }
 
 function Write-Fail($text) {
+    $script:failures += 1
     Write-Host "[FAIL] $text" -ForegroundColor Red
 }
 
@@ -31,16 +34,18 @@ try {
 }
 
 Write-Step "Checking admin-web..."
-if (Test-NetConnection -ComputerName 127.0.0.1 -Port 5174 -InformationLevel Quiet) {
-    Write-Pass "Admin-web is running on port 5174."
-} else {
+try {
+    Invoke-WebRequest -UseBasicParsing "$adminBase/batches" | Out-Null
+    Write-Pass "Admin-web is reachable on port 5174."
+} catch {
     Write-Fail "Admin-web is not reachable on port 5174."
 }
 
 Write-Step "Checking trace-web..."
-if (Test-NetConnection -ComputerName 127.0.0.1 -Port 5173 -InformationLevel Quiet) {
-    Write-Pass "Trace-web is running on port 5173."
-} else {
+try {
+    Invoke-WebRequest -UseBasicParsing "$traceBase/t/$demoToken" | Out-Null
+    Write-Pass "Trace-web is reachable on port 5173."
+} catch {
     Write-Fail "Trace-web is not reachable on port 5173."
 }
 
@@ -77,3 +82,7 @@ Write-Step "Quick links"
 Write-Host ("  Admin: {0}/batches" -f $adminBase)
 Write-Host ("  Trace: {0}/t/{1}" -f $traceBase, $demoToken)
 Write-Host ("  Token: {0}" -f $demoToken)
+
+if ($failures -gt 0) {
+    exit 1
+}

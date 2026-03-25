@@ -707,8 +707,8 @@ function statusClass(status) {
 </script>
 
 <template>
-  <div class="page-shell">
-    <header class="hero-card">
+  <div class="page-shell" data-testid="batch-list-page">
+    <header class="hero-card" data-testid="batch-list-hero">
       <div>
         <p class="eyebrow">批次主入口</p>
         <h1>先盯住批次，再把下一步做完</h1>
@@ -726,7 +726,7 @@ function statusClass(status) {
       </div>
 
       <div class="hero-actions">
-        <button class="primary" @click="openCreateDialog">新建批次</button>
+        <button class="primary" data-testid="batch-create-button" @click="openCreateDialog">新建批次</button>
         <button class="ghost" @click="router.push('/companies')">企业主数据</button>
         <button class="ghost" @click="router.push('/products')">产品主数据</button>
         <button class="ghost" @click="router.push('/dashboard')">返回总览</button>
@@ -776,7 +776,7 @@ function statusClass(status) {
       <div class="filter-grid">
         <label>
           <span>批次号</span>
-          <input v-model.trim="filters.batchCode" type="text" placeholder="例如 BATCH202603250930">
+          <input v-model.trim="filters.batchCode" data-testid="batch-filter-code" type="text" placeholder="例如 BATCH202603250930">
         </label>
         <label>
           <span>产品名</span>
@@ -811,7 +811,7 @@ function statusClass(status) {
       </div>
 
       <div class="toolbar">
-        <button class="primary" :disabled="loading" @click="fetchBatches">刷新列表</button>
+        <button class="primary" data-testid="batch-search-button" :disabled="loading" @click="fetchBatches">刷新列表</button>
         <button class="ghost" :disabled="loading" @click="resetFilters">恢复默认</button>
       </div>
     </section>
@@ -836,7 +836,12 @@ function statusClass(status) {
     </section>
 
     <section v-else class="batch-list">
-      <article v-for="card in visibleBatchCards" :key="card.item.id" class="batch-card">
+      <article
+        v-for="card in visibleBatchCards"
+        :key="card.item.id"
+        class="batch-card"
+        :data-testid="`batch-card-${card.item.id}`"
+      >
         <div class="batch-main">
           <img class="product-image" :src="card.item.productImageUrl" :alt="card.item.productName">
 
@@ -849,7 +854,7 @@ function statusClass(status) {
               </div>
               <div class="title-side">
                 <span class="status-badge" :class="statusClass(card.item.status)">{{ card.item.statusLabel }}</span>
-                <span class="next-badge">{{ card.insight.nextLabel }}</span>
+                <span class="next-badge" :data-testid="`batch-next-${card.item.id}`">{{ card.insight.nextLabel }}</span>
               </div>
             </div>
 
@@ -899,8 +904,8 @@ function statusClass(status) {
         </div>
 
         <div class="action-row">
-          <button class="primary" @click="runRecommendedAction(card)">{{ card.insight.nextLabel }}</button>
-          <button class="ghost" @click="router.push(`/batches/${card.item.id}`)">进入工作台</button>
+          <button class="primary" :data-testid="`batch-recommend-${card.item.id}`" @click="runRecommendedAction(card)">{{ card.insight.nextLabel }}</button>
+          <button class="ghost" :data-testid="`batch-open-workbench-${card.item.id}`" @click="router.push(`/batches/${card.item.id}`)">进入工作台</button>
           <button class="neutral" @click="openTraceDialog(card.item)">补追溯</button>
           <button class="success" @click="openQualityDialog(card.item)">上传质检</button>
           <button class="ghost" @click="handleGenerateQr(card.item)">二维码</button>
@@ -949,7 +954,7 @@ function statusClass(status) {
           <button class="ghost icon-button" @click="closeDialog">关闭</button>
         </div>
 
-        <div v-if="dialog.type === 'create' || dialog.type === 'edit'" class="form-grid">
+        <div v-if="dialog.type === 'create' || dialog.type === 'edit'" class="form-grid" data-testid="batch-edit-dialog">
           <label v-if="dialog.type === 'create'">
             <span>批次号</span>
             <input v-model.trim="batchForm.batchCode" type="text">
@@ -1012,7 +1017,7 @@ function statusClass(status) {
           </div>
         </div>
 
-        <div v-else-if="dialog.type === 'trace'" class="form-grid">
+        <div v-else-if="dialog.type === 'trace'" class="form-grid" data-testid="batch-trace-dialog">
           <div class="full-width quick-entry-card">
             <div>
               <p class="eyebrow">现场快速补录</p>
@@ -1143,7 +1148,7 @@ function statusClass(status) {
           </div>
         </div>
 
-        <div v-else-if="dialog.type === 'quality'" class="form-grid">
+        <div v-else-if="dialog.type === 'quality'" class="form-grid" data-testid="batch-quality-dialog">
           <label>
             <span>报告编号</span>
             <input v-model.trim="qualityForm.reportNo" type="text" placeholder="例如 JX-20260325-01">
@@ -1220,11 +1225,12 @@ function statusClass(status) {
           <button
             v-if="dialog.type === 'trace'"
             class="ghost"
+            data-testid="batch-trace-save-continue"
             @click="submitDialog({ keepOpen: true })"
           >
             保存并继续
           </button>
-          <button class="primary" @click="submitDialog()">
+          <button class="primary" data-testid="batch-dialog-submit" @click="submitDialog()">
             {{ dialog.type === 'create' ? '创建并进入工作台' : '确认保存' }}
           </button>
         </div>

@@ -106,7 +106,7 @@ function shortSummary(text) {
 </script>
 
 <template>
-  <div class="trace-page">
+  <div class="trace-page" data-testid="public-trace-page">
     <div v-if="loading" class="loading-card">正在加载追溯详情...</div>
 
     <div v-else-if="errorMessage" class="error-card">
@@ -117,6 +117,7 @@ function shortSummary(text) {
       <section
         v-if="detail.risk?.hasRisk"
         class="risk-banner"
+        data-testid="public-risk-banner"
         :class="riskClass(detail.risk)"
       >
         <p class="risk-tag">风险提醒</p>
@@ -129,40 +130,40 @@ function shortSummary(text) {
         <small>{{ detail.risk.tip }}</small>
       </section>
 
-      <header class="hero-card">
+      <header class="hero-card" data-testid="public-summary">
         <div class="hero-image-wrap">
           <img class="hero-image" :src="detail.summary.productImageUrl" :alt="detail.summary.productName">
         </div>
 
         <div class="hero-copy">
           <p class="eyebrow">扫码结果</p>
-          <h1>{{ detail.summary.productName }}</h1>
+          <h1 data-testid="public-product-name">{{ detail.summary.productName }}</h1>
           <p class="hero-verdict">{{ verdict.title }}</p>
           <p class="slogan">{{ verdict.copy }}</p>
 
           <div class="verdict-row">
             <article class="verdict-pill status">
               <span>当前状态</span>
-              <strong>{{ consumerStatusLabel(detail.summary.statusLabel) }}</strong>
+              <strong data-testid="public-status">{{ consumerStatusLabel(detail.summary.statusLabel) }}</strong>
             </article>
             <article class="verdict-pill quality">
               <span>质检结论</span>
-              <strong>{{ detail.summary.qualityResult }}</strong>
+              <strong data-testid="public-quality">{{ detail.summary.qualityResult }}</strong>
             </article>
           </div>
 
           <div class="summary-grid">
             <div>
               <span>企业</span>
-              <strong>{{ detail.summary.companyName }}</strong>
+              <strong data-testid="public-company">{{ detail.summary.companyName }}</strong>
             </div>
             <div>
               <span>批次号</span>
-              <strong>{{ detail.summary.batchCode }}</strong>
+              <strong data-testid="public-batch-code">{{ detail.summary.batchCode }}</strong>
             </div>
             <div>
               <span>产地</span>
-              <strong>{{ detail.summary.originPlace }}</strong>
+              <strong data-testid="public-origin">{{ detail.summary.originPlace }}</strong>
             </div>
             <div>
               <span>生产日期</span>
@@ -211,14 +212,19 @@ function shortSummary(text) {
         </article>
       </section>
 
-      <section class="card">
+      <section class="card" data-testid="public-timeline">
         <div class="section-head">
           <h2>关键过程</h2>
           <span>{{ detail.timeline.length }} 个节点</span>
         </div>
 
         <ol class="timeline">
-          <li v-for="item in visibleTimeline" :key="`${item.stageCode}-${item.time}`" class="timeline-item">
+          <li
+            v-for="(item, index) in visibleTimeline"
+            :key="`${item.stageCode}-${item.time}`"
+            class="timeline-item"
+            :data-testid="`public-timeline-item-${index}`"
+          >
             <div class="timeline-marker" />
             <div class="timeline-body">
               <div class="timeline-top">

@@ -772,11 +772,11 @@ function statusText(status) {
 </script>
 
 <template>
-  <div class="page-shell">
+  <div class="page-shell" data-testid="batch-workbench-page">
     <div v-if="loading" class="loading-card">Loading batch workbench...</div>
 
     <template v-else-if="detail">
-      <header class="hero-card">
+      <header class="hero-card" data-testid="workbench-summary">
         <div class="hero-main">
           <img class="hero-image" :src="detail.product.imageUrl || detail.batch.coverImageUrl" :alt="detail.product.name">
           <div class="hero-copy">
@@ -829,11 +829,11 @@ function statusText(status) {
 
         <aside class="hero-side">
           <span class="status-badge" :class="statusClass(detail.status.code)">{{ detail.status.label }}</span>
-          <div class="task-card">
+          <div class="task-card" data-testid="workbench-next-step-card">
             <p class="task-label">下一步推荐</p>
             <h3>{{ nextStepCard.title }}</h3>
             <p>{{ nextStepCard.copy }}</p>
-            <button class="primary" @click="triggerNextStep">{{ nextStepCard.action }}</button>
+            <button class="primary" data-testid="workbench-next-step-action" @click="triggerNextStep">{{ nextStepCard.action }}</button>
           </div>
           <div class="task-checklist">
             <div v-for="item in readinessSteps" :key="item.key" class="task-check">
@@ -879,17 +879,23 @@ function statusText(status) {
           <button class="ghost" @click="router.push('/batches')">返回批次列表</button>
         </div>
 
-        <div class="action-groups">
-          <article v-for="group in actionGroups" :key="group.key" class="action-group-card">
+        <div class="action-groups" data-testid="workbench-action-groups">
+          <article
+            v-for="group in actionGroups"
+            :key="group.key"
+            class="action-group-card"
+            :data-testid="`workbench-group-${group.key}`"
+          >
             <p class="eyebrow">{{ group.title }}</p>
             <h3>{{ group.title }}</h3>
             <p>{{ group.copy }}</p>
             <div class="quick-actions">
               <button
-                v-for="action in group.actions"
+                v-for="(action, actionIndex) in group.actions"
                 :key="action.label"
                 :class="buttonClass(action.variant)"
                 :disabled="action.disabled"
+                :data-testid="`workbench-${group.key}-action-${actionIndex}`"
                 @click="action.onClick"
               >
                 {{ action.label }}
@@ -905,7 +911,7 @@ function statusText(status) {
       </section>
 
       <section class="grid">
-        <article class="panel">
+        <article class="panel" data-testid="workbench-trace-panel">
           <div class="section-head">
             <div>
               <p class="eyebrow">补追溯</p>
@@ -970,7 +976,7 @@ function statusText(status) {
           </div>
         </article>
 
-        <article class="panel">
+        <article class="panel" data-testid="workbench-quality-panel">
           <div class="section-head">
             <div>
               <p class="eyebrow">质检</p>
@@ -1019,7 +1025,7 @@ function statusText(status) {
           </ul>
         </article>
 
-        <article class="panel">
+        <article class="panel" data-testid="workbench-qr-panel">
           <div class="section-head">
             <div>
               <p class="eyebrow">二维码</p>
@@ -1037,7 +1043,7 @@ function statusText(status) {
           <div class="qr-grid">
             <div>
               <span>QR status</span>
-              <strong>{{ detail.qr.generated ? 'Generated' : 'Pending' }}</strong>
+              <strong data-testid="workbench-qr-status">{{ detail.qr.generated ? 'Generated' : 'Pending' }}</strong>
             </div>
             <div>
               <span>Public token</span>
@@ -1068,12 +1074,19 @@ function statusText(status) {
             </a>
           </div>
 
-          <a v-if="canPreviewPublic" class="preview-block" :href="detail.qr.publicUrl" target="_blank" rel="noreferrer">
+          <a
+            v-if="canPreviewPublic"
+            class="preview-block"
+            data-testid="workbench-public-preview"
+            :href="detail.qr.publicUrl"
+            target="_blank"
+            rel="noreferrer"
+          >
             打开公开页，确认首屏是否能在 3 秒内看懂当前结论。
           </a>
         </article>
 
-        <article class="panel">
+        <article class="panel" data-testid="workbench-risk-panel">
           <div class="section-head">
             <div>
               <p class="eyebrow">Scan stats</p>
@@ -1147,7 +1160,7 @@ function statusText(status) {
             </div>
           </div>
 
-          <div class="risk-checklist">
+          <div class="risk-checklist" data-testid="workbench-risk-checklist">
             <article v-for="item in riskChecklist" :key="item.label" class="risk-check-item">
               <strong>{{ item.label }}</strong>
               <span :class="{ done: item.done }">{{ item.done ? '已完成' : '待补齐' }}</span>
@@ -1209,7 +1222,7 @@ function statusText(status) {
           <button class="ghost icon-button" @click="closeDialog">Close</button>
         </div>
 
-        <div v-if="dialog.type === 'edit'" class="form-grid">
+        <div v-if="dialog.type === 'edit'" class="form-grid" data-testid="workbench-edit-dialog">
           <label>
             <span>Batch code</span>
             <input :value="batchForm.batchCode" type="text" disabled>
@@ -1253,7 +1266,7 @@ function statusText(status) {
           </label>
         </div>
 
-        <div v-else-if="dialog.type === 'trace'" class="form-grid">
+        <div v-else-if="dialog.type === 'trace'" class="form-grid" data-testid="workbench-trace-dialog">
           <div class="full-width quick-entry-card">
             <div>
               <p class="eyebrow">现场快速补录</p>
@@ -1358,7 +1371,7 @@ function statusText(status) {
           </label>
         </div>
 
-        <div v-else-if="dialog.type === 'quality'" class="form-grid">
+        <div v-else-if="dialog.type === 'quality'" class="form-grid" data-testid="workbench-quality-dialog">
           <label>
             <span>Report no</span>
             <input v-model.trim="qualityForm.reportNo" type="text">
@@ -1404,7 +1417,7 @@ function statusText(status) {
           </div>
         </div>
 
-        <div v-else-if="dialog.type === 'risk'" class="form-grid">
+        <div v-else-if="dialog.type === 'risk'" class="form-grid" data-testid="workbench-risk-dialog">
           <label>
             <span>Action type</span>
             <select v-model="riskForm.actionType">
@@ -1425,7 +1438,7 @@ function statusText(status) {
           </label>
         </div>
 
-        <div v-else-if="dialog.type === 'status'" class="form-grid">
+        <div v-else-if="dialog.type === 'status'" class="form-grid" data-testid="workbench-status-dialog">
           <label>
             <span>Target status</span>
             <select v-model="statusForm.targetStatus">
