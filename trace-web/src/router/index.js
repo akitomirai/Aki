@@ -1,9 +1,11 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
+const demoToken = import.meta.env.VITE_TRACE_DEMO_TOKEN || 'demo-normal-2026'
+
 const routes = [
   {
     path: '/',
-    redirect: '/t/test-token-2026'
+    redirect: `/t/${demoToken}`
   },
   {
     path: '/t/:token',

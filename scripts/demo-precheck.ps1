@@ -1,55 +1,79 @@
-# 演示环境自检脚本 (Precheck)
+$ErrorActionPreference = 'Stop'
 
-# 1. 检查后端服务 (端口 8080)
-Write-Host "Checking Backend Service (Port 8080)..." -ForegroundColor Cyan
-try {
-    $response = Invoke-RestMethod -Uri "http://localhost:8080/api/auth/login" -Method Post -Body (@{username="platform"; password="123456"} | ConvertTo-Json) -ContentType "application/json" -ErrorAction Stop
-    if ($response.code -eq 0) {
-        Write-Host "[PASS] Backend Service is running and login is OK." -ForegroundColor Green
-    } else {
-        Write-Host "[FAIL] Backend Service returned error: $($response.message)" -ForegroundColor Red
-    }
-} catch {
-    Write-Host "[FAIL] Backend Service is NOT reachable. Please check if Spring Boot is running." -ForegroundColor Red
+$backendBase = 'http://127.0.0.1:8080'
+$adminBase = 'http://127.0.0.1:5174'
+$traceBase = 'http://127.0.0.1:5173'
+$demoToken = 'demo-normal-2026'
+
+function Write-Step($text) {
+    Write-Host ""
+    Write-Host $text -ForegroundColor Cyan
 }
 
-# 2. 检查 Admin-Web (端口 5174)
-Write-Host "`nChecking Admin-Web (Port 5174)..." -ForegroundColor Cyan
-try {
-    $tcpConnection = Test-NetConnection -ComputerName localhost -Port 5174 -InformationLevel Quiet
-    if ($tcpConnection) {
-        Write-Host "[PASS] Admin-Web is running on Port 5174." -ForegroundColor Green
-    } else {
-        Write-Host "[FAIL] Admin-Web Port 5174 is NOT open. Please run 'npm run dev' in admin-web." -ForegroundColor Red
-    }
-} catch {
-    Write-Host "[FAIL] Admin-Web Port 5174 check error." -ForegroundColor Red
+function Write-Pass($text) {
+    Write-Host "[PASS] $text" -ForegroundColor Green
 }
 
-# 3. 检查 Trace-Web (端口 5173)
-Write-Host "`nChecking Trace-Web (Port 5173)..." -ForegroundColor Cyan
-try {
-    $tcpConnection = Test-NetConnection -ComputerName localhost -Port 5173 -InformationLevel Quiet
-    if ($tcpConnection) {
-        Write-Host "[PASS] Trace-Web is running on Port 5173." -ForegroundColor Green
-    } else {
-        Write-Host "[FAIL] Trace-Web Port 5173 is NOT open. Please run 'npm run dev' in trace-web." -ForegroundColor Red
-    }
-} catch {
-    Write-Host "[FAIL] Trace-Web Port 5173 check error." -ForegroundColor Red
+function Write-Fail($text) {
+    Write-Host "[FAIL] $text" -ForegroundColor Red
 }
 
-# 4. 检查演示数据 (批次 1)
-Write-Host "`nChecking Demo Data (Batch ID: 1)..." -ForegroundColor Cyan
+Write-Step "Checking backend health..."
 try {
-    $batchDetail = Invoke-RestMethod -Uri "http://localhost:8080/api/public/trace/detail/test-token-2026" -Method Get -ErrorAction Stop
-    if ($batchDetail.code -eq 0 -and $batchDetail.data.batchId -eq 1) {
-        Write-Host "[PASS] Demo Data (Batch 1) and Token (test-token-2026) are available." -ForegroundColor Green
+    $health = Invoke-RestMethod -Uri "$backendBase/actuator/health" -Method Get -ErrorAction Stop
+    if ($health.status -eq 'UP') {
+        Write-Pass "Backend is running on port 8080."
     } else {
-        Write-Host "[FAIL] Demo Data check failed: $($batchDetail.message)" -ForegroundColor Red
+        Write-Fail "Backend responded, but health status is $($health.status)."
     }
 } catch {
-    Write-Host "[FAIL] Demo Data API check error. Backend might be down or token is invalid." -ForegroundColor Red
+    Write-Fail "Backend is not reachable. Start backend with demo profile first."
 }
 
-Write-Host "`nPrecheck Completed!" -ForegroundColor Yellow
+Write-Step "Checking admin-web..."
+if (Test-NetConnection -ComputerName 127.0.0.1 -Port 5174 -InformationLevel Quiet) {
+    Write-Pass "Admin-web is running on port 5174."
+} else {
+    Write-Fail "Admin-web is not reachable on port 5174."
+}
+
+Write-Step "Checking trace-web..."
+if (Test-NetConnection -ComputerName 127.0.0.1 -Port 5173 -InformationLevel Quiet) {
+    Write-Pass "Trace-web is running on port 5173."
+} else {
+    Write-Fail "Trace-web is not reachable on port 5173."
+}
+
+Write-Step "Checking demo batch data..."
+try {
+    $batches = Invoke-RestMethod -Uri "$backendBase/api/batches" -Method Get -ErrorAction Stop
+    if ($batches.success -and $batches.data.Count -ge 3) {
+        Write-Pass "Demo batches are available."
+        $batches.data | Select-Object -First 4 | ForEach-Object {
+            Write-Host ("  - {0} | {1} | {2}" -f $_.batchCode, $_.productName, $_.statusLabel)
+        }
+    } else {
+        Write-Fail "Batch list returned no usable demo data."
+    }
+} catch {
+    Write-Fail "Batch list check failed."
+}
+
+Write-Step "Checking public trace token..."
+try {
+    $trace = Invoke-RestMethod -Uri "$backendBase/api/public/traces/$demoToken" -Method Get -ErrorAction Stop
+    if ($trace.success -and $trace.data.summary.batchCode) {
+        Write-Pass "Demo token '$demoToken' is available for public trace preview."
+        Write-Host ("  - Product: {0}" -f $trace.data.summary.productName)
+        Write-Host ("  - Batch:   {0}" -f $trace.data.summary.batchCode)
+    } else {
+        Write-Fail "Public trace token check returned no usable data."
+    }
+} catch {
+    Write-Fail "Public trace token '$demoToken' is not reachable."
+}
+
+Write-Step "Quick links"
+Write-Host ("  Admin: {0}/batches" -f $adminBase)
+Write-Host ("  Trace: {0}/t/{1}" -f $traceBase, $demoToken)
+Write-Host ("  Token: {0}" -f $demoToken)
