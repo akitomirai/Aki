@@ -3,14 +3,14 @@ services:
     image: mysql:8.0
     container_name: agritrace-mysql
     environment:
-      MYSQL_ROOT_PASSWORD: "1154228715"
-      MYSQL_DATABASE: traceability
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:-change_me}"
+      MYSQL_DATABASE: "${MYSQL_DATABASE:-traceability_cs}"
     ports:
       - "3306:3306"
     volumes:
       - ./init:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p1154228715"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-change_me}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -24,9 +24,9 @@ services:
       mysql:
         condition: service_healthy
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/traceability?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
-      - SPRING_DATASOURCE_USERNAME=root
-      - SPRING_DATASOURCE_PASSWORD=1154228715
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-traceability_cs}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
+      - SPRING_DATASOURCE_USERNAME=${MYSQL_USERNAME:-root}
+      - SPRING_DATASOURCE_PASSWORD=${MYSQL_ROOT_PASSWORD:-change_me}
     ports:
       - "8080:8080"
 

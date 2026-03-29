@@ -1,45 +1,60 @@
 package edu.jxust.agritrace.module.batch.service;
 
-import com.baomidou.mybatisplus.core.metadata.IPage;
-import edu.jxust.agritrace.module.batch.dto.BatchCreateDTO;
-import edu.jxust.agritrace.module.batch.dto.BatchPageQueryDTO;
-import edu.jxust.agritrace.module.batch.dto.BatchUpdateDTO;
-import edu.jxust.agritrace.module.batch.vo.BatchDetailVO;
-import edu.jxust.agritrace.module.batch.vo.BatchPageItemVO;
+import edu.jxust.agritrace.module.batch.dto.BatchCreateRequest;
+import edu.jxust.agritrace.module.batch.dto.BatchListQueryRequest;
+import edu.jxust.agritrace.module.batch.dto.BatchRiskActionCreateRequest;
+import edu.jxust.agritrace.module.batch.dto.BatchStatusActionRequest;
+import edu.jxust.agritrace.module.batch.dto.BatchUpdateRequest;
+import edu.jxust.agritrace.module.batch.dto.QualityReportCreateRequest;
+import edu.jxust.agritrace.module.batch.dto.TraceRecordCreateRequest;
+import edu.jxust.agritrace.module.batch.entity.BatchEntity;
+import edu.jxust.agritrace.module.batch.vo.AttachmentCleanupResultVO;
+import edu.jxust.agritrace.module.batch.vo.BatchListItemVO;
+import edu.jxust.agritrace.module.batch.vo.BatchWorkbenchVO;
+import edu.jxust.agritrace.module.batch.vo.CompanyOptionVO;
+import edu.jxust.agritrace.module.batch.vo.FileAssetVO;
+import edu.jxust.agritrace.module.batch.vo.ProductOptionVO;
+import edu.jxust.agritrace.module.publictrace.dto.PublicTraceAccessContext;
+import org.springframework.core.io.Resource;
+import org.springframework.web.multipart.MultipartFile;
 
-/**
- * 批次服务接口
- */
+import java.util.List;
+
 public interface BatchService {
 
-    /**
-     * 新增批次
-     *
-     * @param dto 新增参数
-     * @return 新增后的批次ID
-     */
-    Long create(BatchCreateDTO dto);
+    List<BatchListItemVO> listBatches(BatchListQueryRequest request);
 
-    /**
-     * 修改批次
-     *
-     * @param dto 修改参数
-     */
-    void update(BatchUpdateDTO dto);
+    BatchWorkbenchVO getBatchWorkbench(Long batchId);
 
-    /**
-     * 查询批次详情
-     *
-     * @param id 批次ID
-     * @return 批次详情
-     */
-    BatchDetailVO detail(Long id);
+    List<CompanyOptionVO> listCompanyOptions(String keyword);
 
-    /**
-     * 分页查询批次
-     *
-     * @param dto 查询参数
-     * @return 分页结果
-     */
-    IPage<BatchPageItemVO> page(BatchPageQueryDTO dto);
+    List<ProductOptionVO> listProductOptions(Long companyId, String keyword);
+
+    List<FileAssetVO> uploadAttachments(String businessType, List<MultipartFile> files);
+
+    AttachmentCleanupResultVO cleanupExpiredOrphanAttachments();
+
+    BatchWorkbenchVO createBatch(BatchCreateRequest request);
+
+    BatchWorkbenchVO updateBatch(Long batchId, BatchUpdateRequest request);
+
+    BatchWorkbenchVO changeStatus(Long batchId, BatchStatusActionRequest request);
+
+    BatchWorkbenchVO addTraceRecord(Long batchId, TraceRecordCreateRequest request);
+
+    BatchWorkbenchVO addQualityReport(Long batchId, QualityReportCreateRequest request);
+
+    BatchWorkbenchVO addRiskAction(Long batchId, BatchRiskActionCreateRequest request);
+
+    BatchWorkbenchVO generateQr(Long batchId);
+
+    BatchEntity getBatchEntityById(Long batchId);
+
+    BatchEntity getBatchEntityByToken(String token);
+
+    void recordPublicTraceAccess(String token, PublicTraceAccessContext accessContext);
+
+    Resource loadQrImage(String token);
+
+    Resource loadAttachment(Long fileId);
 }

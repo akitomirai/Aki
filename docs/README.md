@@ -1,16 +1,16 @@
-# docs
+# 文档索引
 
-当前 `docs/` 目录只保留答辩和交付直接需要的说明入口，避免信息分散。
+当前 `docs/` 目录围绕“方向收敛、演示主链路、后续改造”来组织，优先看以下文件：
 
-## 推荐先看
+- [project-reorientation.md](./project-reorientation.md)
+  项目为什么要从功能堆砌转向批次中心、扫码追溯、轻量实用。
+- [frontend-direction.md](./frontend-direction.md)
+  前端页面该保留什么、重组什么、暂缓什么。
+- [change-summary.md](./change-summary.md)
+  本轮改了什么、哪些已完成、哪些仍待继续。
+- [ACCOUNTS.md](./ACCOUNTS.md)
+  历史演示账号说明。
+- [DEMO_FLOW.md](./DEMO_FLOW.md)
+  历史演示链路说明。
 
-- [README.md](../README.md)
-  仓库总说明、启动顺序、端口、SQL 脚本入口。
-- [ACCOUNTS.md](ACCOUNTS.md)
-  默认账号、主演示企业、主演示批次和主演示 token。
-- [DEMO_FLOW.md](DEMO_FLOW.md)
-  平台端、企业端、公开追溯页和 PV/UV 的演示顺序。
-
-## 其他历史文档
-
-其余文档保留为开发过程记录，不作为本轮答辩主说明。
+建议先看根目录 [README.md](../README.md)，再看 `project-reorientation.md` 和 `change-summary.md`。

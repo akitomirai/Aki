@@ -1,0 +1,13 @@
+{
+  "name": "round8-e2e",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test --config=playwright.config.mjs",
+    "test:headed": "playwright test --config=playwright.config.mjs --headed",
+    "install:browsers": "playwright install chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.53.0"
+  }
+}

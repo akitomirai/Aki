@@ -1,61 +1,49 @@
-# backend (后端核心服务)
+# backend
 
-## 1. 项目简介
-本项目是农产品溯源系统的核心后端服务，负责处理全链路业务逻辑、数据持久化、安全认证及审计记录。
+## 项目角色
+`backend` 是当前仓库的接口与演示数据服务层，负责把“批次中心”的主链路串起来。
 
-## 2. 核心架构
-- **权限分层 Controller**：按操作角色划分为 `admin`, `platform`, `regulator`, `publicapi` 等包，职责清晰，便于权限控制。
-- **业务模块 Module**：按业务模块组织代码（`batch`, `product`, `trace`, `log` 等），包含 Entity, DTO, VO, Mapper, Service。
-- **通用能力 Common**：统一异常处理、日志切面、JWT 安全过滤、通用结果封装。
+## 本轮方向
+这一轮后端不再朝“大而全后台”扩张，而是优先保证以下能力：
 
-## 3. 技术栈
-- **核心框架**：Spring Boot 3.3.x (Spring Framework 6)
-- **数据库访问**：MyBatis-Plus 3.5.7
-- **安全认证**：Spring Security 6 + JJWT 0.11.5
-- **构建工具**：Maven 3.x
-- **数据库**：MySQL 8.x
-- **Java 版本**：JDK 17
+- 批次列表
+- 批次工作台详情
+- 过程记录补录入口
+- 质检补录入口
+- 二维码生成入口
+- 批次状态流转
+- 面向消费者的公开追溯查询
 
-## 4. 目录说明
-```text
-backend/
-├── src/main/java/edu/jxust/agritrace/
-│   ├── common/         # 公共核心包 (API 封装, 异常处理, 安全, 日志注解, 工具类)
-│   ├── config/         # Spring 配置类 (Security, MyBatis-Plus, OpenAPI)
-│   ├── controller/     # 按角色分层的控制层 (Admin/Platform/Regulator/PublicAPI)
-│   ├── module/         # 核心业务模块 (按业务细分, 包含 Entity, DTO, VO, Service)
-│   └── TraceabilityBackendApplication.java  # 启动类
-├── src/main/resources/
-│   ├── mapper/         # MyBatis XML 映射文件
-│   ├── application.yml # 系统配置文件
-│   └── logback-spring.xml # 日志配置
-├── docs/               # 核心设计与交付文档 (重要)
-├── ../sql/01_schema.sql    # 数据库表结构脚本
-├── ../sql/02_seed_dev.sql  # 开发/答辩演示数据脚本
-├── ../sql/03_reset_dev.sql # 一键重置开发库脚本
-└── pom.xml             # Maven 依赖管理
-```
+## 当前实现说明
+- 使用统一返回结构 `ApiResponse`
+- Controller 只负责接口收发
+- 批次工作台与公开追溯页使用独立 VO
+- 状态收敛为 `DRAFT / PUBLISHED / FROZEN / RECALLED`
+- 为了保证仓库可运行，本轮后端使用内存演示数据
 
-## 5. 本地启动
-### 数据库准备
-1. 创建数据库 `traceability_cs`（字符集推荐 `utf8mb4`）。
-2. 优先执行根目录 `sql/03_reset_dev.sql`，或按顺序执行 `sql/01_schema.sql` 与 `sql/02_seed_dev.sql`。
-3. 在 `src/main/resources/application.yml` 中核对数据库与 Redis 连接配置。
+## 为什么先用内存演示数据
+当前仓库存在历史源码缺失问题，但 SQL 结构仍然保留。为了不让项目停留在“只剩文档和表结构”的状态，本轮先补一套可编译、可启动、可演示的后端骨架，后续再按 `sql/` 中的结构接回 MySQL 与 MyBatis-Plus。
 
-### 启动服务
-```bash
-# 1. 编译并安装依赖
-mvn clean install -DskipTests
-
-# 2. 运行 Spring Boot 应用
+## 本地运行
+```powershell
+$env:JAVA_HOME='C:\Program Files\Java\jdk-21'
+$env:Path="C:\Program Files\Java\jdk-21\bin;$env:Path"
+cd backend
 mvn spring-boot:run
 ```
 
-## 6. 开发说明
-- **重要文档**：新加入开发时，请务必先阅读 [日志模块改造交付说明文档](docs/log-module-delivery.md) 以了解当前项目的架构优化方向和日志审计规范。
-- **权限控制**：Controller 层的包路径直接对应权限边界，新增接口时需注意所属角色。
-- **编码规范**：业务逻辑严禁在 Controller 编写，必须下沉至 Service 层。
+## 关键接口
+- `GET /api/dashboard/overview`
+- `GET /api/batches`
+- `GET /api/batches/{id}`
+- `POST /api/batches`
+- `POST /api/batches/{id}/status`
+- `POST /api/batches/{id}/records`
+- `POST /api/batches/{id}/quality-reports`
+- `POST /api/batches/{id}/qr`
+- `GET /api/public/traces/{token}`
 
-## 7. 与其他子项目的关系
-- **服务提供**：为 `admin-web`（管理端）和 `trace-web`（移动端）提供统一的 RESTful API 支持。
-- **跨域配置**：通过 `SecurityConfig` 进行 CORS 跨域配置。
+## 后续优先事项
+1. 把内存演示数据替换成数据库持久化
+2. 接入企业建档和批次创建的真实表单提交
+3. 打通质检上传、二维码发布和状态留痕

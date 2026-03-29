@@ -1,19 +1,21 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import TraceDetailView from '../pages/TraceDetail'
+
+const demoToken = import.meta.env.VITE_TRACE_DEMO_TOKEN || 'demo-normal-2026'
+
+const routes = [
+  {
+    path: '/',
+    redirect: `/t/${demoToken}`
+  },
+  {
+    path: '/t/:token',
+    component: () => import('../views/TraceDetailView.vue')
+  }
+]
 
 const router = createRouter({
   history: createWebHistory(),
-  routes: [
-    {
-      path: '/',
-      redirect: '/t/demo'
-    },
-    {
-      path: '/t/:qrToken',
-      name: 'TraceDetail',
-      component: TraceDetailView
-    }
-  ]
+  routes
 })
 
 export default router

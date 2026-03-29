@@ -1,68 +1,62 @@
-/**
- * 批次管理接口
- */
 import http from './http'
 
-/**
- * 新建批次
- */
-export function createBatchApi(data, role) {
-    return http.post('/api/enterprise/batch/create', data)
+export function getBatchList(params) {
+  return http.get('/batches', { params })
 }
 
-/**
- * 批次分页
- */
-export function pageBatchApi(params, role) {
-    let url = '/api/enterprise/batch/page'
+export function getCompanyOptions(params) {
+  return http.get('/batches/lookup/companies', { params })
+}
 
-    if (role === 'PLATFORM_ADMIN') {
-        url = '/api/platform/batch/page'
-    } else if (role === 'REGULATOR') {
-        url = '/api/regulator/batch/page'
+export function getProductOptions(params) {
+  return http.get('/batches/lookup/products', { params })
+}
+
+export function uploadBatchFiles(businessType, files) {
+  const formData = new FormData()
+  formData.append('businessType', businessType)
+  for (const file of files) {
+    formData.append('files', file)
+  }
+  return http.post('/batches/files/upload', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
     }
-
-    return http.get(url, { params })
+  })
 }
 
-/**
- * 详情查询
- */
-export function getBatchDetailApi(id, role) {
-    let url = `/api/enterprise/batch/detail/${id}`
-
-    if (role === 'PLATFORM_ADMIN') {
-        url = `/api/platform/batch/detail/${id}`
-    } else if (role === 'REGULATOR') {
-        url = `/api/regulator/batch/detail/${id}`
-    }
-
-    return http.get(url)
+export function cleanupBatchFiles() {
+  return http.post('/batches/files/cleanup')
 }
 
-/**
- * 编辑批次（企业端）
- */
-export function updateBatchApi(data, role) {
-    return http.put('/api/enterprise/batch/update', data)
+export function getBatchDetail(id) {
+  return http.get(`/batches/${id}`)
 }
 
-export function listBatchParticipantsApi(batchId, role) {
-    let url = `/api/enterprise/batch/participant/list/${batchId}`
-
-    if (role === 'PLATFORM_ADMIN') {
-        url = `/api/platform/batch/participant/list/${batchId}`
-    }
-
-    return http.get(url)
+export function createBatch(data) {
+  return http.post('/batches', data)
 }
 
-export function saveBatchParticipantsApi(data, role) {
-    let url = '/api/enterprise/batch/participant/save'
+export function updateBatch(id, data) {
+  return http.patch(`/batches/${id}`, data)
+}
 
-    if (role === 'PLATFORM_ADMIN') {
-        url = '/api/platform/batch/participant/save'
-    }
+export function createTraceRecord(id, data) {
+  return http.post(`/batches/${id}/records/quick`, data)
+}
 
-    return http.post(url, data)
+export function createQualityReport(id, data) {
+  return http.post(`/batches/${id}/quality-reports`, data)
+}
+
+export function createRiskAction(id, data) {
+  return http.post(`/batches/${id}/risk-actions`, data)
+}
+
+export function generateBatchQr(id) {
+  return http.post(`/batches/${id}/qr`)
+}
+
+export function changeBatchStatus(id, data) {
+  return http.post(`/batches/${id}/status`, data)
 }

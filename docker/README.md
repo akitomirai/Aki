@@ -1,36 +1,21 @@
-# 农产品质量安全溯源系统 - 容器化部署指南
+# Docker 说明
 
-本目录提供了项目的最小可演示 Docker 部署方案，支持一键启动整个演示环境。
+`docker/` 目录保留了演示环境的一键启动方案，但当前项目第一轮改造的重点仍然是主链路收敛，而不是容器编排本身。
 
-## 1. 包含组件
-- **MySQL (8.0)**: 数据库服务，挂载了 `init/01_schema.sql` 自动初始化结构。
-- **Backend (Spring Boot)**: 后端接口服务。
-- **Admin-Web (Vue3)**: 平台管理后台。
-- **Trace-Web (Vue3)**: 消费者溯源展示页。
+## 包含内容
+- `mysql`
+- `backend`
+- `admin-web`
+- `trace-web`
 
-## 2. 部署前准备
-- 确保已安装 [Docker](https://www.docker.com/) 和 [Docker Compose](https://docs.docker.com/compose/install/)。
-- 确保本地 3306, 8080, 5173, 5174 端口未被占用。
+## 配置方式
+`docker-compose.yml` 已经移除了硬编码密码表达，改为优先读取环境变量：
 
-## 3. 一键启动
-在项目根目录或 `docker/` 目录下运行：
+- `MYSQL_ROOT_PASSWORD`
+- `MYSQL_DATABASE`
+- `MYSQL_USERNAME`
 
-```bash
-cd docker
-docker-compose up -d --build
-```
+如果未显式提供，会使用演示默认值。
 
-## 4. 访问地址
-| 组件 | 访问地址 | 说明 |
-| :--- | :--- | :--- |
-| **平台管理后台** | [http://localhost:5174](http://localhost:5174) | 管理员、企业、监管端入口 |
-| **消费者溯源页** | [http://localhost:5173](http://localhost:5173) | 溯源扫码展示页 |
-| **后端接口文档** | [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html) | Swagger 接口文档 |
-
-## 5. 初始账号 (演示使用)
-开发/答辩数据请参考根目录 `sql/01_schema.sql`、`sql/02_seed_dev.sql`、`sql/03_reset_dev.sql` 和 `docs/ACCOUNTS.md`。
-
-## 6. 注意事项
-- 第一次启动时，MySQL 容器初始化数据库结构可能需要几秒钟，Backend 会等待 MySQL 就绪后自动启动。
-- 若需更新代码，请重新运行 `docker-compose up -d --build`。
-- 本方案采用 Nginx 反向代理模式，前端访问后端 API 的请求会自动通过容器内部网络转发。
+## 说明
+当前后端为了保证仓库可运行，使用内存演示数据即可启动；SQL 与 MySQL 容器仍然保留，便于下一轮接回真实持久化。

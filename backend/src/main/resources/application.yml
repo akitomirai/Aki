@@ -1,55 +1,49 @@
-server:
-  port: 8080
-
 spring:
+  application:
+    name: traceability-backend
   datasource:
-    url: jdbc:mysql://localhost:3306/traceability_cs?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
-    username: root
-    password: "1154228715"
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://127.0.0.1:3306/traceability_cs?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false}
+    username: ${SPRING_DATASOURCE_USERNAME:root}
+    password: ${SPRING_DATASOURCE_PASSWORD:change_me}
     driver-class-name: com.mysql.cj.jdbc.Driver
-  data:
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+server:
+  port: ${SERVER_PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  health:
     redis:
-      host: 127.0.0.1
-      port: 6379
-      database: 0
-      timeout: 3s
+      enabled: false
 
 mybatis-plus:
-  mapper-locations: classpath*:/mapper/**/*.xml
   configuration:
     map-underscore-to-camel-case: true
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
-
-jwt:
-  secret: agritrace-secret-key-2026-for-jwt-signing-secure-very-long
-  expire: 604800000
+  global-config:
+    db-config:
+      id-type: auto
 
 app:
-  user:
-    default-password: "ChangeMe!2026"
+  trace:
+    public-base-url: ${PUBLIC_TRACE_BASE_URL:http://127.0.0.1:5173}
+    backend-base-url: ${BACKEND_BASE_URL:http://127.0.0.1:8080}
+    qr-storage-dir: ${QR_STORAGE_DIR:${user.dir}/storage/qr}
+    attachment-storage-dir: ${ATTACHMENT_STORAGE_DIR:${user.dir}/storage/attachments}
+    trace-image-max-size: ${TRACE_IMAGE_MAX_SIZE:5MB}
+    trace-image-allowed-extensions: ${TRACE_IMAGE_ALLOWED_EXTENSIONS:.png,.jpg,.jpeg,.webp,.gif}
+    trace-image-allowed-content-types: ${TRACE_IMAGE_ALLOWED_CONTENT_TYPES:image/png,image/jpeg,image/webp,image/gif}
+    quality-attachment-max-size: ${QUALITY_ATTACHMENT_MAX_SIZE:10MB}
+    quality-attachment-allowed-extensions: ${QUALITY_ATTACHMENT_ALLOWED_EXTENSIONS:.pdf,.png,.jpg,.jpeg,.webp}
+    quality-attachment-allowed-content-types: ${QUALITY_ATTACHMENT_ALLOWED_CONTENT_TYPES:application/pdf,image/png,image/jpeg,image/webp}
+    attachment-orphan-cleanup-hours: ${ATTACHMENT_ORPHAN_CLEANUP_HOURS:24}
 
 springdoc:
-  api-docs:
-    enabled: true
-    path: /v3/api-docs
   swagger-ui:
-    enabled: true
     path: /swagger-ui.html
-    tags-sorter: alpha
-    operations-sorter: alpha
-  group-configs:
-    - group: 01-auth
-      packages-to-scan: edu.jxust.agritrace.controller.auth
-    - group: 02-public
-      packages-to-scan: edu.jxust.agritrace.controller.publicapi
-    - group: 03-enterprise
-      packages-to-scan: edu.jxust.agritrace.controller.enterprise
-    - group: 04-regulator
-      packages-to-scan: edu.jxust.agritrace.controller.regulator
-    - group: 05-platform
-      packages-to-scan: edu.jxust.agritrace.controller.platform
-
-knife4j:
-  enable: true
-  setting:
-    language: zh_cn
