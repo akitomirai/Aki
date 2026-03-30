@@ -1,7 +1,9 @@
 import { expect, test } from '@playwright/test'
+import { seedAdminSession } from '../helpers/demo-api.mjs'
 import { adminBaseUrl, saveNamedScreenshot } from '../helpers/paths.mjs'
 
-test('risk workbench shows current status, recent actions and checklist', async ({ page }) => {
+test('risk workbench shows current status, recent actions and checklist', async ({ page, request }) => {
+  await seedAdminSession(page, request)
   await page.goto(`${adminBaseUrl}/batches/4`)
 
   await expect(page.getByTestId('batch-workbench-page')).toBeVisible()

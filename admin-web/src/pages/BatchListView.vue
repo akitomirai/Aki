@@ -1,6 +1,6 @@
-<script setup>
-import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+﻿<script setup>
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import {
   changeBatchStatus,
   createBatch,
@@ -28,6 +28,7 @@ import {
   todayString
 } from '../utils/batchExperience'
 
+const route = useRoute()
 const router = useRouter()
 
 const loading = ref(false)
@@ -62,11 +63,11 @@ const statusOptions = [
 ]
 
 const listModes = [
-  { value: 'ACTION', label: '待处理', copy: '默认优先看还没做完的批次' },
-  { value: 'READY', label: '可发布', copy: '资料已齐，只差发布动作' },
-  { value: 'RISK', label: '风险批次', copy: '优先看冻结、召回与整改中的批次' },
-  { value: 'LIVE', label: '已发布', copy: '已上线可扫码查看的批次' },
-  { value: 'ALL', label: '全部批次', copy: '查看完整批次列表' }
+  { value: 'ACTION', label: '待处理' },
+  { value: 'READY', label: '可发布' },
+  { value: 'RISK', label: '风险批次' },
+  { value: 'LIVE', label: '已发布' },
+  { value: 'ALL', label: '全部批次' }
 ]
 
 const companyOptions = computed(() => {
@@ -122,6 +123,14 @@ const listStats = computed(() => {
   }
 })
 
+const modeCounts = computed(() => ({
+  ACTION: listStats.value.actionable,
+  READY: listStats.value.ready,
+  RISK: listStats.value.risk,
+  LIVE: batchCards.value.filter((card) => card.item.status === 'PUBLISHED').length,
+  ALL: listStats.value.total
+}))
+
 const topQueue = computed(() => {
   return batchCards.value.filter((card) => card.insight.isActionable).slice(0, 3)
 })
@@ -129,11 +138,11 @@ const topQueue = computed(() => {
 const dialogTitle = computed(() => {
   switch (dialog.value.type) {
     case 'create':
-      return '新建批次'
+      return '新增批次'
     case 'edit':
       return `编辑批次：${dialog.value.batchName}`
     case 'trace':
-      return `快速补录：${dialog.value.batchName}`
+      return `补录追溯：${dialog.value.batchName}`
     case 'quality':
       return `上传质检：${dialog.value.batchName}`
     case 'status':
@@ -144,9 +153,17 @@ const dialogTitle = computed(() => {
 })
 
 onMounted(async () => {
+  syncListModeFromRoute()
   await loadCompanyOptions()
   await fetchBatches()
 })
+
+watch(
+  () => route.query.mode,
+  () => {
+    syncListModeFromRoute()
+  }
+)
 
 async function fetchBatches() {
   loading.value = true
@@ -235,8 +252,28 @@ function showMessage(text, type = 'info') {
 
 function resetFilters() {
   filters.value = createFilterState()
-  listMode.value = 'ACTION'
+  switchListMode('ACTION')
   fetchBatches()
+}
+
+function syncListModeFromRoute() {
+  const mode = String(route.query.mode || '').toUpperCase()
+  const exists = listModes.some((item) => item.value === mode)
+  listMode.value = exists ? mode : 'ACTION'
+}
+
+function switchListMode(mode) {
+  listMode.value = mode
+  const nextQuery = { ...route.query }
+  if (!mode || mode === 'ACTION') {
+    delete nextQuery.mode
+  } else {
+    nextQuery.mode = mode
+  }
+  router.replace({
+    path: route.path,
+    query: nextQuery
+  })
 }
 
 async function openCreateDialog() {
@@ -568,7 +605,7 @@ function buildBatchInsight(item) {
     if (actionOf(item, 'RESUME').enabled) {
       nextActionCode = 'RESUME'
       nextLabel = '恢复发布'
-      nextCopy = '整改检查项已满足，可恢复发布。'
+      nextCopy = '整改检查项已满足，可以恢复发布。'
       priority = 460
     } else {
       nextLabel = '补风险处理'
@@ -584,15 +621,15 @@ function buildBatchInsight(item) {
       PUBLISH: '去发布'
     }[nextActionCode] ?? '继续处理'
     nextCopy = {
-      ADD_TRACE: '先补关键追溯节点，方便后续演示和扫码查看。',
+      ADD_TRACE: '先补关键追溯节点，方便后续查看和扫码查询。',
       UPLOAD_QUALITY: '补上质检摘要后，公开页可信度会明显更高。',
-      GENERATE_QR: '二维码就绪后，才能顺畅衔接扫码演示。',
-      PUBLISH: '资料已经齐，可以直接完成对外发布。'
+      GENERATE_QR: '二维码就绪后，才能顺畅衔接公开查询。',
+      PUBLISH: '资料已经齐全，可以直接完成对外发布。'
     }[nextActionCode] ?? '继续处理当前批次。'
     priority = item.status === 'DRAFT' ? 360 - missing.length * 10 : 220
   } else if (item.status === 'PUBLISHED') {
     nextLabel = '查看公开页表现'
-    nextCopy = '已发布，可回工作台查看二维码与扫码数据。'
+    nextCopy = '已发布，可回工作台查看二维码与扫码情况。'
     priority = 180
   }
 
@@ -606,10 +643,10 @@ function buildBatchInsight(item) {
     nextCopy,
     priority,
     progress: [
-      { label: '追溯', done: !needsTrace },
-      { label: '质检', done: hasQuality },
+      { label: '杩芥函', done: !needsTrace },
+      { label: '璐ㄦ', done: hasQuality },
       { label: '二维码', done: hasQr },
-      { label: '发布', done: item.status === 'PUBLISHED' }
+      { label: '鍙戝竷', done: item.status === 'PUBLISHED' }
     ]
   }
 }
@@ -634,6 +671,36 @@ function runRecommendedAction(card) {
       return
     default:
       router.push(`/batches/${item.id}`)
+  }
+}
+
+function handleRowCommand(card, command) {
+  if (command === 'edit') {
+    openEditDialog(card.item)
+    return
+  }
+  if (command === 'trace') {
+    openTraceDialog(card.item)
+    return
+  }
+  if (command === 'quality') {
+    openQualityDialog(card.item)
+    return
+  }
+  if (command === 'qr') {
+    handleGenerateQr(card.item)
+    return
+  }
+  if (command === 'publish') {
+    openStatusDialog(card.item, 'PUBLISHED')
+    return
+  }
+  if (command === 'freeze') {
+    openStatusDialog(card.item, 'FROZEN')
+    return
+  }
+  if (command === 'recall') {
+    openStatusDialog(card.item, 'RECALLED')
   }
 }
 
@@ -708,79 +775,41 @@ function statusClass(status) {
 
 <template>
   <div class="page-shell" data-testid="batch-list-page">
-    <header class="hero-card" data-testid="batch-list-hero">
+    <section class="manage-page-header">
       <div>
-        <p class="eyebrow">批次主入口</p>
-        <h1>先盯住批次，再把下一步做完</h1>
-        <p class="lead">
-          默认已经按“待处理优先”整理批次。企业管理员可以从这里直接完成建档后的主流程：
-          补追溯、传质检、生成二维码、发布或处理风险。
-        </p>
-
-        <div v-if="topQueue.length" class="queue-strip">
-          <article v-for="card in topQueue" :key="card.item.id" class="queue-item">
-            <strong>{{ card.item.batchCode }}</strong>
-            <span>{{ card.insight.nextLabel }}</span>
-          </article>
-        </div>
+        <h1 class="manage-page-title">批次管理</h1>
       </div>
-
-      <div class="hero-actions">
-        <button class="primary" data-testid="batch-create-button" @click="openCreateDialog">新建批次</button>
-        <button class="ghost" @click="router.push('/companies')">企业主数据</button>
-        <button class="ghost" @click="router.push('/products')">产品主数据</button>
-        <button class="ghost" @click="router.push('/dashboard')">返回总览</button>
+      <div class="manage-page-actions">
+        <el-button :loading="loading" data-testid="batch-search-button" @click="fetchBatches">刷新</el-button>
+        <el-button type="primary" data-testid="batch-create-button" @click="openCreateDialog">新增批次</el-button>
       </div>
-    </header>
-
-    <section class="stats-grid">
-      <article class="stat-card">
-        <span>批次总数</span>
-        <strong>{{ listStats.total }}</strong>
-      </article>
-      <article class="stat-card">
-        <span>待处理</span>
-        <strong>{{ listStats.actionable }}</strong>
-      </article>
-      <article class="stat-card">
-        <span>可直接发布</span>
-        <strong>{{ listStats.ready }}</strong>
-      </article>
-      <article class="stat-card warning">
-        <span>风险批次</span>
-        <strong>{{ listStats.risk }}</strong>
-      </article>
     </section>
 
-    <section class="panel">
-      <div class="panel-head">
-        <div>
-          <p class="eyebrow">默认视角</p>
-          <h2>先把“下一步最明确”的批次找出来</h2>
-        </div>
-      </div>
-
-      <div class="mode-row">
+    <section class="panel batch-tabs-panel">
+      <div class="batch-tabs">
         <button
           v-for="item in listModes"
           :key="item.value"
-          class="mode-pill"
+          type="button"
+          class="batch-tab"
           :class="{ active: listMode === item.value }"
-          @click="listMode = item.value"
+          @click="switchListMode(item.value)"
         >
-          <strong>{{ item.label }}</strong>
-          <span>{{ item.copy }}</span>
+          <span>{{ item.label }}</span>
+          <strong>{{ modeCounts[item.value] ?? 0 }}</strong>
         </button>
       </div>
+    </section>
 
+    <section class="panel">
       <div class="filter-grid">
         <label>
           <span>批次号</span>
-          <input v-model.trim="filters.batchCode" data-testid="batch-filter-code" type="text" placeholder="例如 BATCH202603250930">
+          <input v-model.trim="filters.batchCode" data-testid="batch-filter-code" type="text" placeholder="输入批次号">
         </label>
         <label>
-          <span>产品名</span>
-          <input v-model.trim="filters.productName" type="text" placeholder="输入产品关键字">
+          <span>产品名称</span>
+          <input v-model.trim="filters.productName" type="text" placeholder="输入产品名称">
         </label>
         <label>
           <span>状态</span>
@@ -811,8 +840,11 @@ function statusClass(status) {
       </div>
 
       <div class="toolbar">
-        <button class="primary" data-testid="batch-search-button" :disabled="loading" @click="fetchBatches">刷新列表</button>
-        <button class="ghost" :disabled="loading" @click="resetFilters">恢复默认</button>
+        <span class="list-summary">共 {{ listStats.total }} 个批次，当前显示 {{ visibleBatchCards.length }} 个。</span>
+        <div class="toolbar-actions">
+          <button class="primary" :disabled="loading" @click="fetchBatches">查询</button>
+          <button class="ghost" :disabled="loading" @click="resetFilters">重置</button>
+        </div>
       </div>
     </section>
 
@@ -826,129 +858,96 @@ function statusClass(status) {
 
     <section v-else-if="!visibleBatchCards.length" class="panel empty-state">
       <div>
-        <h3>当前视角下没有批次</h3>
-        <p>可以切换上方视角，或直接新建一个批次开始演示主流程。</p>
-        <div class="toolbar">
-          <button class="primary" @click="openCreateDialog">新建批次</button>
-          <button class="ghost" @click="listMode = 'ALL'">查看全部批次</button>
+        <h3>当前条件下没有批次数据</h3>
+        <p>请调整筛选条件，或直接新增批次。</p>
+        <div class="toolbar-actions">
+          <button class="primary" @click="openCreateDialog">新增批次</button>
+          <button class="ghost" @click="switchListMode('ALL')">查看全部</button>
         </div>
       </div>
     </section>
 
-    <section v-else class="batch-list">
-      <article
-        v-for="card in visibleBatchCards"
-        :key="card.item.id"
-        class="batch-card"
-        :data-testid="`batch-card-${card.item.id}`"
-      >
-        <div class="batch-main">
-          <img class="product-image" :src="card.item.productImageUrl" :alt="card.item.productName">
+    <section v-else class="panel">
+      <div class="batch-table-head">
+        <span>批次信息</span>
+        <span>企业 / 节点</span>
+        <span>质量 / 二维码</span>
+        <span>状态 / 下一步</span>
+        <span>操作</span>
+      </div>
 
-          <div class="batch-copy">
-            <div class="title-row">
-              <div>
-                <p class="batch-code">{{ card.item.batchCode }}</p>
-                <h3>{{ card.item.productName }}</h3>
-                <p class="next-copy">下一步：{{ card.insight.nextCopy }}</p>
-              </div>
-              <div class="title-side">
-                <span class="status-badge" :class="statusClass(card.item.status)">{{ card.item.statusLabel }}</span>
-                <span class="next-badge" :data-testid="`batch-next-${card.item.id}`">{{ card.insight.nextLabel }}</span>
-              </div>
-            </div>
-
-            <div class="meta-grid">
-              <div>
-                <span>所属企业</span>
-                <strong>{{ card.item.companyName }}</strong>
-              </div>
-              <div>
-                <span>当前节点</span>
-                <strong>{{ card.item.currentNode }}</strong>
-              </div>
-              <div>
-                <span>产地</span>
-                <strong>{{ card.item.originPlace }}</strong>
-              </div>
-              <div>
-                <span>生产日期</span>
-                <strong>{{ card.item.productionDate }}</strong>
-              </div>
-              <div>
-                <span>质检</span>
-                <strong>{{ card.item.qualityStatus }}</strong>
-              </div>
-              <div>
-                <span>二维码</span>
-                <strong>{{ qrStatusLabel(card.item.qrStatus) }}</strong>
-              </div>
-            </div>
-
-            <div class="progress-strip">
-              <span
-                v-for="step in card.insight.progress"
-                :key="step.label"
-                class="progress-pill"
-                :class="{ done: step.done }"
-              >
-                {{ step.label }}
-              </span>
-            </div>
-
-            <div class="tag-row">
-              <span v-for="tag in card.item.quickTags" :key="tag">{{ tag }}</span>
-              <span v-for="tag in card.insight.missing" :key="tag.key" class="missing-tag">{{ tag.label }}</span>
-            </div>
+      <div class="batch-row-list">
+        <article
+          v-for="card in visibleBatchCards"
+          :key="card.item.id"
+          class="batch-row"
+          :data-testid="`batch-card-${card.item.id}`"
+        >
+          <div class="row-main">
+            <strong>{{ card.item.batchCode }}</strong>
+            <span>{{ card.item.productName }}</span>
+            <small>{{ card.item.productionDate }} / {{ card.item.originPlace }}</small>
           </div>
-        </div>
 
-        <div class="action-row">
-          <button class="primary" :data-testid="`batch-recommend-${card.item.id}`" @click="runRecommendedAction(card)">{{ card.insight.nextLabel }}</button>
-          <button class="ghost" :data-testid="`batch-open-workbench-${card.item.id}`" @click="router.push(`/batches/${card.item.id}`)">进入工作台</button>
-          <button class="neutral" @click="openTraceDialog(card.item)">补追溯</button>
-          <button class="success" @click="openQualityDialog(card.item)">上传质检</button>
-          <button class="ghost" @click="handleGenerateQr(card.item)">二维码</button>
-          <button
-            v-if="actionOf(card.item, 'PUBLISH').enabled"
-            class="success"
-            @click="openStatusDialog(card.item, 'PUBLISHED')"
-          >
-            发布
-          </button>
-          <button
-            v-if="actionOf(card.item, 'RESUME').enabled"
-            class="success"
-            @click="openStatusDialog(card.item, 'PUBLISHED')"
-          >
-            恢复发布
-          </button>
-          <button
-            class="warning"
-            :disabled="!actionOf(card.item, 'FREEZE').enabled"
-            :title="actionOf(card.item, 'FREEZE').hint"
-            @click="openStatusDialog(card.item, 'FROZEN')"
-          >
-            冻结
-          </button>
-          <button
-            class="danger"
-            :disabled="!actionOf(card.item, 'RECALL').enabled"
-            :title="actionOf(card.item, 'RECALL').hint"
-            @click="openStatusDialog(card.item, 'RECALLED')"
-          >
-            召回
-          </button>
-          <button class="ghost" @click="openEditDialog(card.item)">编辑资料</button>
-        </div>
-      </article>
+          <div class="row-meta">
+            <strong>{{ card.item.companyName }}</strong>
+            <span>{{ card.item.currentNode }}</span>
+          </div>
+
+          <div class="row-meta">
+            <strong>{{ card.item.qualityStatus }}</strong>
+            <span>{{ qrStatusLabel(card.item.qrStatus) }}</span>
+          </div>
+
+          <div class="row-status">
+            <span class="status-badge" :class="statusClass(card.item.status)">{{ card.item.statusLabel }}</span>
+            <span class="next-badge" :data-testid="`batch-next-${card.item.id}`">{{ card.insight.nextLabel }}</span>
+          </div>
+
+          <div class="row-actions">
+            <button
+              class="text-button primary-text"
+              :data-testid="`batch-open-workbench-${card.item.id}`"
+              @click="router.push(`/batches/${card.item.id}`)"
+            >
+              工作台
+            </button>
+            <button
+              class="text-button"
+              :data-testid="`batch-recommend-${card.item.id}`"
+              @click="runRecommendedAction(card)"
+            >
+              {{ card.insight.nextLabel }}
+            </button>
+            <el-dropdown @command="(command) => handleRowCommand(card, command)">
+              <button type="button" class="text-button">更多操作</button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="edit">编辑资料</el-dropdown-item>
+                  <el-dropdown-item command="trace">补录追溯</el-dropdown-item>
+                  <el-dropdown-item command="quality">上传质检</el-dropdown-item>
+                  <el-dropdown-item command="qr">生成二维码</el-dropdown-item>
+                  <el-dropdown-item
+                    command="publish"
+                    :disabled="!(actionOf(card.item, 'PUBLISH').enabled || actionOf(card.item, 'RESUME').enabled)"
+                  >
+                    {{ actionOf(card.item, 'RESUME').enabled ? '恢复发布' : '发布' }}
+                  </el-dropdown-item>
+                  <el-dropdown-item command="freeze" :disabled="!actionOf(card.item, 'FREEZE').enabled">冻结</el-dropdown-item>
+                  <el-dropdown-item command="recall" :disabled="!actionOf(card.item, 'RECALL').enabled">召回</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </div>
+        </article>
+      </div>
     </section>
 
     <div v-if="dialog.visible" class="dialog-mask" @click.self="closeDialog">
       <section class="dialog-card">
         <div class="dialog-head">
           <div>
-            <p class="eyebrow">批次快捷操作</p>
+            <p class="eyebrow">批次操作</p>
             <h3>{{ dialogTitle }}</h3>
           </div>
           <button class="ghost icon-button" @click="closeDialog">关闭</button>
@@ -979,7 +978,7 @@ function statusClass(status) {
           </label>
           <label>
             <span>产地</span>
-            <input v-model.trim="batchForm.originPlace" type="text" placeholder="例如 赣州信丰">
+            <input v-model.trim="batchForm.originPlace" type="text" placeholder="例如 江西赣州信丰">
           </label>
           <label>
             <span>生产日期</span>
@@ -990,17 +989,17 @@ function statusClass(status) {
             <div class="field-note">
               <strong>{{ selectedProductOption.name }}</strong>
               <small>
-                分类：{{ selectedProductOption.category || '待补充' }}，
+                分类：{{ selectedProductOption.category || '待补充' }}；
                 规格：{{ selectedProductOption.specification || '待补充' }}
               </small>
             </div>
           </label>
           <label class="full-width">
-            <span>公开页说明</span>
+            <span>公开说明</span>
             <textarea
               v-model.trim="batchForm.publicRemark"
               rows="3"
-              placeholder="创建后会直接进入工作台，建议写一句面向消费者的批次说明"
+              placeholder="填写消费者可见的批次说明，例如产地、工艺特点或本批次情况"
             />
           </label>
           <label class="full-width">
@@ -1008,12 +1007,12 @@ function statusClass(status) {
             <textarea
               v-model.trim="batchForm.internalRemark"
               rows="3"
-              placeholder="可写本轮演示提醒、补录计划或内控备注"
+              placeholder="用于记录补录计划、处理提醒或内部跟进说明"
             />
           </label>
           <div class="full-width flow-tip">
-            <strong>{{ dialog.type === 'create' ? '创建后会直接进入工作台。' : '更新后会回到工作台。' }}</strong>
-            <span>下一步入口已经准备好：补追溯、上传质检、生成二维码。</span>
+            <strong>{{ dialog.type === 'create' ? '创建后将直接进入批次工作台。' : '保存后将返回批次工作台。' }}</strong>
+            <span>下一步入口会继续保留在工作台中，可补录追溯、上传质检和生成二维码。</span>
           </div>
         </div>
 
@@ -1021,9 +1020,9 @@ function statusClass(status) {
           <div class="full-width quick-entry-card">
             <div>
               <p class="eyebrow">现场快速补录</p>
-              <h4>当前按“少录入、少跳转”设计</h4>
+              <h4>当前表单已按少录入、少跳转整理</h4>
               <p>
-                默认已经带入当前时间，阶段、地点和说明可直接点选。
+                默认带入当前时间，阶段、地点和说明可以直接点选。
                 {{ traceDialogContext.totalCount ? `当前批次已有 ${traceDialogContext.totalCount} 条记录。` : '当前还没有记录，可先补第一条关键节点。' }}
               </p>
             </div>
@@ -1032,7 +1031,7 @@ function statusClass(status) {
               class="ghost"
               @click="copyLatestTraceRecord"
             >
-              复制上一条并微调
+              澶嶅埗涓婁竴鏉″苟寰皟
             </button>
           </div>
 
@@ -1049,18 +1048,18 @@ function statusClass(status) {
           </div>
 
           <label>
-            <span>阶段</span>
+            <span>闃舵</span>
             <select v-model="traceForm.stage" @change="setTraceStage(traceForm.stage)">
               <option v-for="item in stageOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
             </select>
           </label>
           <label>
-            <span>记录时间</span>
+            <span>璁板綍鏃堕棿</span>
             <input v-model="traceForm.eventTime" type="datetime-local">
           </label>
           <label>
             <span>记录人</span>
-            <input v-model.trim="traceForm.operatorName" type="text" placeholder="例如 现场补录员">
+            <input v-model.trim="traceForm.operatorName" type="text" placeholder="例如 现场录入员">
           </label>
           <label>
             <span>地点</span>
@@ -1068,20 +1067,20 @@ function statusClass(status) {
           </label>
           <label class="full-width">
             <span>记录标题</span>
-            <input v-model.trim="traceForm.title" type="text" placeholder="一句话说明这个节点">
+            <input v-model.trim="traceForm.title" type="text" placeholder="涓€鍙ヨ瘽璇存槑杩欎釜鑺傜偣">
           </label>
           <label class="full-width">
             <span>记录说明</span>
             <textarea
               v-model.trim="traceForm.summary"
               rows="4"
-              placeholder="建议写本节点做了什么、由谁完成、是否可继续下一步"
+              placeholder="建议填写本节点完成了什么、由谁完成、是否进入下一步"
             />
           </label>
 
           <div class="full-width template-grid">
             <div class="template-card">
-              <span>常用地点</span>
+              <span>甯哥敤鍦扮偣</span>
               <div class="chip-row">
                 <button
                   v-for="item in traceStageProfile.locationTemplates"
@@ -1094,7 +1093,7 @@ function statusClass(status) {
               </div>
             </div>
             <div class="template-card">
-              <span>说明模板</span>
+              <span>璇存槑妯℃澘</span>
               <div class="chip-row">
                 <button
                   v-for="item in traceStageProfile.summaryTemplates"
@@ -1109,56 +1108,56 @@ function statusClass(status) {
           </div>
 
           <label class="full-width">
-            <span>现场图片</span>
+            <span>鐜板満鍥剧墖</span>
             <div class="upload-box">
               <input type="file" accept="image/*" multiple @change="handleTraceFilesChange">
-              <small>支持多图上传。上传成功后会立刻显示在下面，保存记录时自动一起绑定。</small>
+              <small>鏀寔澶氬浘涓婁紶銆備笂浼犳垚鍔熷悗浼氱珛鍒绘樉绀哄湪涓嬮潰锛屼繚瀛樿褰曟椂鑷姩涓€璧风粦瀹氥€</small>
             </div>
           </label>
           <label class="full-width">
-            <span>图片链接兜底</span>
-            <input v-model.trim="traceForm.imageUrl" type="url" placeholder="如已在外部图床，可粘贴图片地址">
+            <span>鍥剧墖閾炬帴鍏滃簳</span>
+            <input v-model.trim="traceForm.imageUrl" type="url" placeholder="濡傚凡鍦ㄥ閮ㄥ浘搴婏紝鍙矘璐村浘鐗囧湴鍧€">
           </label>
 
-          <div v-if="traceUploading" class="full-width upload-hint">正在上传图片，稍等一下就会显示在当前记录里...</div>
+          <div v-if="traceUploading" class="full-width upload-hint">姝ｅ湪涓婁紶鍥剧墖锛岀◢绛変竴涓嬪氨浼氭樉绀哄湪褰撳墠璁板綍閲?..</div>
 
           <div v-if="traceForm.uploadedFiles.length" class="full-width uploaded-file-list">
             <article v-for="item in traceForm.uploadedFiles" :key="item.id" class="uploaded-file-item">
               <div>
                 <strong>{{ fileLabel(item) }}</strong>
-                <small>{{ formatFileSize(item.size) }} · 已上传，保存记录后生效</small>
+                <small>{{ formatFileSize(item.size) }} 路 宸蹭笂浼狅紝淇濆瓨璁板綍鍚庣敓鏁</small>
               </div>
               <div class="inline-actions">
-                <a class="preview-link" :href="item.fileUrl" target="_blank" rel="noreferrer">查看</a>
-                <button class="ghost" @click="removeTraceAttachment(item.id)">移除</button>
+                <a class="preview-link" :href="item.fileUrl" target="_blank" rel="noreferrer">鏌ョ湅</a>
+                <button class="ghost" @click="removeTraceAttachment(item.id)">绉婚櫎</button>
               </div>
             </article>
           </div>
 
           <label class="checkbox-field full-width">
             <input v-model="traceForm.visibleToConsumer" type="checkbox">
-            <span>这条记录同步展示给消费者</span>
+            <span>杩欐潯璁板綍鍚屾灞曠ず缁欐秷璐硅€</span>
           </label>
 
           <div v-if="traceDialogContext.latestRecord" class="full-width last-record-card">
-            <span>上一条记录</span>
+            <span>涓婁竴鏉¤褰</span>
             <strong>{{ traceDialogContext.latestRecord.title }}</strong>
-            <p>{{ traceDialogContext.latestRecord.location }} · {{ traceDialogContext.latestRecord.eventTime }}</p>
+            <p>{{ traceDialogContext.latestRecord.location }} 路 {{ traceDialogContext.latestRecord.eventTime }}</p>
             <small>{{ traceDialogContext.latestRecord.summary }}</small>
           </div>
         </div>
 
         <div v-else-if="dialog.type === 'quality'" class="form-grid" data-testid="batch-quality-dialog">
           <label>
-            <span>报告编号</span>
-            <input v-model.trim="qualityForm.reportNo" type="text" placeholder="例如 JX-20260325-01">
+            <span>鎶ュ憡缂栧彿</span>
+            <input v-model.trim="qualityForm.reportNo" type="text" placeholder="渚嬪 JX-20260325-01">
           </label>
           <label>
             <span>检测机构</span>
-            <input v-model.trim="qualityForm.agency" type="text" placeholder="例如 江西某检测中心">
+            <input v-model.trim="qualityForm.agency" type="text" placeholder="例如 江西省农产品质检中心">
           </label>
           <label>
-            <span>结果</span>
+            <span>缁撴灉</span>
             <select v-model="qualityForm.result">
               <option v-for="item in qualityOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
             </select>
@@ -1168,21 +1167,21 @@ function statusClass(status) {
             <input v-model="qualityForm.reportTime" type="datetime-local">
           </label>
           <label class="full-width">
-            <span>质检摘要</span>
+            <span>璐ㄦ鎽樿</span>
             <textarea
               v-model.trim="qualityForm.highlightsText"
               rows="4"
-              placeholder="一行一个重点，例如：关键指标合格 / 企业自检正常 / 抽检无异常"
+              placeholder="每行一个重点，例如：关键指标合格 / 企业自检正常 / 抽检无异常"
             />
           </label>
           <label class="full-width">
-            <span>附件</span>
+            <span>闄勪欢</span>
             <div class="upload-box">
               <input type="file" accept=".pdf,image/png,image/jpeg,image/webp" multiple @change="handleQualityFilesChange">
-              <small>可上传 PDF 或图片，公开页会优先展示质检结论，后台保留附件供答辩说明。</small>
+              <small>鍙笂浼?PDF 鎴栧浘鐗囷紝鍏紑椤典細浼樺厛灞曠ず璐ㄦ缁撹锛屽悗鍙板悓鏃朵繚鐣欓檮浠跺鏌ャ€</small>
             </div>
           </label>
-          <div v-if="qualityUploading" class="full-width upload-hint">正在上传质检附件...</div>
+          <div v-if="qualityUploading" class="full-width upload-hint">姝ｅ湪涓婁紶璐ㄦ闄勪欢...</div>
           <div v-if="qualityForm.uploadedFiles.length" class="full-width uploaded-file-list">
             <article v-for="item in qualityForm.uploadedFiles" :key="item.id" class="uploaded-file-item">
               <div>
@@ -1190,8 +1189,8 @@ function statusClass(status) {
                 <small>{{ formatFileSize(item.size) }}</small>
               </div>
               <div class="inline-actions">
-                <a class="preview-link" :href="item.fileUrl" target="_blank" rel="noreferrer">查看</a>
-                <button class="ghost" @click="removeQualityAttachment(item.id)">移除</button>
+                <a class="preview-link" :href="item.fileUrl" target="_blank" rel="noreferrer">鏌ョ湅</a>
+                <button class="ghost" @click="removeQualityAttachment(item.id)">绉婚櫎</button>
               </div>
             </article>
           </div>
@@ -1199,39 +1198,39 @@ function statusClass(status) {
 
         <div v-else-if="dialog.type === 'status'" class="form-grid">
           <label>
-            <span>目标状态</span>
+            <span>鐩爣鐘舵€</span>
             <select v-model="statusForm.targetStatus">
-              <option value="PUBLISHED">发布</option>
-              <option value="FROZEN">冻结</option>
-              <option value="RECALLED">召回</option>
+              <option value="PUBLISHED">鍙戝竷</option>
+              <option value="FROZEN">鍐荤粨</option>
+              <option value="RECALLED">鍙洖</option>
             </select>
           </label>
           <label>
-            <span>处理人</span>
+            <span>澶勭悊浜</span>
             <input v-model.trim="statusForm.operatorName" type="text">
           </label>
           <label class="full-width">
-            <span>处理原因</span>
+            <span>澶勭悊鍘熷洜</span>
             <textarea
               v-model.trim="statusForm.reason"
               rows="4"
-              placeholder="建议写清楚当前批次为什么要发布、冻结或召回"
+              placeholder="寤鸿鍐欐竻妤氬綋鍓嶆壒娆′负浠€涔堣鍙戝竷銆佸喕缁撴垨鍙洖"
             />
           </label>
         </div>
 
         <div class="dialog-actions">
-          <button class="ghost" @click="closeDialog">取消</button>
+          <button class="ghost" @click="closeDialog">鍙栨秷</button>
           <button
             v-if="dialog.type === 'trace'"
             class="ghost"
             data-testid="batch-trace-save-continue"
             @click="submitDialog({ keepOpen: true })"
           >
-            保存并继续
+            淇濆瓨骞剁户缁?
           </button>
           <button class="primary" data-testid="batch-dialog-submit" @click="submitDialog()">
-            {{ dialog.type === 'create' ? '创建并进入工作台' : '确认保存' }}
+            {{ dialog.type === 'create' ? '鍒涘缓骞惰繘鍏ュ伐浣滃彴' : '纭淇濆瓨' }}
           </button>
         </div>
       </section>
@@ -1246,6 +1245,52 @@ function statusClass(status) {
   padding: 28px 20px 48px;
 }
 
+.batch-tabs-panel {
+  padding: 12px 16px;
+}
+
+.batch-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.batch-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid var(--admin-border);
+  border-radius: 999px;
+  background: var(--admin-surface-soft);
+  color: var(--admin-text);
+}
+
+.batch-tab strong {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(56, 134, 217, 0.12);
+  color: var(--admin-primary-deep);
+  font-size: 12px;
+}
+
+.batch-tab.active {
+  border-color: rgba(48, 149, 246, 0.22);
+  background: rgba(48, 149, 246, 0.12);
+  color: var(--admin-primary-deep);
+}
+
+.batch-tab.active strong {
+  background: var(--admin-primary);
+  color: #fff;
+}
+
 .hero-card,
 .panel,
 .stat-card,
@@ -1253,8 +1298,8 @@ function statusClass(status) {
 .dialog-card,
 .message-bar {
   border-radius: 28px;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 18px 42px rgba(31, 55, 47, 0.08);
+  background: var(--admin-surface);
+  box-shadow: var(--admin-shadow);
 }
 
 .hero-card {
@@ -1263,14 +1308,14 @@ function statusClass(status) {
   gap: 24px;
   padding: 28px;
   background:
-    radial-gradient(circle at top right, rgba(242, 204, 105, 0.26), transparent 28%),
-    linear-gradient(145deg, #16362d, #285143 72%, #edf5eb 170%);
-  color: #f7f2e7;
+    radial-gradient(circle at top right, rgba(129, 199, 255, 0.2), transparent 30%),
+    linear-gradient(145deg, #4aa7ff 0%, #2f8de6 66%, #1f79d6 100%);
+  color: #f8fbff;
 }
 
 .eyebrow {
   margin: 0 0 8px;
-  color: #f2cc69;
+  color: var(--admin-text-soft);
   font-size: 12px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -1293,7 +1338,7 @@ h1 {
   margin-bottom: 0;
   max-width: 760px;
   line-height: 1.8;
-  color: rgba(247, 242, 231, 0.92);
+  color: rgba(248, 251, 255, 0.92);
 }
 
 .hero-actions,
@@ -1322,7 +1367,7 @@ h1 {
 .queue-item {
   padding: 14px 16px;
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.16);
 }
 
 .queue-item strong,
@@ -1332,7 +1377,7 @@ h1 {
 
 .queue-item span {
   margin-top: 6px;
-  color: rgba(247, 242, 231, 0.84);
+  color: rgba(248, 251, 255, 0.84);
   font-size: 14px;
 }
 
@@ -1353,23 +1398,39 @@ h1 {
 
 .stat-card span {
   display: block;
-  color: #60786d;
+  color: var(--admin-text-soft);
   font-size: 14px;
 }
 
 .stat-card strong {
   display: block;
   margin-top: 10px;
-  color: #17362d;
+  color: var(--admin-text);
   font-size: 34px;
 }
 
 .stat-card.warning strong {
-  color: #b24b2d;
+  color: var(--admin-danger-text);
 }
 
 .panel {
   margin-top: 18px;
+}
+
+.toolbar {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.list-summary {
+  color: var(--admin-text-soft);
+  font-size: 13px;
 }
 
 .panel-head {
@@ -1390,13 +1451,13 @@ h1 {
   min-height: 104px;
   padding: 16px;
   border-radius: 22px;
-  background: rgba(244, 248, 245, 0.96);
-  color: #2b4f43;
+  background: var(--admin-surface-soft);
+  color: var(--admin-text);
 }
 
 .mode-pill.active {
-  background: #245846;
-  color: #fff7ea;
+  background: var(--admin-primary);
+  color: #ffffff;
 }
 
 .mode-pill strong,
@@ -1432,7 +1493,7 @@ label span,
 .template-card span {
   display: block;
   margin-bottom: 8px;
-  color: #4b6358;
+  color: var(--admin-text-soft);
   font-size: 14px;
 }
 
@@ -1449,10 +1510,10 @@ textarea {
   width: 100%;
   box-sizing: border-box;
   padding: 12px 14px;
-  border: 1px solid rgba(45, 85, 71, 0.16);
+  border: 1px solid var(--admin-border);
   border-radius: 16px;
-  background: rgba(247, 249, 246, 0.95);
-  color: #17362d;
+  background: var(--admin-surface-soft);
+  color: var(--admin-text);
 }
 
 textarea {
@@ -1466,9 +1527,9 @@ textarea {
 .quick-entry-card,
 .last-record-card,
 .template-card {
-  border: 1px solid rgba(45, 85, 71, 0.12);
+  border: 1px solid var(--admin-border);
   border-radius: 18px;
-  background: rgba(245, 248, 244, 0.96);
+  background: var(--admin-surface-soft);
 }
 
 .field-note,
@@ -1487,7 +1548,7 @@ textarea {
 .upload-box small,
 .uploaded-file-item small,
 .upload-hint {
-  color: #60786d;
+  color: var(--admin-text-soft);
 }
 
 .flow-tip strong,
@@ -1495,7 +1556,7 @@ textarea {
 .field-note strong,
 .uploaded-file-item strong {
   display: block;
-  color: #17362d;
+  color: var(--admin-text);
 }
 
 .quick-entry-card {
@@ -1576,23 +1637,24 @@ button:disabled {
 }
 
 .primary {
-  background: #245846;
-  color: #fff7ea;
+  background: var(--admin-primary);
+  color: #ffffff;
 }
 
 .ghost {
-  background: rgba(36, 88, 70, 0.08);
-  color: #245846;
+  background: #ffffff;
+  color: var(--admin-primary-deep);
+  border: 1px solid var(--admin-border);
 }
 
 .neutral {
-  background: rgba(242, 204, 105, 0.18);
-  color: #7b5d13;
+  background: var(--admin-primary-soft);
+  color: var(--admin-primary-deep);
 }
 
 .success {
-  background: rgba(40, 110, 74, 0.12);
-  color: #245846;
+  background: var(--admin-success-bg);
+  color: var(--admin-success-text);
 }
 
 .warning {
@@ -1609,18 +1671,19 @@ button:disabled {
   min-height: 38px;
   padding: 0 14px;
   border-radius: 999px;
-  background: rgba(36, 88, 70, 0.08);
-  color: #245846;
+  background: var(--admin-primary-soft);
+  color: var(--admin-primary-deep);
 }
 
 .chip-button.active {
-  background: #245846;
-  color: #fff7ea;
+  background: var(--admin-primary);
+  color: #ffffff;
 }
 
 .chip-button.light {
-  background: rgba(242, 204, 105, 0.14);
-  color: #7b5d13;
+  background: #ffffff;
+  color: var(--admin-primary-deep);
+  border: 1px solid var(--admin-border);
 }
 
 .message-bar {
@@ -1628,8 +1691,8 @@ button:disabled {
 }
 
 .message-bar.success {
-  background: rgba(226, 244, 233, 0.94);
-  color: #245846;
+  background: var(--admin-success-bg);
+  color: var(--admin-success-text);
 }
 
 .message-bar.error {
@@ -1643,7 +1706,87 @@ button:disabled {
   justify-content: center;
   min-height: 220px;
   text-align: center;
-  color: #546b61;
+  color: var(--admin-text-soft);
+}
+
+.batch-table-head {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 0.9fr 0.9fr 1.2fr;
+  gap: 16px;
+  padding: 0 0 14px;
+  border-bottom: 1px solid rgba(56, 134, 217, 0.12);
+  color: var(--admin-text-soft);
+  font-size: 13px;
+}
+
+.batch-row-list {
+  display: grid;
+}
+
+.batch-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 0.9fr 0.9fr 1.2fr;
+  gap: 16px;
+  align-items: center;
+  padding: 18px 0;
+  border-bottom: 1px solid rgba(56, 134, 217, 0.1);
+}
+
+.batch-row:last-child {
+  border-bottom: 0;
+}
+
+.row-main,
+.row-meta,
+.row-status {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.row-main strong,
+.row-meta strong {
+  color: var(--admin-text);
+  font-size: 14px;
+}
+
+.row-main span,
+.row-main small,
+.row-meta span {
+  color: var(--admin-text-soft);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.row-status {
+  align-items: flex-start;
+}
+
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.text-button {
+  min-height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--admin-text-soft);
+  box-shadow: none;
+}
+
+.text-button:hover {
+  transform: none;
+  color: var(--admin-primary-deep);
+}
+
+.primary-text {
+  color: var(--admin-primary-deep);
+  font-weight: 600;
 }
 
 .empty-state h3 {
@@ -1671,7 +1814,7 @@ button:disabled {
   height: 132px;
   object-fit: cover;
   border-radius: 22px;
-  background: linear-gradient(160deg, #eef5ed, #dce9df);
+  background: linear-gradient(160deg, #eef7ff, #dbeeff);
 }
 
 .title-row {
@@ -1683,7 +1826,7 @@ button:disabled {
 
 .batch-code {
   margin-bottom: 6px;
-  color: #60786d;
+  color: var(--admin-text-soft);
   font-size: 14px;
   letter-spacing: 0.04em;
 }
@@ -1691,12 +1834,12 @@ button:disabled {
 .batch-copy h3 {
   margin-bottom: 8px;
   font-size: 28px;
-  color: #17362d;
+  color: var(--admin-text);
 }
 
 .next-copy {
   margin-bottom: 0;
-  color: #51675d;
+  color: #4a6b90;
   line-height: 1.7;
 }
 
@@ -1724,19 +1867,19 @@ button:disabled {
 }
 
 .next-badge {
-  background: rgba(242, 204, 105, 0.16);
-  color: #7b5d13;
+  background: var(--admin-primary-soft);
+  color: var(--admin-primary-deep);
   font-size: 13px;
 }
 
 .status-badge.draft {
-  background: rgba(93, 120, 110, 0.16);
-  color: #556b63;
+  background: rgba(120, 147, 180, 0.16);
+  color: #59759b;
 }
 
 .status-badge.published {
-  background: rgba(40, 110, 74, 0.14);
-  color: #245846;
+  background: var(--admin-success-bg);
+  color: var(--admin-success-text);
 }
 
 .status-badge.frozen {
@@ -1756,13 +1899,13 @@ button:disabled {
 .meta-grid div {
   padding: 14px;
   border-radius: 18px;
-  background: rgba(245, 248, 244, 0.96);
+  background: var(--admin-surface-soft);
 }
 
 .meta-grid strong {
   display: block;
   margin-top: 8px;
-  color: #17362d;
+  color: var(--admin-text);
   line-height: 1.5;
 }
 
@@ -1775,19 +1918,19 @@ button:disabled {
 }
 
 .progress-pill {
-  background: rgba(93, 120, 110, 0.12);
-  color: #5d786e;
+  background: rgba(120, 147, 180, 0.12);
+  color: #5f7b9e;
   font-size: 13px;
 }
 
 .progress-pill.done {
-  background: rgba(40, 110, 74, 0.12);
-  color: #245846;
+  background: var(--admin-success-bg);
+  color: var(--admin-success-text);
 }
 
 .tag-row span {
-  background: rgba(36, 88, 70, 0.08);
-  color: #245846;
+  background: var(--admin-primary-soft);
+  color: var(--admin-primary-deep);
   font-size: 13px;
 }
 
@@ -1861,6 +2004,11 @@ button:disabled {
   .template-grid {
     grid-template-columns: 1fr;
   }
+
+  .batch-table-head,
+  .batch-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 820px) {
@@ -1875,10 +2023,6 @@ button:disabled {
 
   .queue-strip {
     grid-template-columns: 1fr;
-  }
-
-  .hero-actions {
-    justify-content: flex-start;
   }
 
   .product-image {
@@ -1898,6 +2042,20 @@ button:disabled {
   .uploaded-file-item {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .batch-table-head {
+    display: none;
+  }
+
+  .batch-row {
+    grid-template-columns: 1fr;
+    gap: 12px;
   }
 }
 
@@ -1919,3 +2077,4 @@ button:disabled {
   }
 }
 </style>
+

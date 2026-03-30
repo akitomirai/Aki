@@ -6,6 +6,7 @@ import edu.jxust.agritrace.module.batch.dto.BatchListQueryRequest;
 import edu.jxust.agritrace.module.batch.dto.BatchRiskActionCreateRequest;
 import edu.jxust.agritrace.module.batch.dto.BatchStatusActionRequest;
 import edu.jxust.agritrace.module.batch.dto.BatchUpdateRequest;
+import edu.jxust.agritrace.module.batch.dto.FieldDraftSaveRequest;
 import edu.jxust.agritrace.module.batch.dto.QualityReportCreateRequest;
 import edu.jxust.agritrace.module.batch.dto.TraceRecordCreateRequest;
 import edu.jxust.agritrace.module.batch.service.BatchService;
@@ -13,9 +14,11 @@ import edu.jxust.agritrace.module.batch.vo.AttachmentCleanupResultVO;
 import edu.jxust.agritrace.module.batch.vo.BatchListItemVO;
 import edu.jxust.agritrace.module.batch.vo.BatchWorkbenchVO;
 import edu.jxust.agritrace.module.batch.vo.CompanyOptionVO;
+import edu.jxust.agritrace.module.batch.vo.FieldDraftVO;
 import edu.jxust.agritrace.module.batch.vo.FileAssetVO;
 import edu.jxust.agritrace.module.batch.vo.ProductOptionVO;
 import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -69,7 +72,28 @@ public class BatchController {
     @PostMapping("/files/cleanup")
     public ApiResponse<AttachmentCleanupResultVO> cleanupOrphanFiles() {
         AttachmentCleanupResultVO result = batchService.cleanupExpiredOrphanAttachments();
-        return ApiResponse.ok("Attachment cleanup finished.", result);
+        return ApiResponse.ok("附件清理已完成。", result);
+    }
+
+    @GetMapping("/field-drafts")
+    public ApiResponse<List<FieldDraftVO>> listMyFieldDrafts() {
+        return ApiResponse.ok(batchService.listMyFieldDrafts());
+    }
+
+    @GetMapping("/{batchId}/field-draft")
+    public ApiResponse<FieldDraftVO> getMyFieldDraft(@PathVariable Long batchId) {
+        return ApiResponse.ok(batchService.getMyFieldDraft(batchId));
+    }
+
+    @PostMapping("/{batchId}/field-draft")
+    public ApiResponse<FieldDraftVO> saveFieldDraft(@PathVariable Long batchId, @RequestBody FieldDraftSaveRequest request) {
+        return ApiResponse.ok("草稿已保存。", batchService.saveFieldDraft(batchId, request));
+    }
+
+    @DeleteMapping("/{batchId}/field-draft")
+    public ApiResponse<Void> deleteFieldDraft(@PathVariable Long batchId) {
+        batchService.deleteFieldDraft(batchId);
+        return ApiResponse.ok("草稿已删除。", null);
     }
 
     @GetMapping("/{batchId}")
@@ -79,41 +103,41 @@ public class BatchController {
 
     @PostMapping
     public ApiResponse<BatchWorkbenchVO> createBatch(@Valid @RequestBody BatchCreateRequest request) {
-        return ApiResponse.ok("Batch created.", batchService.createBatch(request));
+        return ApiResponse.ok("批次已创建。", batchService.createBatch(request));
     }
 
     @PatchMapping("/{batchId}")
     public ApiResponse<BatchWorkbenchVO> updateBatch(@PathVariable Long batchId, @Valid @RequestBody BatchUpdateRequest request) {
-        return ApiResponse.ok("Batch updated.", batchService.updateBatch(batchId, request));
+        return ApiResponse.ok("批次资料已更新。", batchService.updateBatch(batchId, request));
     }
 
     @PostMapping("/{batchId}/status")
     public ApiResponse<BatchWorkbenchVO> changeStatus(@PathVariable Long batchId, @Valid @RequestBody BatchStatusActionRequest request) {
-        return ApiResponse.ok("Batch status updated.", batchService.changeStatus(batchId, request));
+        return ApiResponse.ok("批次状态已更新。", batchService.changeStatus(batchId, request));
     }
 
     @PostMapping("/{batchId}/records")
     public ApiResponse<BatchWorkbenchVO> addTraceRecord(@PathVariable Long batchId, @Valid @RequestBody TraceRecordCreateRequest request) {
-        return ApiResponse.ok("Trace record added.", batchService.addTraceRecord(batchId, request));
+        return ApiResponse.ok("追溯记录已补充。", batchService.addTraceRecord(batchId, request));
     }
 
     @PostMapping("/{batchId}/records/quick")
     public ApiResponse<BatchWorkbenchVO> addQuickTraceRecord(@PathVariable Long batchId, @Valid @RequestBody TraceRecordCreateRequest request) {
-        return ApiResponse.ok("Trace record added.", batchService.addTraceRecord(batchId, request));
+        return ApiResponse.ok("追溯记录已补充。", batchService.addTraceRecord(batchId, request));
     }
 
     @PostMapping("/{batchId}/quality-reports")
     public ApiResponse<BatchWorkbenchVO> addQualityReport(@PathVariable Long batchId, @Valid @RequestBody QualityReportCreateRequest request) {
-        return ApiResponse.ok("Quality report added.", batchService.addQualityReport(batchId, request));
+        return ApiResponse.ok("质检信息已上传。", batchService.addQualityReport(batchId, request));
     }
 
     @PostMapping("/{batchId}/risk-actions")
     public ApiResponse<BatchWorkbenchVO> addRiskAction(@PathVariable Long batchId, @Valid @RequestBody BatchRiskActionCreateRequest request) {
-        return ApiResponse.ok("Risk handling updated.", batchService.addRiskAction(batchId, request));
+        return ApiResponse.ok("风险处理已更新。", batchService.addRiskAction(batchId, request));
     }
 
     @PostMapping("/{batchId}/qr")
     public ApiResponse<BatchWorkbenchVO> generateQr(@PathVariable Long batchId) {
-        return ApiResponse.ok("QR is ready.", batchService.generateQr(batchId));
+        return ApiResponse.ok("二维码已准备好。", batchService.generateQr(batchId));
     }
 }

@@ -8,6 +8,7 @@ public class BatchListQueryRequest {
     private String companyName;
     private String dateFrom;
     private String dateTo;
+    private Boolean mineOnly;
 
     public String getBatchCode() {
         return batchCode;
@@ -55,5 +56,13 @@ public class BatchListQueryRequest {
 
     public void setDateTo(String dateTo) {
         this.dateTo = dateTo;
+    }
+
+    public Boolean getMineOnly() {
+        return mineOnly;
+    }
+
+    public void setMineOnly(Boolean mineOnly) {
+        this.mineOnly = mineOnly;
     }
 }

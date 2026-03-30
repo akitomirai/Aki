@@ -1,31 +1,36 @@
 <template>
-  <div class="layout">
+  <div class="layout" data-testid="admin-layout">
     <aside class="sidebar">
-      <div class="logo">农产品溯源后台</div>
+      <div class="brand">
+        <h1>农产品追溯后台</h1>
+      </div>
 
-      <el-menu
-          class="menu"
-          :default-active="activeMenu"
-          router
-          background-color="transparent"
-          text-color="#dbeafe"
-          active-text-color="#ffffff"
-      >
-        <el-menu-item index="/dashboard">首页</el-menu-item>
-        <el-menu-item v-if="canAccessBatch" index="/batches">批次管理</el-menu-item>
-        <el-menu-item v-if="isAdmin" index="/products">产品管理</el-menu-item>
-        <el-menu-item v-if="isPlatformAdmin" index="/companies">企业管理</el-menu-item>
-        <el-menu-item v-if="canAccessQuality" index="/quality">质检报告</el-menu-item>
-        <el-menu-item v-if="canAccessFeedback" index="/feedback">消费者反馈</el-menu-item>
-        <el-menu-item v-if="isAdmin" index="/users">用户管理</el-menu-item>
-        <el-menu-item v-if="isAdmin" index="/logs">操作日志</el-menu-item>
-      </el-menu>
+      <nav class="nav-groups" aria-label="后台菜单">
+        <section v-for="section in menuSections" :key="section.title" class="nav-group">
+          <p class="nav-group-title">{{ section.title }}</p>
+          <RouterLink
+            v-for="item in section.items"
+            :key="item.key"
+            :to="item.to"
+            class="nav-link"
+            :class="{ active: activeMenu === item.key }"
+          >
+            {{ item.label }}
+          </RouterLink>
+        </section>
+      </nav>
     </aside>
 
     <div class="main">
       <header class="header">
-        <div class="header-title">管理后台 ({{ roleName }})</div>
-        <el-button type="danger" plain @click="logout">退出登录</el-button>
+        <h2>{{ pageTitle }}</h2>
+        <div class="header-actions">
+          <div class="identity">
+            <strong>{{ displayName }}</strong>
+            <span>{{ roleName }}</span>
+          </div>
+          <button class="logout-button" type="button" @click="logout">退出登录</button>
+        </div>
       </header>
 
       <main class="content">
@@ -38,7 +43,7 @@
 <script setup>
 import { useAdminLayout } from '../../composables/useAdminLayout'
 
-const { activeMenu, canAccessBatch, canAccessQuality, canAccessFeedback, isAdmin, isPlatformAdmin, roleName, logout } = useAdminLayout()
+const { activeMenu, displayName, logout, menuSections, pageTitle, roleName } = useAdminLayout()
 </script>
 
 <style src="./admin-layout.css" scoped></style>

@@ -15,6 +15,10 @@ public class TraceBatchPO {
     private String batchCode;
     private Long productId;
     private Long companyId;
+    private Long assigneeUserId;
+    private LocalDateTime assignedAt;
+    private String taskStatus;
+    private LocalDateTime taskCompletedAt;
     private String originPlace;
     private LocalDate startDate;
     private String status;
@@ -57,6 +61,38 @@ public class TraceBatchPO {
 
     public void setCompanyId(Long companyId) {
         this.companyId = companyId;
+    }
+
+    public Long getAssigneeUserId() {
+        return assigneeUserId;
+    }
+
+    public void setAssigneeUserId(Long assigneeUserId) {
+        this.assigneeUserId = assigneeUserId;
+    }
+
+    public LocalDateTime getAssignedAt() {
+        return assignedAt;
+    }
+
+    public void setAssignedAt(LocalDateTime assignedAt) {
+        this.assignedAt = assignedAt;
+    }
+
+    public String getTaskStatus() {
+        return taskStatus;
+    }
+
+    public void setTaskStatus(String taskStatus) {
+        this.taskStatus = taskStatus;
+    }
+
+    public LocalDateTime getTaskCompletedAt() {
+        return taskCompletedAt;
+    }
+
+    public void setTaskCompletedAt(LocalDateTime taskCompletedAt) {
+        this.taskCompletedAt = taskCompletedAt;
     }
 
     public String getOriginPlace() {

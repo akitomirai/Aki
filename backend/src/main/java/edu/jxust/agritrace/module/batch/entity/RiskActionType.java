@@ -3,10 +3,10 @@ package edu.jxust.agritrace.module.batch.entity;
 import java.util.Arrays;
 
 public enum RiskActionType {
-    COMMENT("COMMENT", "Handling comment"),
-    RECTIFICATION("RECTIFICATION", "Rectification record"),
-    PROCESSING("PROCESSING", "Marked in progress"),
-    RECTIFIED("RECTIFIED", "Rectification completed");
+    COMMENT("COMMENT", "处理说明"),
+    RECTIFICATION("RECTIFICATION", "整改记录"),
+    PROCESSING("PROCESSING", "处理中"),
+    RECTIFIED("RECTIFIED", "已完成整改");
 
     private final String code;
     private final String label;
@@ -28,6 +28,6 @@ public enum RiskActionType {
         return Arrays.stream(values())
                 .filter(item -> item.code.equalsIgnoreCase(code))
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("unsupported risk action type: " + code));
+                .orElseThrow(() -> new IllegalArgumentException("不支持的风险处理类型: " + code));
     }
 }

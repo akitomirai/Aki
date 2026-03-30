@@ -26,10 +26,10 @@ public class BatchRiskResolver {
                         true,
                         "PROCESSING",
                         "warning",
-                        "Recall under handling",
-                        defaultReason(latestRiskAction.reason(), batch.getStatusReason(), "The recalled batch is currently under handling."),
+                        "召回处理中",
+                        defaultReason(latestRiskAction.reason(), batch.getStatusReason(), "该批次已召回，当前正在处理中。"),
                         latestRiskAction.createdAt(),
-                        "Do not purchase or consume this batch until the enterprise issues a new public notice."
+                        "在企业或监管方发布进一步通知前，请勿继续购买或食用该批次。"
                 );
             }
             if (latestRiskAction != null && latestRiskAction.actionType() == RiskActionType.RECTIFIED) {
@@ -37,20 +37,20 @@ public class BatchRiskResolver {
                         true,
                         "RECTIFIED",
                         "pending",
-                        "Recall rectification recorded",
-                        defaultReason(latestRiskAction.reason(), batch.getStatusReason(), "Rectification has been recorded for the recalled batch."),
+                        "召回整改已留痕",
+                        defaultReason(latestRiskAction.reason(), batch.getStatusReason(), "召回批次已记录整改信息。"),
                         latestRiskAction.createdAt(),
-                        "Wait for the enterprise or regulator to publish a final follow-up notice before any use."
+                        "请等待企业或监管方发布最终处理结论后，再决定是否使用。"
                 );
             }
             return new RiskSnapshot(
                     true,
                     "RECALLED",
                     "danger",
-                    "Batch recalled",
-                    defaultReason(batch.getStatusReason(), "This batch has been recalled. Stop sale and consumption."),
+                    "批次已召回",
+                    defaultReason(batch.getStatusReason(), "该批次已召回，请立即停止销售和食用。"),
                     batch.getRecalledAt(),
-                    "Do not purchase or consume this batch. Contact the company or regulator for disposal guidance."
+                    "请勿继续购买或食用该批次，必要时联系企业或监管部门获取处理建议。"
             );
         }
 
@@ -60,10 +60,10 @@ public class BatchRiskResolver {
                         true,
                         "PROCESSING",
                         "pending",
-                        "Issue under handling",
-                        defaultReason(latestRiskAction.reason(), batch.getStatusReason(), "The frozen batch is currently being handled."),
+                        "异常处理中",
+                        defaultReason(latestRiskAction.reason(), batch.getStatusReason(), "该冻结批次当前正在处理中。"),
                         latestRiskAction.createdAt(),
-                        "Keep the batch frozen until rectification is completed and resume is approved."
+                        "请保持冻结状态，待整改完成并确认恢复条件后再继续流通。"
                 );
             }
             if (latestRiskAction != null && latestRiskAction.actionType() == RiskActionType.RECTIFIED) {
@@ -71,20 +71,20 @@ public class BatchRiskResolver {
                         true,
                         "RECTIFIED",
                         "pending",
-                        "Rectification completed",
-                        defaultReason(latestRiskAction.reason(), batch.getStatusReason(), "Rectification has been completed and the batch is waiting for resume review."),
+                        "整改已完成",
+                        defaultReason(latestRiskAction.reason(), batch.getStatusReason(), "整改已完成，等待恢复流通复核。"),
                         latestRiskAction.createdAt(),
-                        "The batch is still frozen until the enterprise confirms resume conditions."
+                        "在企业确认恢复条件前，批次仍保持冻结状态。"
                 );
             }
             return new RiskSnapshot(
                     true,
                     "FROZEN",
                     "warning",
-                    "Batch frozen",
-                    defaultReason(batch.getStatusReason(), "This batch is temporarily frozen for verification."),
+                    "批次已冻结",
+                    defaultReason(batch.getStatusReason(), "该批次因异常核查暂时冻结。"),
                     batch.getFrozenAt(),
-                    "Pause shipment and sale until the batch is reviewed and resumed."
+                    "请暂停发运和销售，待复核结束后再决定是否恢复。"
             );
         }
 
@@ -93,10 +93,10 @@ public class BatchRiskResolver {
                     true,
                     "RISK_PENDING",
                     "warning",
-                    "Quality issue pending",
-                    "The latest quality report did not pass. Review the batch before any release action.",
+                    "质检异常待处理",
+                    "最新质检结果未通过，批次在进一步处理前不建议对外发布。",
                     latestQuality.reportTime(),
-                    "Keep this batch internal until the quality issue is corrected and rechecked."
+                    "建议先完成整改和复检，再决定是否继续对外流通。"
             );
         }
 
@@ -105,10 +105,10 @@ public class BatchRiskResolver {
                     false,
                     "PENDING",
                     "pending",
-                    "Batch not published",
-                    defaultReason(batch.getStatusReason(), "This batch is still a draft and not yet released to the public."),
+                    "批次尚未发布",
+                    defaultReason(batch.getStatusReason(), "该批次仍处于草稿阶段，尚未对外发布。"),
                     null,
-                    "Complete trace, quality and QR steps before publishing."
+                    "建议先补齐追溯、质检和二维码信息后再发布。"
             );
         }
 
@@ -116,10 +116,10 @@ public class BatchRiskResolver {
                 false,
                 "NORMAL",
                 "normal",
-                "No public risk alert",
-                "This batch is currently in a normal public trace state.",
+                "当前无风险提醒",
+                "该批次当前处于正常公开查询状态。",
                 batch.getPublishedAt(),
-                "Continue to check the timeline and quality summary if you need more context."
+                "如需了解更多信息，可继续查看时间线和质检摘要。"
         );
     }
 
@@ -127,21 +127,21 @@ public class BatchRiskResolver {
         BatchRiskActionEntity latestRiskAction = latestRiskActionAfterAbnormal(batch);
         if (batch.getStatus() == BatchStatus.RECALLED) {
             if (latestRiskAction != null && latestRiskAction.actionType() == RiskActionType.PROCESSING) {
-                return "Recall handling in progress";
+                return "召回处理中";
             }
             if (latestRiskAction != null && latestRiskAction.actionType() == RiskActionType.RECTIFIED) {
-                return "Recall rectification recorded";
+                return "召回整改已留痕";
             }
-            return "Recalled and exposed with a public risk alert";
+            return "批次已召回，公开页同步展示风险提醒";
         }
         if (batch.getStatus() == BatchStatus.FROZEN) {
             if (latestRiskAction != null && latestRiskAction.actionType() == RiskActionType.PROCESSING) {
-                return "Frozen batch is under handling";
+                return "冻结批次处理中";
             }
             if (latestRiskAction != null && latestRiskAction.actionType() == RiskActionType.RECTIFIED) {
-                return "Rectification completed, waiting for resume";
+                return "整改已完成，等待恢复";
             }
-            return "Frozen and waiting for handling";
+            return "批次已冻结，等待处理";
         }
         return null;
     }
@@ -178,11 +178,11 @@ public class BatchRiskResolver {
 
     public String currentHandlingStageLabel(BatchEntity batch) {
         return switch (currentHandlingStage(batch)) {
-            case "PROCESSING" -> "In processing";
-            case "RECTIFIED" -> "Rectification completed";
-            case "FROZEN" -> "Frozen";
-            case "RECALLED" -> "Recalled";
-            default -> "No active handling";
+            case "PROCESSING" -> "处理中";
+            case "RECTIFIED" -> "已完成整改";
+            case "FROZEN" -> "已冻结";
+            case "RECALLED" -> "已召回";
+            default -> "当前无处理动作";
         };
     }
 

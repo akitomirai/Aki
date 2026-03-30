@@ -5,6 +5,7 @@ import edu.jxust.agritrace.module.batch.dto.BatchListQueryRequest;
 import edu.jxust.agritrace.module.batch.dto.BatchRiskActionCreateRequest;
 import edu.jxust.agritrace.module.batch.dto.BatchStatusActionRequest;
 import edu.jxust.agritrace.module.batch.dto.BatchUpdateRequest;
+import edu.jxust.agritrace.module.batch.dto.FieldDraftSaveRequest;
 import edu.jxust.agritrace.module.batch.dto.QualityReportCreateRequest;
 import edu.jxust.agritrace.module.batch.dto.TraceRecordCreateRequest;
 import edu.jxust.agritrace.module.batch.entity.BatchEntity;
@@ -13,6 +14,7 @@ import edu.jxust.agritrace.module.batch.vo.BatchListItemVO;
 import edu.jxust.agritrace.module.batch.vo.BatchWorkbenchVO;
 import edu.jxust.agritrace.module.batch.vo.CompanyOptionVO;
 import edu.jxust.agritrace.module.batch.vo.FileAssetVO;
+import edu.jxust.agritrace.module.batch.vo.FieldDraftVO;
 import edu.jxust.agritrace.module.batch.vo.ProductOptionVO;
 import edu.jxust.agritrace.module.publictrace.dto.PublicTraceAccessContext;
 import org.springframework.core.io.Resource;
@@ -41,6 +43,14 @@ public interface BatchService {
     BatchWorkbenchVO changeStatus(Long batchId, BatchStatusActionRequest request);
 
     BatchWorkbenchVO addTraceRecord(Long batchId, TraceRecordCreateRequest request);
+
+    List<FieldDraftVO> listMyFieldDrafts();
+
+    FieldDraftVO getMyFieldDraft(Long batchId);
+
+    FieldDraftVO saveFieldDraft(Long batchId, FieldDraftSaveRequest request);
+
+    void deleteFieldDraft(Long batchId);
 
     BatchWorkbenchVO addQualityReport(Long batchId, QualityReportCreateRequest request);
 

@@ -5,88 +5,152 @@
   justify-content: center;
   padding: 24px;
   background:
-          linear-gradient(135deg, #f4f6fb 0%, #eef2f7 100%);
-  box-sizing: border-box;
+    radial-gradient(circle at top center, rgba(122, 190, 255, 0.18), transparent 34%),
+    linear-gradient(180deg, #f8fbff 0%, #eef6ff 44%, #ffffff 100%);
 }
 
 .login-card {
-  width: 460px;
-  border-radius: 18px;
-  border: none;
-  box-shadow: 0 10px 30px rgba(31, 45, 61, 0.08);
+  width: min(100%, 460px);
+  border: 1px solid var(--admin-border);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 22px 52px rgba(45, 113, 194, 0.14);
 }
 
-.title-wrap {
-  text-align: center;
+.login-brand {
+  padding: 28px 28px 6px;
 }
 
-.title {
-  font-size: 18px;
-  font-weight: 700;
-  color: #1f2d3d;
-  line-height: 1.4;
-}
-
-.sub-title {
-  margin-top: 6px;
+.eyebrow {
+  margin: 0 0 8px;
+  color: var(--admin-primary);
   font-size: 12px;
-  color: #909399;
-  letter-spacing: 0.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.login-brand h1 {
+  margin: 0;
+  color: var(--admin-text);
+  font-size: 28px;
+  line-height: 1.3;
+}
+
+.lead {
+  margin: 10px 0 0;
+  color: var(--admin-text-soft);
+  font-size: 13px;
+  line-height: 1.8;
 }
 
 .login-form {
-  padding-top: 4px;
+  padding: 12px 28px 0;
 }
 
 .login-options {
-  margin: 2px 0 18px 72px;
+  margin: 2px 0 18px 74px;
   display: flex;
   align-items: center;
 }
 
 .login-actions {
-  margin-left: 72px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+  margin-left: 74px;
 }
 
 .action-btn {
   width: 100%;
   height: 42px;
-  margin-left: 0 !important;
-  border-radius: 10px;
   font-size: 15px;
 }
 
-.register-btn {
-  color: #409eff;
-  border-color: #c6e2ff;
-  background: #f7fbff;
+.account-board {
+  margin: 22px 28px 28px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(56, 134, 217, 0.12);
 }
 
-.register-btn:hover {
-  color: #409eff;
-  border-color: #95caff;
-  background: #ecf5ff;
+.board-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
-:deep(.el-card__header) {
-  padding: 20px 24px 16px;
-  border-bottom: 1px solid #ebeef5;
+.board-title {
+  color: var(--admin-text);
+  font-size: 13px;
+  font-weight: 600;
 }
 
-:deep(.el-card__body) {
-  padding: 22px 24px 26px;
+.board-tip {
+  color: var(--admin-text-soft);
+  font-size: 12px;
 }
 
-:deep(.el-input__wrapper) {
-  min-height: 40px;
-  border-radius: 10px;
+.account-list {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.account-chip {
+  padding: 12px 14px;
+  border: 1px solid var(--admin-border);
+  border-radius: 14px;
+  background: var(--admin-surface-soft);
+  text-align: left;
+  color: var(--admin-text);
+  cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.account-chip:hover {
+  border-color: rgba(48, 149, 246, 0.28);
+  box-shadow: 0 12px 24px rgba(45, 113, 194, 0.1);
+  transform: translateY(-1px);
+}
+
+.account-chip strong {
+  display: block;
+  font-size: 13px;
+}
+
+.account-chip span {
+  display: block;
+  margin-top: 6px;
+  color: var(--admin-text-soft);
+  font-size: 12px;
 }
 
 @media (max-width: 520px) {
-  .login-card {
-    width: 100%;
+  .login-page {
+    padding: 16px;
+  }
+
+  .login-brand,
+  .login-form,
+  .account-board {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .account-board {
+    margin-left: 0;
+    margin-right: 0;
+  }
+
+  .account-list {
+    grid-template-columns: 1fr;
+  }
+
+  .login-actions,
+  .login-options {
+    margin-left: 0;
+  }
+
+  .board-head {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }

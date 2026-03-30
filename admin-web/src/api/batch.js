@@ -12,7 +12,7 @@ export function getProductOptions(params) {
   return http.get('/batches/lookup/products', { params })
 }
 
-export function uploadBatchFiles(businessType, files) {
+export function uploadBatchFiles(businessType, files, options = {}) {
   const formData = new FormData()
   formData.append('businessType', businessType)
   for (const file of files) {
@@ -21,7 +21,8 @@ export function uploadBatchFiles(businessType, files) {
   return http.post('/batches/files/upload', formData, {
     headers: {
       'Content-Type': 'multipart/form-data'
-    }
+    },
+    onUploadProgress: options.onUploadProgress
   })
 }
 
@@ -43,6 +44,22 @@ export function updateBatch(id, data) {
 
 export function createTraceRecord(id, data) {
   return http.post(`/batches/${id}/records/quick`, data)
+}
+
+export function getFieldDraftList() {
+  return http.get('/batches/field-drafts')
+}
+
+export function getFieldDraft(id) {
+  return http.get(`/batches/${id}/field-draft`)
+}
+
+export function saveFieldDraft(id, data) {
+  return http.post(`/batches/${id}/field-draft`, data)
+}
+
+export function deleteFieldDraft(id) {
+  return http.delete(`/batches/${id}/field-draft`)
 }
 
 export function createQualityReport(id, data) {

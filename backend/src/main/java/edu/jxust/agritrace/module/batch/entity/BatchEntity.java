@@ -11,6 +11,11 @@ public class BatchEntity {
     private String batchCode;
     private ProductEntity product;
     private CompanyEntity company;
+    private Long assigneeUserId;
+    private String assigneeName;
+    private LocalDateTime assignedAt;
+    private String taskStatus;
+    private LocalDateTime taskCompletedAt;
     private String originPlace;
     private LocalDate productionDate;
     private BatchStatus status;
@@ -58,6 +63,46 @@ public class BatchEntity {
 
     public void setCompany(CompanyEntity company) {
         this.company = company;
+    }
+
+    public Long getAssigneeUserId() {
+        return assigneeUserId;
+    }
+
+    public void setAssigneeUserId(Long assigneeUserId) {
+        this.assigneeUserId = assigneeUserId;
+    }
+
+    public String getAssigneeName() {
+        return assigneeName;
+    }
+
+    public void setAssigneeName(String assigneeName) {
+        this.assigneeName = assigneeName;
+    }
+
+    public LocalDateTime getAssignedAt() {
+        return assignedAt;
+    }
+
+    public void setAssignedAt(LocalDateTime assignedAt) {
+        this.assignedAt = assignedAt;
+    }
+
+    public String getTaskStatus() {
+        return taskStatus;
+    }
+
+    public void setTaskStatus(String taskStatus) {
+        this.taskStatus = taskStatus;
+    }
+
+    public LocalDateTime getTaskCompletedAt() {
+        return taskCompletedAt;
+    }
+
+    public void setTaskCompletedAt(LocalDateTime taskCompletedAt) {
+        this.taskCompletedAt = taskCompletedAt;
     }
 
     public String getOriginPlace() {

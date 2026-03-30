@@ -53,10 +53,10 @@ public class PublicTraceServiceImpl implements PublicTraceService {
                         batch.getCompany().name(),
                         batch.getOriginPlace(),
                         toStatusLabel(batch.getStatus()),
-                        latestQuality == null ? "Pending" : toQualityLabel(latestQuality.result()),
+                        latestQuality == null ? "待补充" : toQualityLabel(latestQuality.result()),
                         formatDate(batch.getProductionDate().atStartOfDay()),
                         formatDateTime(batch.getPublishedAt()),
-                        "Scan once and understand the batch, quality and current status in a few seconds."
+                        "扫码后可直接查看批次状态、质检结论和关键追溯信息。"
                 ),
                 batch.getTraceRecords().stream()
                         .filter(TraceRecordEntity::visibleToConsumer)
@@ -74,12 +74,12 @@ public class PublicTraceServiceImpl implements PublicTraceService {
                         .toList(),
                 new PublicQualityVO(
                         latestQuality == null ? "PENDING" : latestQuality.result(),
-                        latestQuality == null ? "Pending" : toQualityLabel(latestQuality.result()),
-                        latestQuality == null ? "No public quality summary has been uploaded yet." : buildQualitySummary(latestQuality),
+                        latestQuality == null ? "待补充" : toQualityLabel(latestQuality.result()),
+                        latestQuality == null ? "企业尚未上传公开质检摘要，请以后续补充信息为准。" : buildQualitySummary(latestQuality),
                         latestQuality == null ? null : latestQuality.agency(),
                         latestQuality == null ? null : latestQuality.reportNo(),
                         latestQuality == null ? null : formatDateTime(latestQuality.reportTime()),
-                        latestQuality == null ? List.of("Wait for the enterprise to upload quality highlights.") : latestQuality.highlights()
+                        latestQuality == null ? List.of("等待企业补充公开质检要点。") : latestQuality.highlights()
                 ),
                 new PublicCompanyVO(
                         batch.getCompany().name(),
@@ -98,35 +98,35 @@ public class PublicTraceServiceImpl implements PublicTraceService {
                         risk.tip()
                 ),
                 List.of(
-                        "Read the batch status and quality result first.",
-                        "If the batch is frozen or recalled, follow the risk guidance before any purchase or use.",
-                        "The public page only shows key consumer-facing facts instead of internal back-office logs."
+                        "先查看批次当前状态和质检结论。",
+                        "如批次已暂停流通或召回，请先按风险提示处理。",
+                        "公开页仅展示面向消费者的关键信息，不展示后台内部留痕。"
                 )
         );
     }
 
     private String toStatusLabel(BatchStatus status) {
         return switch (status) {
-            case DRAFT -> "Draft";
-            case PUBLISHED -> "Published";
-            case FROZEN -> "Frozen";
-            case RECALLED -> "Recalled";
+            case DRAFT -> "草稿";
+            case PUBLISHED -> "已发布";
+            case FROZEN -> "已冻结";
+            case RECALLED -> "已召回";
         };
     }
 
     private String toQualityLabel(String result) {
         return switch (result) {
-            case "PASS" -> "Pass";
-            case "FAIL" -> "Fail";
-            default -> "Review";
+            case "PASS" -> "合格";
+            case "FAIL" -> "不合格";
+            default -> "待复核";
         };
     }
 
     private String buildQualitySummary(QualityReportEntity report) {
         if (report.highlights() == null || report.highlights().isEmpty()) {
-            return toQualityLabel(report.result()) + ". No additional highlight is available.";
+            return toQualityLabel(report.result()) + "。当前暂无更多公开质检要点。";
         }
-        return toQualityLabel(report.result()) + ". Highlights: " + String.join(", ", report.highlights());
+        return toQualityLabel(report.result()) + "。重点信息：" + String.join("，", report.highlights());
     }
 
     private String formatDate(LocalDateTime value) {

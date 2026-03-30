@@ -4,6 +4,7 @@ import java.util.List;
 
 public record BatchWorkbenchVO(
         BatchOverviewVO batch,
+        BatchTaskSummaryVO task,
         ProductSummaryVO product,
         CompanySummaryVO company,
         BatchStatusSummaryVO status,

@@ -31,6 +31,9 @@ mybatis-plus:
       id-type: auto
 
 app:
+  auth:
+    jwt-secret: ${APP_AUTH_JWT_SECRET:TraceabilityJwtSecretKeyForAdminLogin1234567890}
+    token-expire-hours: ${APP_AUTH_TOKEN_EXPIRE_HOURS:12}
   trace:
     public-base-url: ${PUBLIC_TRACE_BASE_URL:http://127.0.0.1:5173}
     backend-base-url: ${BACKEND_BASE_URL:http://127.0.0.1:8080}

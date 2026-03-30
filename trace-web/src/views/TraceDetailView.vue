@@ -13,7 +13,7 @@ const showFullTimeline = ref(false)
 const verdict = computed(() => {
   if (!detail.value) {
     return {
-      title: '正在加载',
+      title: '正在加载查询结果',
       copy: '正在读取批次追溯信息。'
     }
   }
@@ -27,14 +27,14 @@ const verdict = computed(() => {
 
   if ((detail.value.summary?.qualityResult || '').includes('合格') || /pass/i.test(detail.value.summary?.qualityResult || '')) {
     return {
-      title: '当前批次状态正常',
-      copy: '已看到企业信息、批次状态和最近质检结论，可继续查看关键过程。'
+      title: '当前批次可正常查询',
+      copy: '已展示企业信息、批次状态和最近质检结论，可继续查看关键过程。'
     }
   }
 
   return {
-    title: '先关注质检与状态',
-    copy: '当前还没有完整的质检结论，建议结合关键过程一起看。'
+    title: '请先关注质检结论',
+    copy: '当前还没有完整的质检说明，建议结合最新记录一起查看。'
   }
 })
 
@@ -42,6 +42,13 @@ const visibleTimeline = computed(() => {
   const timeline = detail.value?.timeline ?? []
   return showFullTimeline.value ? timeline : timeline.slice(0, 4)
 })
+
+const latestTimelineItem = computed(() => {
+  const timeline = detail.value?.timeline ?? []
+  return timeline.length ? timeline[timeline.length - 1] : null
+})
+
+const qualityHighlights = computed(() => detail.value?.quality?.highlights ?? [])
 
 onMounted(() => {
   loadDetail(route.params.token)
@@ -101,7 +108,7 @@ function shortSummary(text) {
   if (!text) {
     return '该节点已留痕。'
   }
-  return text.length > 42 ? `${text.slice(0, 42)}...` : text
+  return text.length > 52 ? `${text.slice(0, 52)}...` : text
 }
 </script>
 
@@ -130,68 +137,66 @@ function shortSummary(text) {
         <small>{{ detail.risk.tip }}</small>
       </section>
 
-      <header class="hero-card" data-testid="public-summary">
-        <div class="hero-image-wrap">
-          <img class="hero-image" :src="detail.summary.productImageUrl" :alt="detail.summary.productName">
-        </div>
+      <section class="result-card" data-testid="public-summary">
+        <div class="result-head">
+          <div class="product-block">
+            <img class="product-image" :src="detail.summary.productImageUrl" :alt="detail.summary.productName">
+            <div class="product-copy">
+              <p class="eyebrow">查询结果</p>
+              <h1 data-testid="public-product-name">{{ detail.summary.productName }}</h1>
+              <p class="verdict-title">{{ verdict.title }}</p>
+              <p class="verdict-copy">{{ verdict.copy }}</p>
+            </div>
+          </div>
 
-        <div class="hero-copy">
-          <p class="eyebrow">扫码结果</p>
-          <h1 data-testid="public-product-name">{{ detail.summary.productName }}</h1>
-          <p class="hero-verdict">{{ verdict.title }}</p>
-          <p class="slogan">{{ verdict.copy }}</p>
-
-          <div class="verdict-row">
-            <article class="verdict-pill status">
+          <div class="result-side">
+            <article class="result-pill">
               <span>当前状态</span>
               <strong data-testid="public-status">{{ consumerStatusLabel(detail.summary.statusLabel) }}</strong>
             </article>
-            <article class="verdict-pill quality">
+            <article class="result-pill highlight">
               <span>质检结论</span>
               <strong data-testid="public-quality">{{ detail.summary.qualityResult }}</strong>
             </article>
           </div>
+        </div>
 
-          <div class="summary-grid">
-            <div>
-              <span>企业</span>
-              <strong data-testid="public-company">{{ detail.summary.companyName }}</strong>
-            </div>
-            <div>
-              <span>批次号</span>
-              <strong data-testid="public-batch-code">{{ detail.summary.batchCode }}</strong>
-            </div>
-            <div>
-              <span>产地</span>
-              <strong data-testid="public-origin">{{ detail.summary.originPlace }}</strong>
-            </div>
-            <div>
-              <span>生产日期</span>
-              <strong>{{ detail.summary.productionDate }}</strong>
-            </div>
+        <div class="summary-grid">
+          <div>
+            <span>企业</span>
+            <strong data-testid="public-company">{{ detail.summary.companyName }}</strong>
+          </div>
+          <div>
+            <span>批次号</span>
+            <strong data-testid="public-batch-code">{{ detail.summary.batchCode }}</strong>
+          </div>
+          <div>
+            <span>产地</span>
+            <strong data-testid="public-origin">{{ detail.summary.originPlace }}</strong>
+          </div>
+          <div>
+            <span>生产日期</span>
+            <strong>{{ detail.summary.productionDate || '暂无' }}</strong>
+          </div>
+          <div>
+            <span>公开时间</span>
+            <strong>{{ detail.summary.publishedAt || '尚未公开' }}</strong>
+          </div>
+          <div>
+            <span>查询说明</span>
+            <strong>{{ detail.summary.slogan }}</strong>
           </div>
         </div>
-      </header>
+      </section>
 
-      <section class="card-grid">
+      <section class="detail-grid">
         <article class="card">
           <div class="section-head">
-            <h2>看这页先看什么</h2>
-            <span>3 秒阅读</span>
+            <h2>基础信息</h2>
+            <span>企业与批次</span>
           </div>
-          <ul class="tips-list compact">
-            <li>先看状态和质检结论，判断当前是否可放心购买或食用。</li>
-            <li>再看企业、批次号和产地，确认这是不是你手上的这批货。</li>
-            <li>最后看关键过程，了解这批产品是怎么流转过来的。</li>
-          </ul>
-        </article>
 
-        <article class="card">
-          <div class="section-head">
-            <h2>信任信息</h2>
-            <span>现有信息直读</span>
-          </div>
-          <div class="info-list">
+          <div class="info-grid">
             <div>
               <span>企业名称</span>
               <strong>{{ detail.company.name }}</strong>
@@ -201,20 +206,42 @@ function shortSummary(text) {
               <strong>{{ detail.company.licenseNo || '待补充' }}</strong>
             </div>
             <div>
-              <span>检测机构</span>
-              <strong>{{ detail.quality.agency || '待补充' }}</strong>
+              <span>联系人</span>
+              <strong>{{ detail.company.contactName || '待补充' }}</strong>
             </div>
             <div>
-              <span>报告编号</span>
-              <strong>{{ detail.quality.reportNo || '待补充' }}</strong>
+              <span>联系电话</span>
+              <strong>{{ detail.company.contactPhone || '待补充' }}</strong>
             </div>
+          </div>
+
+          <p class="section-copy">{{ detail.company.address || '企业地址待补充。' }}</p>
+        </article>
+
+        <article class="card">
+          <div class="section-head">
+            <h2>质检与最近记录</h2>
+            <span>{{ detail.quality.resultLabel }}</span>
+          </div>
+
+          <p class="section-copy">{{ detail.quality.summary }}</p>
+
+          <div class="pill-row">
+            <span v-for="item in qualityHighlights" :key="item">{{ item }}</span>
+          </div>
+
+          <div class="recent-card">
+            <span>最近记录</span>
+            <strong>{{ latestTimelineItem?.title || '暂无记录' }}</strong>
+            <p>{{ latestTimelineItem?.time || '暂无时间' }} · {{ latestTimelineItem?.location || '地点待补充' }}</p>
+            <small>{{ shortSummary(latestTimelineItem?.summary) }}</small>
           </div>
         </article>
       </section>
 
       <section class="card" data-testid="public-timeline">
         <div class="section-head">
-          <h2>关键过程</h2>
+          <h2>追溯时间线</h2>
           <span>{{ detail.timeline.length }} 个节点</span>
         </div>
 
@@ -249,42 +276,31 @@ function shortSummary(text) {
           {{ showFullTimeline ? '收起更多节点' : '查看更多关键节点' }}
         </button>
       </section>
-
-      <section class="card">
-        <div class="section-head">
-          <h2>质检摘要</h2>
-          <span>{{ detail.quality.resultLabel }}</span>
-        </div>
-        <p class="section-copy">{{ detail.quality.summary }}</p>
-        <div class="pill-row">
-          <span v-for="item in detail.quality.highlights" :key="item">{{ item }}</span>
-        </div>
-        <p class="company-copy">{{ detail.company.address }}</p>
-      </section>
     </template>
   </div>
 </template>
 
 <style scoped>
 .trace-page {
-  max-width: 760px;
+  max-width: 880px;
   margin: 0 auto;
-  padding: 16px 14px 40px;
+  padding: 18px 14px 40px;
 }
 
 .loading-card,
 .error-card,
 .risk-banner,
-.hero-card,
+.result-card,
 .card {
   border-radius: 24px;
-  box-shadow: 0 18px 36px rgba(25, 55, 44, 0.08);
+  box-shadow: var(--trace-shadow);
 }
 
 .loading-card,
 .error-card,
+.result-card,
 .card {
-  background: rgba(255, 255, 255, 0.94);
+  background: var(--trace-surface);
 }
 
 .loading-card,
@@ -294,7 +310,7 @@ function shortSummary(text) {
   justify-content: center;
   min-height: 180px;
   padding: 20px;
-  color: #466257;
+  color: var(--trace-text-soft);
   text-align: center;
 }
 
@@ -304,18 +320,18 @@ function shortSummary(text) {
 }
 
 .risk-banner.warning {
-  background: #fff5df;
-  color: #7a4d00;
+  background: #fff4dd;
+  color: #8a5a12;
 }
 
 .risk-banner.pending {
-  background: #eef5ff;
-  color: #2a4f7f;
+  background: #eef6ff;
+  color: #2d6eb2;
 }
 
 .risk-banner.danger {
   background: #fdeceb;
-  color: #8b241f;
+  color: #a0342c;
 }
 
 .risk-tag,
@@ -326,11 +342,6 @@ function shortSummary(text) {
   text-transform: uppercase;
 }
 
-.risk-tag {
-  color: currentColor;
-  opacity: 0.78;
-}
-
 .risk-meta {
   display: flex;
   flex-wrap: wrap;
@@ -339,29 +350,37 @@ function shortSummary(text) {
   font-size: 13px;
 }
 
-.hero-card {
-  overflow: hidden;
-  background:
-    radial-gradient(circle at top right, rgba(245, 210, 127, 0.34), transparent 26%),
-    linear-gradient(160deg, #17362e, #285245 70%, #eff6eb 180%);
-  color: #fff7ea;
+.result-card {
+  padding: 20px;
 }
 
-.hero-image-wrap {
-  padding: 18px 18px 0;
+.result-head {
+  display: grid;
+  grid-template-columns: 1.3fr 0.7fr;
+  gap: 16px;
 }
 
-.hero-image {
-  width: 100%;
-  height: min(48vw, 280px);
-  max-height: 280px;
+.product-block {
+  display: grid;
+  grid-template-columns: 136px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.product-image {
+  width: 136px;
+  height: 136px;
+  border-radius: 22px;
   object-fit: cover;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.16);
+  background: linear-gradient(160deg, #eef7ff, #dbeeff);
 }
 
-.hero-copy {
-  padding: 18px 18px 24px;
+.product-copy {
+  min-width: 0;
+}
+
+.eyebrow {
+  color: var(--trace-text-soft);
 }
 
 h1,
@@ -373,59 +392,78 @@ p {
 
 h1 {
   margin-bottom: 10px;
+  color: var(--trace-text);
   font-size: 30px;
 }
 
-.hero-verdict {
+.verdict-title {
   margin-bottom: 8px;
-  font-size: 18px;
+  color: var(--trace-primary-deep);
+  font-size: 19px;
   font-weight: 700;
 }
 
-.slogan {
-  margin-bottom: 18px;
+.verdict-copy,
+.section-copy,
+.timeline-meta,
+.timeline-summary,
+.recent-card p,
+.recent-card small {
+  color: #4a6b90;
   line-height: 1.7;
-  color: rgba(255, 247, 234, 0.92);
 }
 
-.verdict-row,
+.result-side,
 .summary-grid,
-.info-list {
+.info-grid {
   display: grid;
   gap: 12px;
 }
 
-.verdict-row {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  margin-bottom: 14px;
-}
-
-.verdict-pill,
+.result-pill,
 .summary-grid div,
-.info-list div {
+.info-grid div,
+.recent-card {
   padding: 14px;
   border-radius: 18px;
+  background: var(--trace-surface-soft);
+  border: 1px solid var(--trace-border);
 }
 
-.verdict-pill {
-  background: rgba(255, 255, 255, 0.12);
+.result-pill.highlight {
+  background: var(--trace-primary-soft);
 }
 
-.verdict-pill.status {
-  border: 1px solid rgba(255, 255, 255, 0.18);
+.result-pill span,
+.summary-grid span,
+.info-grid span,
+.recent-card span,
+.section-head span {
+  display: block;
+  color: var(--trace-text-soft);
+  font-size: 12px;
 }
 
-.verdict-pill.quality {
-  background: rgba(242, 204, 105, 0.18);
+.result-pill strong,
+.summary-grid strong,
+.info-grid strong,
+.recent-card strong {
+  display: block;
+  margin-top: 6px;
+  color: var(--trace-text);
+  line-height: 1.5;
 }
 
 .summary-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 16px;
 }
 
-.summary-grid div,
-.info-list div {
-  background: rgba(255, 255, 255, 0.08);
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 14px;
 }
 
 .card {
@@ -433,9 +471,8 @@ h1 {
   padding: 20px;
 }
 
-.card-grid {
-  display: grid;
-  gap: 14px;
+.detail-grid .card {
+  margin-top: 0;
 }
 
 .section-head,
@@ -446,35 +483,10 @@ h1 {
   gap: 12px;
 }
 
-.section-head h2 {
+.section-head h2,
+.timeline-body h3 {
   margin-bottom: 0;
-  color: #183228;
-}
-
-.section-head span,
-.verdict-pill span,
-.summary-grid span,
-.info-list span {
-  display: block;
-  color: #688176;
-  font-size: 12px;
-}
-
-.verdict-pill strong,
-.summary-grid strong,
-.info-list strong {
-  display: block;
-  margin-top: 6px;
-  line-height: 1.5;
-}
-
-.section-copy,
-.timeline-summary,
-.timeline-meta,
-.tips-list li,
-.company-copy {
-  color: #446055;
-  line-height: 1.7;
+  color: var(--trace-text);
 }
 
 .pill-row {
@@ -490,9 +502,13 @@ h1 {
   min-height: 30px;
   padding: 0 12px;
   border-radius: 999px;
-  background: rgba(45, 107, 86, 0.1);
-  color: #225241;
+  background: var(--trace-primary-soft);
+  color: var(--trace-primary-deep);
   font-size: 13px;
+}
+
+.recent-card {
+  margin-top: 16px;
 }
 
 .timeline {
@@ -513,19 +529,14 @@ h1 {
   height: 14px;
   margin-top: 5px;
   border-radius: 999px;
-  background: #2d6b56;
-  box-shadow: 0 0 0 4px rgba(45, 107, 86, 0.12);
+  background: var(--trace-primary);
+  box-shadow: 0 0 0 4px rgba(48, 149, 246, 0.14);
 }
 
-.timeline-stage {
-  margin-bottom: 4px;
-  color: #688176;
+.timeline-stage,
+.timeline-top span {
+  color: var(--trace-text-soft);
   font-size: 12px;
-}
-
-.timeline-body h3 {
-  margin-bottom: 8px;
-  color: #19362c;
 }
 
 .timeline-image {
@@ -536,39 +547,39 @@ h1 {
   max-height: 220px;
 }
 
-.tips-list {
-  margin: 18px 0 0;
-  padding-left: 18px;
-}
-
-.tips-list.compact {
-  margin-top: 12px;
-}
-
 .toggle-button {
   margin-top: 8px;
   min-height: 42px;
   padding: 0 18px;
-  border: 0;
+  border: 1px solid var(--trace-border);
   border-radius: 999px;
-  background: rgba(36, 88, 70, 0.08);
-  color: #245846;
+  background: #ffffff;
+  color: var(--trace-primary-deep);
 }
 
-@media (min-width: 760px) {
-  .card-grid {
+@media (max-width: 720px) {
+  .result-head,
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 520px) {
-  .verdict-row,
-  .summary-grid,
-  .info-list {
+@media (max-width: 540px) {
+  .trace-page {
+    padding-inline: 12px;
+  }
+
+  .product-block,
+  .summary-grid {
     grid-template-columns: 1fr;
   }
 
-  .hero-image {
+  .product-image {
+    width: 100%;
     height: 220px;
   }
 

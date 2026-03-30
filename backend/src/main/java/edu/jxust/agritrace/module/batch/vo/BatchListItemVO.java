@@ -17,6 +17,15 @@ public record BatchListItemVO(
         String qrStatus,
         String qualityStatus,
         List<BatchActionVO> actions,
-        List<String> quickTags
+        List<String> quickTags,
+        String lastUpdatedAt,
+        String latestTraceTime,
+        Long assigneeUserId,
+        String assigneeName,
+        String assignedAt,
+        String taskStatus,
+        String taskStatusLabel,
+        String taskCompletedAt,
+        boolean todayCompleted
 ) {
 }

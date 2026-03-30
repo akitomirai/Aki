@@ -1,9 +1,10 @@
 import { expect, test } from '@playwright/test'
-import { createDraftBatch } from '../helpers/demo-api.mjs'
+import { createDraftBatch, seedAdminSession } from '../helpers/demo-api.mjs'
 import { adminBaseUrl, apiBaseUrl, saveNamedScreenshot } from '../helpers/paths.mjs'
 
 test('admin batch list and workbench support the main smoke path', async ({ page, request }) => {
   const { batchCode, batchId } = await createDraftBatch(request)
+  const login = await seedAdminSession(page, request)
 
   await page.goto(`${adminBaseUrl}/batches`)
   await expect(page.getByTestId('batch-list-page')).toBeVisible()
@@ -22,11 +23,15 @@ test('admin batch list and workbench support the main smoke path', async ({ page
   await expect(page.getByTestId('workbench-action-groups')).toBeVisible()
 
   await page.getByTestId('workbench-qr-action-0').click()
-  await expect(page.getByTestId('workbench-qr-status')).toContainText('Generated')
+  await expect(page.getByTestId('workbench-qr-status')).toContainText('已生成')
   await expect(page.getByTestId('workbench-public-preview')).toBeVisible()
   await saveNamedScreenshot(page, 'round8-admin-workbench-after-qr')
 
-  const workbenchResponse = await request.get(`${apiBaseUrl}/batches/${batchId}`)
+  const workbenchResponse = await request.get(`${apiBaseUrl}/batches/${batchId}`, {
+    headers: {
+      Authorization: `Bearer ${login.token}`
+    }
+  })
   expect(workbenchResponse.ok()).toBeTruthy()
   const workbenchPayload = await workbenchResponse.json()
   expect(workbenchPayload.data.qr.generated).toBe(true)

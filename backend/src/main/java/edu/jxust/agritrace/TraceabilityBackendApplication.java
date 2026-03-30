@@ -8,7 +8,10 @@ import org.springframework.boot.autoconfigure.security.servlet.UserDetailsServic
 
 @SpringBootApplication(exclude = UserDetailsServiceAutoConfiguration.class)
 @ConfigurationPropertiesScan
-@MapperScan("edu.jxust.agritrace.module.batch.mapper")
+@MapperScan({
+        "edu.jxust.agritrace.module.batch.mapper",
+        "edu.jxust.agritrace.module.auth.mapper"
+})
 public class TraceabilityBackendApplication {
 
     public static void main(String[] args) {
