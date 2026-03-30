@@ -763,6 +763,8 @@ public class BatchServiceImpl implements BatchService {
         QualityReportEntity latestQuality = latestQuality(batch);
         TraceRecordEntity latestTrace = latestTrace(batch);
         AuthUserSession currentUser = currentUser();
+        String effectiveTaskStatus = resolveEffectiveTaskStatus(batch);
+        LocalDateTime effectiveTaskCompletedAt = resolveEffectiveTaskCompletedAt(batch);
         return new BatchListItemVO(
                 batch.getId(),
                 batch.getBatchCode(),
@@ -784,9 +786,9 @@ public class BatchServiceImpl implements BatchService {
                 batch.getAssigneeUserId(),
                 batch.getAssigneeName(),
                 formatDateTime(batch.getAssignedAt()),
-                defaultValue(batch.getTaskStatus(), "PENDING"),
-                toTaskStatusLabel(batch.getTaskStatus()),
-                formatDateTime(batch.getTaskCompletedAt()),
+                effectiveTaskStatus,
+                toTaskStatusLabel(effectiveTaskStatus),
+                formatDateTime(effectiveTaskCompletedAt),
                 isTaskCompletedToday(batch, currentUser)
         );
     }
@@ -805,6 +807,8 @@ public class BatchServiceImpl implements BatchService {
                 .map(this::toStatusLogVO)
                 .toList();
         QualityReportVO latestQuality = sortedQualityReports.isEmpty() ? null : sortedQualityReports.get(0);
+        String effectiveTaskStatus = resolveEffectiveTaskStatus(batch);
+        LocalDateTime effectiveTaskCompletedAt = resolveEffectiveTaskCompletedAt(batch);
 
         return new BatchWorkbenchVO(
                 new BatchOverviewVO(
@@ -821,9 +825,9 @@ public class BatchServiceImpl implements BatchService {
                         batch.getAssigneeUserId(),
                         batch.getAssigneeName(),
                         formatDateTime(batch.getAssignedAt()),
-                        defaultValue(batch.getTaskStatus(), "PENDING"),
-                        toTaskStatusLabel(batch.getTaskStatus()),
-                        formatDateTime(batch.getTaskCompletedAt()),
+                        effectiveTaskStatus,
+                        toTaskStatusLabel(effectiveTaskStatus),
+                        formatDateTime(effectiveTaskCompletedAt),
                         isTaskCompletedToday(batch)
                 ),
                 new ProductSummaryVO(
@@ -1268,6 +1272,24 @@ public class BatchServiceImpl implements BatchService {
             case "COMPLETED" -> "今日已完成";
             default -> "待处理";
         };
+    }
+
+    private String resolveEffectiveTaskStatus(BatchEntity batch) {
+        if (batch == null) {
+            return "PENDING";
+        }
+        String rawStatus = defaultValue(batch.getTaskStatus(), "PENDING").toUpperCase(Locale.ROOT);
+        if ("DRAFT".equals(rawStatus)) {
+            return "DRAFT";
+        }
+        if (isTaskCompletedToday(batch)) {
+            return "COMPLETED";
+        }
+        return "PENDING";
+    }
+
+    private LocalDateTime resolveEffectiveTaskCompletedAt(BatchEntity batch) {
+        return isTaskCompletedToday(batch) ? batch.getTaskCompletedAt() : null;
     }
 
     private boolean isTaskCompletedToday(BatchEntity batch) {
