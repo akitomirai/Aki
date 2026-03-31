@@ -3,6 +3,7 @@ DROP TABLE IF EXISTS batch_status_log;
 DROP TABLE IF EXISTS qr_query_log;
 DROP TABLE IF EXISTS qr_code;
 DROP TABLE IF EXISTS biz_attachment;
+DROP TABLE IF EXISTS operation_audit_log;
 DROP TABLE IF EXISTS quality_report;
 DROP TABLE IF EXISTS trace_event;
 DROP TABLE IF EXISTS batch_field_draft;
@@ -30,9 +31,28 @@ CREATE TABLE sys_user (
   role_code VARCHAR(32) NOT NULL,
   company_id BIGINT,
   status TINYINT DEFAULT 1,
+  need_change_password TINYINT DEFAULT 0,
+  password_updated_at TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_sys_user_company FOREIGN KEY (company_id) REFERENCES org_company(id)
+);
+
+CREATE TABLE operation_audit_log (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  operator_user_id BIGINT,
+  operator_name VARCHAR(128),
+  role_code VARCHAR(32),
+  company_id BIGINT,
+  action_type VARCHAR(64) NOT NULL,
+  target_type VARCHAR(64) NOT NULL,
+  target_id BIGINT,
+  target_name VARCHAR(255),
+  result VARCHAR(16) NOT NULL,
+  summary VARCHAR(1000),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_operation_audit_log_user FOREIGN KEY (operator_user_id) REFERENCES sys_user(id),
+  CONSTRAINT fk_operation_audit_log_company FOREIGN KEY (company_id) REFERENCES org_company(id)
 );
 
 CREATE TABLE base_product (

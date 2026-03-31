@@ -18,6 +18,11 @@ export function useAdminLayout() {
   })
 
   const activeMenu = computed(() => {
+    if (route.path.startsWith('/users')) return '/users'
+    if (route.path.startsWith('/logs')) return '/logs'
+    if (route.path.startsWith('/qr')) return '/qr'
+    if (route.path.startsWith('/quality')) return '/quality'
+    if (route.path.startsWith('/risk')) return '/risk'
     if (route.path.startsWith('/products')) return '/products'
     if (route.path.startsWith('/companies')) return '/companies'
     if (route.path.startsWith('/batches')) {
@@ -54,6 +59,18 @@ export function useAdminLayout() {
       })
     }
 
+    const systemItems = []
+    if (hasRoleAccess(role, ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN'])) {
+      systemItems.push({ key: '/users', label: '用户管理', to: '/users' })
+      systemItems.push({ key: '/logs', label: '操作日志', to: '/logs' })
+    }
+    if (systemItems.length) {
+      sections.push({
+        title: '系统管理',
+        items: systemItems
+      })
+    }
+
     sections.push({
       title: '业务管理',
       items: [
@@ -63,6 +80,7 @@ export function useAdminLayout() {
 
     const qualityItems = []
     if (hasRoleAccess(role, ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN', 'REGULATOR'])) {
+      qualityItems.push({ key: '/qr', label: '二维码与发布', to: '/qr' })
       qualityItems.push({ key: '/quality', label: '质检待办', to: '/quality' })
       qualityItems.push({ key: '/risk', label: '风险处理', to: '/risk' })
     }

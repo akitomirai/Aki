@@ -1,6 +1,8 @@
 package edu.jxust.agritrace.module.batch.mapper.po;
 
+import com.baomidou.mybatisplus.annotation.FieldStrategy;
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
@@ -15,9 +17,12 @@ public class TraceBatchPO {
     private String batchCode;
     private Long productId;
     private Long companyId;
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private Long assigneeUserId;
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private LocalDateTime assignedAt;
     private String taskStatus;
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private LocalDateTime taskCompletedAt;
     private String originPlace;
     private LocalDate startDate;

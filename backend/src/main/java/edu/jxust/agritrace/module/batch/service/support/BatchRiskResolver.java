@@ -25,6 +25,7 @@ public class BatchRiskResolver {
                 return new RiskSnapshot(
                         true,
                         "PROCESSING",
+                        TraceDisplayLabels.riskStatus("PROCESSING"),
                         "warning",
                         "召回处理中",
                         defaultReason(latestRiskAction.reason(), batch.getStatusReason(), "该批次已召回，当前正在处理中。"),
@@ -36,6 +37,7 @@ public class BatchRiskResolver {
                 return new RiskSnapshot(
                         true,
                         "RECTIFIED",
+                        TraceDisplayLabels.riskStatus("RECTIFIED"),
                         "pending",
                         "召回整改已留痕",
                         defaultReason(latestRiskAction.reason(), batch.getStatusReason(), "召回批次已记录整改信息。"),
@@ -46,6 +48,7 @@ public class BatchRiskResolver {
             return new RiskSnapshot(
                     true,
                     "RECALLED",
+                    TraceDisplayLabels.riskStatus("RECALLED"),
                     "danger",
                     "批次已召回",
                     defaultReason(batch.getStatusReason(), "该批次已召回，请立即停止销售和食用。"),
@@ -59,6 +62,7 @@ public class BatchRiskResolver {
                 return new RiskSnapshot(
                         true,
                         "PROCESSING",
+                        TraceDisplayLabels.riskStatus("PROCESSING"),
                         "pending",
                         "异常处理中",
                         defaultReason(latestRiskAction.reason(), batch.getStatusReason(), "该冻结批次当前正在处理中。"),
@@ -70,6 +74,7 @@ public class BatchRiskResolver {
                 return new RiskSnapshot(
                         true,
                         "RECTIFIED",
+                        TraceDisplayLabels.riskStatus("RECTIFIED"),
                         "pending",
                         "整改已完成",
                         defaultReason(latestRiskAction.reason(), batch.getStatusReason(), "整改已完成，等待恢复流通复核。"),
@@ -80,6 +85,7 @@ public class BatchRiskResolver {
             return new RiskSnapshot(
                     true,
                     "FROZEN",
+                    TraceDisplayLabels.riskStatus("FROZEN"),
                     "warning",
                     "批次已冻结",
                     defaultReason(batch.getStatusReason(), "该批次因异常核查暂时冻结。"),
@@ -92,6 +98,7 @@ public class BatchRiskResolver {
             return new RiskSnapshot(
                     true,
                     "RISK_PENDING",
+                    TraceDisplayLabels.riskStatus("RISK_PENDING"),
                     "warning",
                     "质检异常待处理",
                     "最新质检结果未通过，批次在进一步处理前不建议对外发布。",
@@ -104,6 +111,7 @@ public class BatchRiskResolver {
             return new RiskSnapshot(
                     false,
                     "PENDING",
+                    TraceDisplayLabels.riskStatus("PENDING"),
                     "pending",
                     "批次尚未发布",
                     defaultReason(batch.getStatusReason(), "该批次仍处于草稿阶段，尚未对外发布。"),
@@ -115,6 +123,7 @@ public class BatchRiskResolver {
         return new RiskSnapshot(
                 false,
                 "NORMAL",
+                TraceDisplayLabels.riskStatus("NORMAL"),
                 "normal",
                 "当前无风险提醒",
                 "该批次当前处于正常公开查询状态。",
@@ -150,6 +159,10 @@ public class BatchRiskResolver {
         if (batch.getStatus() != BatchStatus.FROZEN) {
             return false;
         }
+        BatchRiskActionEntity latestRiskAction = latestRiskActionAfterAbnormal(batch);
+        if (latestRiskAction == null || latestRiskAction.actionType() != RiskActionType.RECTIFIED) {
+            return false;
+        }
         LocalDateTime abnormalAt = abnormalAt(batch);
         List<BatchRiskActionEntity> latestActions = batch.getRiskActions().stream()
                 .filter(item -> abnormalAt == null || !item.createdAt().isBefore(abnormalAt))
@@ -177,13 +190,7 @@ public class BatchRiskResolver {
     }
 
     public String currentHandlingStageLabel(BatchEntity batch) {
-        return switch (currentHandlingStage(batch)) {
-            case "PROCESSING" -> "处理中";
-            case "RECTIFIED" -> "已完成整改";
-            case "FROZEN" -> "已冻结";
-            case "RECALLED" -> "已召回";
-            default -> "当前无处理动作";
-        };
+        return TraceDisplayLabels.riskStatus(currentHandlingStage(batch));
     }
 
     private BatchRiskActionEntity latestRiskActionAfterAbnormal(BatchEntity batch) {
@@ -221,6 +228,7 @@ public class BatchRiskResolver {
     public record RiskSnapshot(
             boolean hasRisk,
             String status,
+            String statusLabel,
             String riskLevel,
             String title,
             String reason,

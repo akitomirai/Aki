@@ -7,6 +7,9 @@ public record BatchTaskSummaryVO(
         String taskStatus,
         String taskStatusLabel,
         String taskCompletedAt,
-        boolean todayCompleted
+        boolean todayCompleted,
+        boolean draftPending,
+        String draftStatusLabel,
+        String draftUpdatedAt
 ) {
 }

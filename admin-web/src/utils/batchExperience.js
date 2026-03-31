@@ -154,6 +154,33 @@ export function getFriendlyErrorMessage(error, fallback = '操作未完成，请
   if (!raw) {
     return fallback
   }
+  if (/current user is required/i.test(raw)) {
+    return '当前登录状态已失效，请重新登录后再试。'
+  }
+  if (/batch is not assigned to the current operator/i.test(raw)) {
+    return '当前批次未分配给你，无法查看或提交。'
+  }
+  if (/current user cannot manage batch assignment/i.test(raw)) {
+    return '你没有批次任务分配权限。'
+  }
+  if (/enterprise admin can only manage assignments within its company/i.test(raw)) {
+    return '你无权改派该批次，只能管理本企业批次的任务分配。'
+  }
+  if (/enterprise admin can only query operators within its company/i.test(raw)) {
+    return '你无权查看其他企业的操作员列表。'
+  }
+  if (/enterprise admin can only assign its own operators/i.test(raw)) {
+    return '你只能分配本企业的操作员。'
+  }
+  if (/selected operator is not available/i.test(raw)) {
+    return '所选操作员不存在或已停用。'
+  }
+  if (/selected user is not an operator/i.test(raw)) {
+    return '所选用户不是可分配的操作员。'
+  }
+  if (/selected operator does not belong to the batch company/i.test(raw)) {
+    return '所选操作员不属于当前批次所属企业。'
+  }
   if (/product does not belong/i.test(raw)) {
     return '所选产品不属于当前企业，请重新选择。'
   }

@@ -17,6 +17,8 @@ public class SysUserPO {
     private String roleCode;
     private Long companyId;
     private Integer status;
+    private Integer needChangePassword;
+    private LocalDateTime passwordUpdatedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -74,6 +76,22 @@ public class SysUserPO {
 
     public void setStatus(Integer status) {
         this.status = status;
+    }
+
+    public Integer getNeedChangePassword() {
+        return needChangePassword;
+    }
+
+    public void setNeedChangePassword(Integer needChangePassword) {
+        this.needChangePassword = needChangePassword;
+    }
+
+    public LocalDateTime getPasswordUpdatedAt() {
+        return passwordUpdatedAt;
+    }
+
+    public void setPasswordUpdatedAt(LocalDateTime passwordUpdatedAt) {
+        this.passwordUpdatedAt = passwordUpdatedAt;
     }
 
     public LocalDateTime getCreatedAt() {

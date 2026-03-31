@@ -20,6 +20,7 @@ import {
   removeFieldDraft as removeLocalFieldDraft,
   saveFieldDraft as saveLocalFieldDraft
 } from '../utils/fieldDrafts'
+import { resolveTaskStatusText, resolveTodayStatusText, taskFilterOptions } from '../utils/statusPresentation'
 
 const MAX_IMAGE_COUNT = 9
 const IMAGE_BUSINESS_TYPE = 'trace-image'
@@ -27,12 +28,6 @@ const IMAGE_BUSINESS_TYPE = 'trace-image'
 const listModeOptions = [
   { value: 'todo', label: '待办批次' },
   { value: 'drafts', label: '我的草稿' }
-]
-
-const taskFilterOptions = [
-  { value: 'PENDING', label: '待处理' },
-  { value: 'DRAFT', label: '草稿中' },
-  { value: 'DONE_TODAY', label: '今日已完成' }
 ]
 
 let imageSeed = 0
@@ -112,6 +107,7 @@ const currentCompanyName = computed(() => selectedBatch.value?.companyName || ba
 const currentStatusLabel = computed(() => selectedBatch.value?.statusLabel || batchDetail.value?.status?.label || '待处理')
 const currentTaskStatusLabel = computed(() => resolveTaskStatusLabel({
   hasDraft: Boolean(draftMeta.value),
+  draftStatusLabel: batchDetail.value?.task?.draftStatusLabel || selectedBatch.value?.draftStatusLabel,
   todayCompleted: selectedBatch.value?.todayCompleted,
   taskStatus: selectedBatch.value?.taskStatus || batchDetail.value?.task?.taskStatus,
   taskStatusLabel: selectedBatch.value?.taskStatusLabel || batchDetail.value?.task?.taskStatusLabel
@@ -407,7 +403,13 @@ async function loadCurrentDraft(batchId) {
       cacheLocalDraft(nextDraft)
       return nextDraft
     }
+    removeLocalFieldDraft(authStore.user, batchId)
+    return null
   } catch (error) {
+    if (error?.response?.status === 401 || error?.response?.status === 403 || error?.response?.status === 404) {
+      removeLocalFieldDraft(authStore.user, batchId)
+      return null
+    }
     // Fall back to local cache when the server draft endpoint is temporarily unavailable.
   }
   return normalizeLocalDraft(getLocalFieldDraft(authStore.user, batchId))
@@ -434,16 +436,15 @@ function compareTodoBatch(left, right) {
 }
 
 function getTaskLabel(batch) {
-  if (batch.draft) return '鑽夌寰呯画'
-  if (batch.status === 'DRAFT') return '寰呰ˉ鐜板満璁板綍'
-  if (batch.status === 'FROZEN') return '风险处理中'
-  return '可继续补录'
+  if (batch.draft) return '草稿待续'
+  if (batch.status === 'FROZEN') return '已冻结'
+  return '待处理'
 }
 
 function getTaskCopy(batch) {
   if (batch.draft) return `上次已保存到 ${formatDraftTime(batch.draft.updatedAt)}，可以继续补图、补说明再提交。`
-  if (batch.status === 'DRAFT') return '批次还在待完善阶段，现场记录提交后会直接同步到工作台。'
-  if (batch.status === 'FROZEN') return '当前批次处于处理阶段，补录现场信息时建议先核对上一条记录。'
+  if (batch.status === 'DRAFT') return '当前批次还在草稿阶段，补录后会直接同步到工作台。'
+  if (batch.status === 'FROZEN') return '当前批次已冻结，补录现场信息前请先核对风险处理进度。'
   return '批次已发布，仍可继续补录新的现场记录和图片。'
 }
 
@@ -454,9 +455,7 @@ function taskToneClass(batch) {
 }
 
 function resolveTaskStatusLabel(batch) {
-  if (batch?.hasDraft || String(batch?.taskStatus || '').toUpperCase() === 'DRAFT') return '草稿中'
-  if (batch?.todayCompleted || String(batch?.taskStatus || '').toUpperCase() === 'COMPLETED') return '今日已完成'
-  return batch?.taskStatusLabel || '待处理'
+  return resolveTaskStatusText(batch)
 }
 
 function formatDraftTime(value) {
@@ -928,7 +927,7 @@ async function submitFieldRecord() {
             <strong>{{ summaryStats.pendingCount }}</strong>
           </article>
           <article>
-            <small>草稿中</small>
+            <small>草稿待续</small>
             <strong>{{ summaryStats.draftCount }}</strong>
           </article>
           <article>
@@ -982,7 +981,7 @@ async function submitFieldRecord() {
             </div>
             <div class="task-flags">
               <span class="meta-tag">{{ item.hasDraft ? '有草稿' : '无草稿' }}</span>
-              <span class="meta-tag">{{ item.todayCompleted ? '今日已完成' : '今日未完成' }}</span>
+              <span class="meta-tag">{{ resolveTodayStatusText(item.todayCompleted) }}</span>
               <span v-if="item.assignedAt" class="meta-tag">分配于 {{ formatDraftTime(item.assignedAt) }}</span>
             </div>
             <dl class="task-meta">
@@ -1014,7 +1013,7 @@ async function submitFieldRecord() {
 
         <section v-else class="panel-card empty-card">
           <h2>当前筛选下没有任务</h2>
-          <p>可以切换筛选查看草稿中或今日已完成的批次。</p>
+          <p>可以切换筛选查看草稿待续或今日已完成的批次。</p>
         </section>
       </template>
 
@@ -1026,7 +1025,7 @@ async function submitFieldRecord() {
                 <p class="task-code">{{ item.batchCode }}</p>
                 <h2>{{ item.productName }}</h2>
               </div>
-              <span class="task-pill draft">草稿中</span>
+              <span class="task-pill draft">草稿待续</span>
             </div>
             <dl class="task-meta">
               <div>
@@ -1078,7 +1077,6 @@ async function submitFieldRecord() {
             <span class="pill">{{ currentTaskStatusLabel }}</span>
             <span class="pill subtle">{{ currentNode }}</span>
             <span v-if="draftMeta" class="pill draft">草稿续写</span>
-            <span v-if="selectedBatch?.todayCompleted" class="pill success">今日已完成</span>
           </div>
         </div>
       </header>
@@ -1135,108 +1133,111 @@ async function submitFieldRecord() {
           <button class="ghost-button compact danger" @click="discardDraft">删除草稿</button>
         </section>
 
-        <section class="shell-card">
-          <div class="section-head">
-            <div>
-              <h2>选择环节</h2>
-              <p>先点一个最贴近现场状态的环节，再补一句说明和图片就能继续提交。</p>
-            </div>
-            <span class="pill">{{ formatStageLabel(traceForm.stage) }}</span>
-          </div>
-          <div class="stage-grid">
-            <button
-              v-for="item in stageOptions"
-              :key="item.value"
-              class="stage-chip"
-              :class="{ active: traceForm.stage === item.value }"
-              @click="setStage(item.value)"
-            >
-              {{ item.label }}
-            </button>
-          </div>
-        </section>
-
-        <section ref="formSectionRef" class="shell-card form-card">
-          <label>
-            <span>记录标题</span>
-            <input v-model.trim="traceForm.title" type="text" placeholder="系统已带入默认标题，也可以手动调整">
-          </label>
-
-          <label class="full-width">
-            <span>现场说明</span>
-            <textarea
-              v-model.trim="traceForm.summary"
-              rows="4"
-              maxlength="180"
-              placeholder="例如：已完成分拣与装筐，现场照片已补齐，准备转入下一环节。"
-            />
-          </label>
-
-          <label>
-            <span>记录时间</span>
-            <input v-model="traceForm.eventTime" type="datetime-local">
-          </label>
-
-          <label>
-            <span>地点</span>
-            <input v-model.trim="traceForm.location" type="text" placeholder="填写当前作业地点">
-          </label>
-
-          <label>
-            <span>操作人</span>
-            <input v-model.trim="traceForm.operatorName" type="text" placeholder="填写本次操作人">
-          </label>
-
-          <label class="switch-row">
-            <input v-model="traceForm.visibleToConsumer" type="checkbox">
-            <span>同步展示到消费者追溯页</span>
-          </label>
-
-          <div class="quick-locations full-width">
-            <button
-              v-for="location in currentProfile.locations"
-              :key="location"
-              class="ghost-chip"
-              @click="useLocation(location)"
-            >
-              {{ location }}
-            </button>
-          </div>
-
-          <label class="full-width">
-            <span>现场图片</span>
-            <div class="upload-box">
-              <input type="file" accept="image/*" capture="environment" multiple @change="handleImageChange">
-              <small>{{ uploadStatusText }}</small>
-            </div>
-          </label>
-
-          <div v-if="imageItems.length" class="image-queue full-width" data-testid="field-image-queue">
-            <article v-for="(item, index) in imageItems" :key="item.clientId" class="image-row" :class="`is-${item.status}`">
-              <div class="image-preview">
-                <img v-if="item.previewUrl" :src="item.previewUrl" :alt="fileLabel(item)">
-                <div v-else class="image-fallback">{{ index + 1 }}</div>
+        <fieldset class="entry-fieldset" :disabled="detailLoading">
+          <section class="shell-card">
+            <div class="section-head">
+              <div>
+                <h2>选择环节</h2>
+                <p>先点一个最贴近现场状态的环节，再补一句说明和图片就能继续提交。</p>
               </div>
-              <div class="image-body">
-                <div class="image-head">
-                  <strong>{{ index + 1 }}. {{ fileLabel(item) }}</strong>
-                  <span class="image-state" :class="item.status">{{ imageStatusLabel(item.status) }}</span>
-                </div>
-                <div v-if="item.status === 'uploading'" class="progress-track">
-                  <span class="progress-value" :style="{ width: `${item.progress}%` }"></span>
-                </div>
-                <p v-if="item.errorMessage" class="image-error">{{ item.errorMessage }}</p>
-                <small>{{ formatFileSize(item.size) }}</small>
-                <div class="image-actions">
-                  <button class="ghost-chip" :disabled="index === 0 || item.status === 'uploading'" @click="moveImage(item.clientId, -1)">上移</button>
-                  <button class="ghost-chip" :disabled="index === imageItems.length - 1 || item.status === 'uploading'" @click="moveImage(item.clientId, 1)">下移</button>
-                  <button v-if="item.status === 'failed'" class="ghost-chip warning" @click="retryImageUpload(item.clientId)">重试</button>
-                  <button class="ghost-chip danger" @click="removeImage(item.clientId)">删除</button>
-                </div>
+              <span class="pill">{{ formatStageLabel(traceForm.stage) }}</span>
+            </div>
+            <div class="stage-grid">
+              <button
+                v-for="item in stageOptions"
+                :key="item.value"
+                class="stage-chip"
+                :class="{ active: traceForm.stage === item.value }"
+                @click="setStage(item.value)"
+              >
+                {{ item.label }}
+              </button>
+            </div>
+          </section>
+
+          <section ref="formSectionRef" class="shell-card form-card">
+            <p v-if="detailLoading" class="field-note">正在载入批次详情，表单就绪后再开始填写。</p>
+            <label>
+              <span>记录标题</span>
+              <input v-model.trim="traceForm.title" type="text" placeholder="系统已带入默认标题，也可以手动调整">
+            </label>
+
+            <label class="full-width">
+              <span>现场说明</span>
+              <textarea
+                v-model.trim="traceForm.summary"
+                rows="4"
+                maxlength="180"
+                placeholder="例如：已完成分拣与装筐，现场照片已补齐，准备转入下一环节。"
+              />
+            </label>
+
+            <label>
+              <span>记录时间</span>
+              <input v-model="traceForm.eventTime" type="datetime-local">
+            </label>
+
+            <label>
+              <span>地点</span>
+              <input v-model.trim="traceForm.location" type="text" placeholder="填写当前作业地点">
+            </label>
+
+            <label>
+              <span>操作人</span>
+              <input v-model.trim="traceForm.operatorName" type="text" placeholder="填写本次操作人">
+            </label>
+
+            <label class="switch-row">
+              <input v-model="traceForm.visibleToConsumer" type="checkbox">
+              <span>同步展示到消费者追溯页</span>
+            </label>
+
+            <div class="quick-locations full-width">
+              <button
+                v-for="location in currentProfile.locations"
+                :key="location"
+                class="ghost-chip"
+                @click="useLocation(location)"
+              >
+                {{ location }}
+              </button>
+            </div>
+
+            <label class="full-width">
+              <span>现场图片</span>
+              <div class="upload-box">
+                <input type="file" accept="image/*" capture="environment" multiple @change="handleImageChange">
+                <small>{{ uploadStatusText }}</small>
               </div>
-            </article>
-          </div>
-        </section>
+            </label>
+
+            <div v-if="imageItems.length" class="image-queue full-width" data-testid="field-image-queue">
+              <article v-for="(item, index) in imageItems" :key="item.clientId" class="image-row" :class="`is-${item.status}`">
+                <div class="image-preview">
+                  <img v-if="item.previewUrl" :src="item.previewUrl" :alt="fileLabel(item)">
+                  <div v-else class="image-fallback">{{ index + 1 }}</div>
+                </div>
+                <div class="image-body">
+                  <div class="image-head">
+                    <strong>{{ index + 1 }}. {{ fileLabel(item) }}</strong>
+                    <span class="image-state" :class="item.status">{{ imageStatusLabel(item.status) }}</span>
+                  </div>
+                  <div v-if="item.status === 'uploading'" class="progress-track">
+                    <span class="progress-value" :style="{ width: `${item.progress}%` }"></span>
+                  </div>
+                  <p v-if="item.errorMessage" class="image-error">{{ item.errorMessage }}</p>
+                  <small>{{ formatFileSize(item.size) }}</small>
+                  <div class="image-actions">
+                    <button class="ghost-chip" :disabled="index === 0 || item.status === 'uploading'" @click="moveImage(item.clientId, -1)">上移</button>
+                    <button class="ghost-chip" :disabled="index === imageItems.length - 1 || item.status === 'uploading'" @click="moveImage(item.clientId, 1)">下移</button>
+                    <button v-if="item.status === 'failed'" class="ghost-chip warning" @click="retryImageUpload(item.clientId)">重试</button>
+                    <button class="ghost-chip danger" @click="removeImage(item.clientId)">删除</button>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </section>
+        </fieldset>
 
         <section v-if="latestRecord" class="shell-card">
           <div class="section-head">
@@ -1770,6 +1771,13 @@ async function submitFieldRecord() {
 .form-card {
   display: grid;
   gap: 12px;
+}
+
+.entry-fieldset {
+  margin: 0;
+  padding: 0;
+  border: none;
+  min-width: 0;
 }
 
 .field-header {

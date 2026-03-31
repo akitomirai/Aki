@@ -20,8 +20,8 @@ const verdict = computed(() => {
 
   if (detail.value.risk?.hasRisk) {
     return {
-      title: riskStageLabel(detail.value.risk.status),
-      copy: detail.value.risk.reason || '当前批次存在异常，请先关注风险提示。'
+      title: detail.value.risk.statusLabel || '当前存在风险',
+      copy: localizeVisibleText(detail.value.risk.reason) || '当前批次存在异常，请先关注风险提示。'
     }
   }
 
@@ -49,6 +49,20 @@ const latestTimelineItem = computed(() => {
 })
 
 const qualityHighlights = computed(() => detail.value?.quality?.highlights ?? [])
+const publicStatusText = computed(() => detail.value?.summary?.statusLabel || '状态待确认')
+const publicPublishedAtText = computed(() => {
+  const status = publicStatusText.value
+  const publishedAt = detail.value?.summary?.publishedAt
+  if (status === '草稿') {
+    return '尚未公开'
+  }
+  if (publishedAt) {
+    return publishedAt
+  }
+  return ['已冻结', '已召回'].includes(status) ? '已公开，时间待补录' : '已发布，时间待补录'
+})
+const publicQualityText = computed(() => detail.value?.quality?.resultLabel || detail.value?.summary?.qualityResult || '待补质检')
+const publicSloganText = computed(() => localizeVisibleText(detail.value?.summary?.slogan) || '扫码后可查看批次状态、质检结论和关键追溯信息。')
 
 onMounted(() => {
   loadDetail(route.params.token)
@@ -86,22 +100,22 @@ function riskClass(risk) {
   }[risk?.riskLevel] ?? 'warning'
 }
 
-function riskStageLabel(status) {
+function localizeVisibleText(text) {
+  const value = String(text || '').trim()
+  if (!value) {
+    return ''
+  }
   return {
-    FROZEN: '当前已暂停流通',
-    RECALLED: '当前已召回',
-    PROCESSING: '当前正在处理中',
-    RECTIFIED: '企业已完成整改'
-  }[status] ?? '当前存在风险提示'
-}
-
-function consumerStatusLabel(statusLabel) {
-  return {
-    草稿: '尚未正式对外发布',
-    已发布: '已公开展示',
-    已冻结: '已暂停流通',
-    已召回: '已召回'
-  }[statusLabel] ?? statusLabel
+    'Xinfeng Orchard Base': '江西省赣州市信丰果园基地',
+    'Wuyuan Tea Base': '江西省上饶市婺源县茶园基地',
+    'Public trace page is available for this batch.': '当前批次已开放公开查询，可继续查看关键追溯节点。',
+    'Used to verify released-batch linkage with the workbench.': '用于核对已发布批次与工作台、公开页的联动状态。',
+    'The batch has been created and still needs field records, QA and QR data.': '当前批次已建档，仍需补录现场记录、质检和二维码。',
+    'Used for continuous field-entry verification before publish.': '用于发布前连续补录现场作业与工作台联动验证。',
+    'The batch is paused and waiting for follow-up handling.': '当前批次已暂停流转，等待后续风险处理。',
+    'Used to review frozen-batch rectification flow.': '用于核对冻结批次的整改处理流程。',
+    'Latest QA failed and the batch is waiting for recheck.': '最近一次质检未通过，当前批次等待复检。'
+  }[value] ?? value
 }
 
 function shortSummary(text) {
@@ -128,13 +142,13 @@ function shortSummary(text) {
         :class="riskClass(detail.risk)"
       >
         <p class="risk-tag">风险提醒</p>
-        <h2>{{ riskStageLabel(detail.risk.status) }}</h2>
-        <p>{{ detail.risk.reason }}</p>
+        <h2>{{ detail.risk.statusLabel }}</h2>
+        <p>{{ localizeVisibleText(detail.risk.reason) }}</p>
         <div class="risk-meta">
-          <span>当前阶段：{{ riskStageLabel(detail.risk.status) }}</span>
+          <span>当前阶段：{{ detail.risk.statusLabel }}</span>
           <span>最近更新：{{ detail.risk.updatedAt || '暂无' }}</span>
         </div>
-        <small>{{ detail.risk.tip }}</small>
+        <small>{{ localizeVisibleText(detail.risk.tip) }}</small>
       </section>
 
       <section class="result-card" data-testid="public-summary">
@@ -152,11 +166,11 @@ function shortSummary(text) {
           <div class="result-side">
             <article class="result-pill">
               <span>当前状态</span>
-              <strong data-testid="public-status">{{ consumerStatusLabel(detail.summary.statusLabel) }}</strong>
+              <strong data-testid="public-status">{{ publicStatusText }}</strong>
             </article>
             <article class="result-pill highlight">
               <span>质检结论</span>
-              <strong data-testid="public-quality">{{ detail.summary.qualityResult }}</strong>
+              <strong data-testid="public-quality">{{ publicQualityText }}</strong>
             </article>
           </div>
         </div>
@@ -172,7 +186,7 @@ function shortSummary(text) {
           </div>
           <div>
             <span>产地</span>
-            <strong data-testid="public-origin">{{ detail.summary.originPlace }}</strong>
+            <strong data-testid="public-origin">{{ localizeVisibleText(detail.summary.originPlace) }}</strong>
           </div>
           <div>
             <span>生产日期</span>
@@ -180,11 +194,11 @@ function shortSummary(text) {
           </div>
           <div>
             <span>公开时间</span>
-            <strong>{{ detail.summary.publishedAt || '尚未公开' }}</strong>
+            <strong>{{ publicPublishedAtText }}</strong>
           </div>
           <div>
             <span>查询说明</span>
-            <strong>{{ detail.summary.slogan }}</strong>
+            <strong>{{ publicSloganText }}</strong>
           </div>
         </div>
       </section>
@@ -215,13 +229,13 @@ function shortSummary(text) {
             </div>
           </div>
 
-          <p class="section-copy">{{ detail.company.address || '企业地址待补充。' }}</p>
+          <p class="section-copy">{{ localizeVisibleText(detail.company.address) || '企业地址待补充。' }}</p>
         </article>
 
         <article class="card">
           <div class="section-head">
             <h2>质检与最近记录</h2>
-            <span>{{ detail.quality.resultLabel }}</span>
+            <span>{{ publicQualityText }}</span>
           </div>
 
           <p class="section-copy">{{ detail.quality.summary }}</p>
@@ -233,7 +247,7 @@ function shortSummary(text) {
           <div class="recent-card">
             <span>最近记录</span>
             <strong>{{ latestTimelineItem?.title || '暂无记录' }}</strong>
-            <p>{{ latestTimelineItem?.time || '暂无时间' }} · {{ latestTimelineItem?.location || '地点待补充' }}</p>
+            <p>{{ latestTimelineItem?.time || '暂无时间' }} · {{ localizeVisibleText(latestTimelineItem?.location) || '地点待补充' }}</p>
             <small>{{ shortSummary(latestTimelineItem?.summary) }}</small>
           </div>
         </article>
@@ -261,7 +275,7 @@ function shortSummary(text) {
                 </div>
                 <span>{{ item.time }}</span>
               </div>
-              <p class="timeline-meta">{{ item.location || '地点已留痕' }}</p>
+              <p class="timeline-meta">{{ localizeVisibleText(item.location) || '地点已留痕' }}</p>
               <p class="timeline-summary">{{ shortSummary(item.summary) }}</p>
               <img v-if="item.imageUrl" class="timeline-image" :src="item.imageUrl" :alt="item.title">
             </div>

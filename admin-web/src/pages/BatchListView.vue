@@ -10,10 +10,13 @@ import {
   getBatchDetail,
   getBatchList,
   getCompanyOptions,
+  getOperatorOptions,
   getProductOptions,
+  updateBatchAssignment,
   updateBatch,
   uploadBatchFiles
 } from '../api/batch'
+import { useAuthStore } from '../stores/auth'
 import {
   createBatchCode,
   createQualityForm,
@@ -27,9 +30,11 @@ import {
   stageOptions,
   todayString
 } from '../utils/batchExperience'
+import { resolveQrStatusText, resolveTaskStatusText, resolveTodayStatusText } from '../utils/statusPresentation'
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 
 const loading = ref(false)
 const message = ref('')
@@ -39,6 +44,7 @@ const batches = ref([])
 const filters = ref(createFilterState())
 const listMode = ref('ACTION')
 const dialog = ref(createDialogState())
+const assignmentDialog = ref(createAssignmentDialogState())
 const batchForm = ref(createBatchForm())
 const traceForm = ref(createTraceForm())
 const qualityForm = ref(createQualityForm())
@@ -46,6 +52,9 @@ const statusForm = ref(createStatusForm())
 
 const formCompanyOptions = ref([])
 const formProductOptions = ref([])
+const operatorOptions = ref([])
+const operatorLoading = ref(false)
+const assignmentSaving = ref(false)
 const traceUploading = ref(false)
 const qualityUploading = ref(false)
 const lastTraceStage = ref('PRODUCE')
@@ -79,6 +88,35 @@ const companyOptions = computed(() => {
 
 const selectedProductOption = computed(() => {
   return formProductOptions.value.find((item) => item.id === batchForm.value.productId) ?? null
+})
+const canManageAssignment = computed(() => ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN'].includes(authStore.user?.roleCode))
+const currentAssignmentAssigneeId = computed(() => assignmentDialog.value.currentAssigneeUserId ? String(assignmentDialog.value.currentAssigneeUserId) : '')
+const selectedAssignmentAssigneeId = computed(() => assignmentDialog.value.assigneeUserId ? String(assignmentDialog.value.assigneeUserId) : '')
+const assignmentChanged = computed(() => selectedAssignmentAssigneeId.value !== currentAssignmentAssigneeId.value)
+const selectedAssignmentOperator = computed(() => operatorOptions.value.find((item) => String(item.id) === selectedAssignmentAssigneeId.value) ?? null)
+const assignmentActionLabel = computed(() => {
+  if (!selectedAssignmentAssigneeId.value) return '确认清空分配'
+  if (!currentAssignmentAssigneeId.value) return '分配操作员'
+  if (assignmentChanged.value) return '确认改派'
+  return '当前分配未变更'
+})
+const assignmentHint = computed(() => {
+  if (!assignmentDialog.value.batchId) return ''
+  if (assignmentDialog.value.draftPending) {
+    const assigneeName = assignmentDialog.value.currentAssigneeName || '原分配人'
+    return assignmentDialog.value.draftUpdatedAt
+      ? `当前分配人 ${assigneeName} 还有未提交草稿，最近保存于 ${assignmentDialog.value.draftUpdatedAt}。`
+      : `当前分配人 ${assigneeName} 还有未提交草稿。`
+  }
+  if (selectedAssignmentOperator.value) {
+    return `将由 ${selectedAssignmentOperator.value.realName || selectedAssignmentOperator.value.username} 接管该批次后续现场作业。`
+  }
+  return '清空后，该批次会从操作员待办中移除。'
+})
+const assignmentConfirmActionLabel = computed(() => {
+  return assignmentDialog.value.confirmMode === 'clear'
+    ? '强制清空分配并清除原分配人草稿'
+    : '强制改派并清除原分配人草稿'
 })
 
 const traceStageProfile = computed(() => getTraceStageProfile(traceForm.value.stage))
@@ -219,6 +257,158 @@ function createDialogState() {
   }
 }
 
+function syncAssignmentDialog(item) {
+  assignmentDialog.value = {
+    visible: true,
+    batchId: item?.id ?? null,
+    batchCode: item?.batchCode ?? '',
+    companyId: item?.companyId ?? null,
+    currentAssigneeUserId: item?.assigneeUserId ? String(item.assigneeUserId) : '',
+    currentAssigneeName: item?.assigneeName || '',
+    assignedAt: item?.assignedAt || '',
+    taskStatus: item?.taskStatus || 'PENDING',
+    taskStatusLabel: item?.taskStatusLabel || resolveTaskStatusText(item),
+    todayCompleted: Boolean(item?.todayCompleted),
+    draftPending: Boolean(item?.draftPending),
+    draftStatusLabel: item?.draftStatusLabel || (item?.draftPending ? '草稿待续' : '无草稿'),
+    draftUpdatedAt: item?.draftUpdatedAt || '',
+    assigneeUserId: item?.assigneeUserId ? String(item.assigneeUserId) : '',
+    confirmVisible: false,
+    confirmMode: 'reassign',
+    confirmMessage: ''
+  }
+}
+
+async function loadAssignableOperators(companyId) {
+  if (!canManageAssignment.value) {
+    operatorOptions.value = []
+    return
+  }
+  operatorLoading.value = true
+  try {
+    const response = await getOperatorOptions(cleanObject({ companyId }))
+    operatorOptions.value = response.data ?? []
+  } catch (error) {
+    operatorOptions.value = []
+    showMessage(getFriendlyErrorMessage(error, '操作员列表加载失败，请稍后重试。'), 'error')
+  } finally {
+    operatorLoading.value = false
+  }
+}
+
+async function openAssignmentDialog(item) {
+  syncAssignmentDialog(item)
+  try {
+    const response = await getBatchDetail(item.id)
+    const detail = response.data ?? {}
+    syncAssignmentDialog({
+      ...item,
+      companyId: detail.company?.id ?? null,
+      assigneeUserId: detail.task?.assigneeUserId ?? item.assigneeUserId,
+      assigneeName: detail.task?.assigneeName ?? item.assigneeName,
+      assignedAt: detail.task?.assignedAt ?? item.assignedAt,
+      taskStatus: detail.task?.taskStatus ?? item.taskStatus,
+      taskStatusLabel: detail.task?.taskStatusLabel ?? item.taskStatusLabel,
+      todayCompleted: detail.task?.todayCompleted ?? item.todayCompleted,
+      draftPending: detail.task?.draftPending ?? item.draftPending,
+      draftStatusLabel: detail.task?.draftStatusLabel ?? item.draftStatusLabel,
+      draftUpdatedAt: detail.task?.draftUpdatedAt ?? item.draftUpdatedAt
+    })
+    await loadAssignableOperators(detail.company?.id)
+  } catch (error) {
+    await loadAssignableOperators(null)
+    showMessage(getFriendlyErrorMessage(error, '分配信息加载失败，请稍后重试。'), 'error')
+  }
+}
+
+function closeAssignmentDialog() {
+  assignmentDialog.value = createAssignmentDialogState()
+}
+
+async function submitAssignment(forceClearDraft = false) {
+  if (!assignmentDialog.value.batchId || !canManageAssignment.value) return
+  if (!assignmentChanged.value) {
+    showMessage('当前分配未发生变化。', 'info')
+    return
+  }
+
+  assignmentSaving.value = true
+  const assigneeUserId = selectedAssignmentAssigneeId.value ? Number(selectedAssignmentAssigneeId.value) : null
+  const nextMode = assigneeUserId == null ? 'clear' : (currentAssignmentAssigneeId.value ? 'reassign' : 'assign')
+
+  try {
+    await updateBatchAssignment(assignmentDialog.value.batchId, {
+      assigneeUserId,
+      forceClearDraft
+    })
+    await fetchBatches()
+    if (assigneeUserId == null) {
+      showMessage(forceClearDraft ? '已强制清空分配，并清除原分配人的未提交草稿。' : '已清空当前批次分配。', 'success')
+    } else if (nextMode === 'assign') {
+      showMessage('操作员已分配到当前批次。', 'success')
+    } else {
+      showMessage(forceClearDraft ? '已强制改派，并清除原分配人的未提交草稿。' : '操作员已改派。', 'success')
+    }
+    closeAssignmentDialog()
+  } catch (error) {
+    const nextMessage = getFriendlyErrorMessage(error, '任务分配更新失败，请稍后重试。')
+    if (!forceClearDraft && nextMessage.includes('存在未提交草稿')) {
+      assignmentDialog.value.confirmVisible = true
+      assignmentDialog.value.confirmMode = nextMode === 'clear' ? 'clear' : 'reassign'
+      assignmentDialog.value.confirmMessage = nextMessage
+      showMessage('该批次当前分配人存在未提交草稿，请确认是否继续强制改派。', 'error')
+      return
+    }
+    showMessage(nextMessage, 'error')
+  } finally {
+    assignmentSaving.value = false
+  }
+}
+
+async function clearAssignment() {
+  if (!assignmentDialog.value.currentAssigneeUserId) {
+    assignmentDialog.value.assigneeUserId = ''
+    showMessage('当前批次本来就是未分配状态。', 'info')
+    return
+  }
+  assignmentDialog.value.assigneeUserId = ''
+  await submitAssignment(false)
+}
+
+function cancelAssignmentConfirm() {
+  assignmentDialog.value.confirmVisible = false
+  assignmentDialog.value.confirmMode = 'reassign'
+  assignmentDialog.value.confirmMessage = ''
+  assignmentDialog.value.assigneeUserId = assignmentDialog.value.currentAssigneeUserId
+}
+
+async function forceAssignmentChange() {
+  assignmentDialog.value.confirmVisible = false
+  await submitAssignment(true)
+}
+
+function createAssignmentDialogState() {
+  return {
+    visible: false,
+    batchId: null,
+    batchCode: '',
+    companyId: null,
+    currentAssigneeUserId: '',
+    currentAssigneeName: '',
+    assignedAt: '',
+    taskStatus: 'PENDING',
+    taskStatusLabel: '待处理',
+    todayCompleted: false,
+    draftPending: false,
+    draftStatusLabel: '无草稿',
+    draftUpdatedAt: '',
+    assigneeUserId: '',
+    confirmVisible: false,
+    confirmMode: 'reassign',
+    confirmMessage: ''
+  }
+}
+
 function createBatchForm() {
   return {
     batchCode: createBatchCode(),
@@ -229,6 +419,17 @@ function createBatchForm() {
     publicRemark: '',
     internalRemark: ''
   }
+}
+
+function localizeVisibleText(text) {
+  const value = String(text || '').trim()
+  if (!value) {
+    return ''
+  }
+  return {
+    'Xinfeng Orchard Base': '江西省赣州市信丰果园基地',
+    'Wuyuan Tea Base': '江西省上饶市婺源县茶园基地'
+  }[value] ?? value
 }
 
 function createStatusForm(targetStatus = 'PUBLISHED') {
@@ -675,6 +876,10 @@ function runRecommendedAction(card) {
 }
 
 function handleRowCommand(card, command) {
+  if (command === 'assignment') {
+    openAssignmentDialog(card.item)
+    return
+  }
   if (command === 'edit') {
     openEditDialog(card.item)
     return
@@ -759,8 +964,12 @@ function fileLabel(file) {
   return file.fileName || file.fileUrl || '已上传文件'
 }
 
-function qrStatusLabel(status) {
-  return status && status !== 'NOT_GENERATED' ? '已生成' : '待生成'
+function taskStatusClass(taskStatus) {
+  return {
+    PENDING: 'pending',
+    DRAFT: 'draft',
+    COMPLETED: 'completed'
+  }[String(taskStatus || 'PENDING').toUpperCase()] ?? 'pending'
 }
 
 function statusClass(status) {
@@ -873,6 +1082,7 @@ function statusClass(status) {
         <span>企业 / 节点</span>
         <span>质量 / 二维码</span>
         <span>状态 / 下一步</span>
+        <span>任务分配</span>
         <span>操作</span>
       </div>
 
@@ -886,7 +1096,7 @@ function statusClass(status) {
           <div class="row-main">
             <strong>{{ card.item.batchCode }}</strong>
             <span>{{ card.item.productName }}</span>
-            <small>{{ card.item.productionDate }} / {{ card.item.originPlace }}</small>
+            <small>{{ card.item.productionDate }} / {{ localizeVisibleText(card.item.originPlace) }}</small>
           </div>
 
           <div class="row-meta">
@@ -896,7 +1106,7 @@ function statusClass(status) {
 
           <div class="row-meta">
             <strong>{{ card.item.qualityStatus }}</strong>
-            <span>{{ qrStatusLabel(card.item.qrStatus) }}</span>
+            <span>{{ resolveQrStatusText({ statusLabel: card.item.qrStatusLabel, status: card.item.qrStatus }) }}</span>
           </div>
 
           <div class="row-status">
@@ -904,7 +1114,43 @@ function statusClass(status) {
             <span class="next-badge" :data-testid="`batch-next-${card.item.id}`">{{ card.insight.nextLabel }}</span>
           </div>
 
+          <div class="row-task" :data-testid="`batch-task-block-${card.item.id}`">
+            <strong :data-testid="`batch-task-assignee-${card.item.id}`">{{ card.item.assigneeName || '未分配操作员' }}</strong>
+            <span :data-testid="`batch-task-assigned-at-${card.item.id}`">{{ card.item.assignedAt || '暂无分配时间' }}</span>
+            <div class="task-pill-row">
+              <span
+                class="task-state-badge"
+                :class="taskStatusClass(card.item.taskStatus)"
+                :data-testid="`batch-task-status-${card.item.id}`"
+              >
+                {{ resolveTaskStatusText(card.item) }}
+              </span>
+              <span
+                class="task-flag"
+                :class="{ done: card.item.todayCompleted }"
+                :data-testid="`batch-task-today-${card.item.id}`"
+              >
+                {{ resolveTodayStatusText(card.item.todayCompleted) }}
+              </span>
+              <span
+                class="task-flag"
+                :class="{ draft: card.item.draftPending }"
+                :data-testid="`batch-task-draft-${card.item.id}`"
+              >
+                {{ card.item.draftStatusLabel || (card.item.draftPending ? '草稿待续' : '无草稿') }}
+              </span>
+            </div>
+          </div>
+
           <div class="row-actions">
+            <button
+              v-if="canManageAssignment"
+              class="text-button"
+              :data-testid="`batch-assignment-open-${card.item.id}`"
+              @click="openAssignmentDialog(card.item)"
+            >
+              任务分配
+            </button>
             <button
               class="text-button primary-text"
               :data-testid="`batch-open-workbench-${card.item.id}`"
@@ -923,6 +1169,7 @@ function statusClass(status) {
               <button type="button" class="text-button">更多操作</button>
               <template #dropdown>
                 <el-dropdown-menu>
+                  <el-dropdown-item v-if="canManageAssignment" command="assignment">任务分配</el-dropdown-item>
                   <el-dropdown-item command="edit">编辑资料</el-dropdown-item>
                   <el-dropdown-item command="trace">补录追溯</el-dropdown-item>
                   <el-dropdown-item command="quality">上传质检</el-dropdown-item>
@@ -1231,6 +1478,97 @@ function statusClass(status) {
           </button>
           <button class="primary" data-testid="batch-dialog-submit" @click="submitDialog()">
             {{ dialog.type === 'create' ? '鍒涘缓骞惰繘鍏ュ伐浣滃彴' : '纭淇濆瓨' }}
+          </button>
+        </div>
+      </section>
+    </div>
+
+    <div v-if="assignmentDialog.visible" class="dialog-mask" @click.self="closeAssignmentDialog">
+      <section class="dialog-card assignment-dialog-card" data-testid="batch-assignment-dialog">
+        <div class="dialog-head">
+          <div>
+            <p class="eyebrow">任务分配</p>
+            <h3>批次 {{ assignmentDialog.batchCode }}</h3>
+          </div>
+          <button class="ghost icon-button" @click="closeAssignmentDialog">关闭</button>
+        </div>
+
+        <div class="assignment-overview">
+          <div>
+            <span>当前分配人</span>
+            <strong>{{ assignmentDialog.currentAssigneeName || '未分配操作员' }}</strong>
+          </div>
+          <div>
+            <span>分配时间</span>
+            <strong>{{ assignmentDialog.assignedAt || '暂无记录' }}</strong>
+          </div>
+          <div>
+            <span>任务状态</span>
+            <strong>{{ resolveTaskStatusText(assignmentDialog) }}</strong>
+          </div>
+          <div>
+            <span>今日完成</span>
+            <strong>{{ resolveTodayStatusText(assignmentDialog.todayCompleted) }}</strong>
+          </div>
+          <div>
+            <span>草稿状态</span>
+            <strong>{{ assignmentDialog.draftStatusLabel }}</strong>
+          </div>
+          <div>
+            <span>草稿更新时间</span>
+            <strong>{{ assignmentDialog.draftUpdatedAt || '暂无草稿' }}</strong>
+          </div>
+        </div>
+
+        <div class="assignment-form">
+          <label class="full-width">
+            <span>指派操作员</span>
+            <select
+              v-model="assignmentDialog.assigneeUserId"
+              data-testid="batch-list-assignment-select"
+              :disabled="assignmentSaving || operatorLoading"
+            >
+              <option value="">未分配操作员</option>
+              <option v-for="item in operatorOptions" :key="item.id" :value="String(item.id)">
+                {{ item.realName || item.username }}（{{ item.username }} / {{ item.companyName }}）
+              </option>
+            </select>
+          </label>
+
+          <div class="field-note">
+            <strong>{{ assignmentHint }}</strong>
+            <small>{{ operatorLoading ? '正在加载操作员列表...' : `当前可分配 ${operatorOptions.length} 位操作员。` }}</small>
+          </div>
+
+          <div v-if="assignmentDialog.confirmVisible" class="assignment-warning" data-testid="batch-list-assignment-confirm">
+            <strong>该批次当前分配人存在未提交草稿</strong>
+            <p>{{ assignmentDialog.confirmMessage }}</p>
+            <div class="toolbar-actions">
+              <button class="ghost" data-testid="batch-list-assignment-cancel" @click="cancelAssignmentConfirm">取消改派</button>
+              <button class="warning" data-testid="batch-list-assignment-force" :disabled="assignmentSaving" @click="forceAssignmentChange">
+                {{ assignmentConfirmActionLabel }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="dialog-actions">
+          <button class="ghost" :disabled="assignmentSaving" @click="closeAssignmentDialog">取消</button>
+          <button
+            class="ghost danger"
+            data-testid="batch-list-assignment-clear"
+            :disabled="assignmentSaving || !assignmentDialog.currentAssigneeUserId"
+            @click="clearAssignment"
+          >
+            清空分配
+          </button>
+          <button
+            class="primary"
+            data-testid="batch-list-assignment-submit"
+            :disabled="assignmentSaving || operatorLoading || !assignmentChanged"
+            @click="submitAssignment(false)"
+          >
+            {{ assignmentActionLabel }}
           </button>
         </div>
       </section>
@@ -1711,7 +2049,7 @@ button:disabled {
 
 .batch-table-head {
   display: grid;
-  grid-template-columns: 1.2fr 1fr 0.9fr 0.9fr 1.2fr;
+  grid-template-columns: 1.1fr 0.95fr 0.85fr 0.85fr 1.15fr 1.25fr;
   gap: 16px;
   padding: 0 0 14px;
   border-bottom: 1px solid rgba(56, 134, 217, 0.12);
@@ -1725,7 +2063,7 @@ button:disabled {
 
 .batch-row {
   display: grid;
-  grid-template-columns: 1.2fr 1fr 0.9fr 0.9fr 1.2fr;
+  grid-template-columns: 1.1fr 0.95fr 0.85fr 0.85fr 1.15fr 1.25fr;
   gap: 16px;
   align-items: center;
   padding: 18px 0;
@@ -1738,7 +2076,8 @@ button:disabled {
 
 .row-main,
 .row-meta,
-.row-status {
+.row-status,
+.row-task {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1752,7 +2091,8 @@ button:disabled {
 
 .row-main span,
 .row-main small,
-.row-meta span {
+.row-meta span,
+.row-task span {
   color: var(--admin-text-soft);
   font-size: 12px;
   line-height: 1.6;
@@ -1760,6 +2100,50 @@ button:disabled {
 
 .row-status {
   align-items: flex-start;
+}
+
+.row-task strong {
+  color: var(--admin-text);
+  font-size: 14px;
+}
+
+.task-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.task-state-badge,
+.task-flag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.task-state-badge.pending {
+  background: rgba(56, 134, 217, 0.12);
+  color: var(--admin-primary-deep);
+}
+
+.task-state-badge.draft,
+.task-flag.draft {
+  background: rgba(245, 158, 11, 0.14);
+  color: #b45309;
+}
+
+.task-state-badge.completed,
+.task-flag.done {
+  background: rgba(22, 163, 74, 0.14);
+  color: #15803d;
+}
+
+.task-flag {
+  background: rgba(148, 163, 184, 0.16);
+  color: var(--admin-text-soft);
 }
 
 .row-actions {
@@ -1787,6 +2171,64 @@ button:disabled {
 .primary-text {
   color: var(--admin-primary-deep);
   font-weight: 600;
+}
+
+.assignment-dialog-card {
+  max-width: 760px;
+}
+
+.assignment-overview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.assignment-overview div,
+.assignment-form {
+  padding: 16px 18px;
+  border: 1px solid rgba(56, 134, 217, 0.12);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.assignment-overview span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--admin-text-soft);
+  font-size: 12px;
+}
+
+.assignment-overview strong {
+  color: var(--admin-text);
+  font-size: 14px;
+}
+
+.assignment-form {
+  display: grid;
+  gap: 14px;
+}
+
+.assignment-warning {
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(244, 63, 94, 0.18);
+  background: rgba(255, 241, 242, 0.94);
+}
+
+.assignment-warning strong {
+  color: #be123c;
+}
+
+.assignment-warning p {
+  margin: 8px 0 0;
+  color: #9f1239;
+  line-height: 1.6;
+}
+
+.ghost.danger {
+  border-color: rgba(244, 63, 94, 0.18);
+  color: #be123c;
 }
 
 .empty-state h3 {
@@ -2009,6 +2451,10 @@ button:disabled {
   .batch-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .assignment-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 820px) {
@@ -2056,6 +2502,10 @@ button:disabled {
   .batch-row {
     grid-template-columns: 1fr;
     gap: 12px;
+  }
+
+  .assignment-overview {
+    grid-template-columns: 1fr;
   }
 }
 

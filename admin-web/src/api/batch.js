@@ -12,6 +12,10 @@ export function getProductOptions(params) {
   return http.get('/batches/lookup/products', { params })
 }
 
+export function getOperatorOptions(params) {
+  return http.get('/batches/lookup/operators', { params })
+}
+
 export function uploadBatchFiles(businessType, files, options = {}) {
   const formData = new FormData()
   formData.append('businessType', businessType)
@@ -44,6 +48,10 @@ export function updateBatch(id, data) {
 
 export function createTraceRecord(id, data) {
   return http.post(`/batches/${id}/records/quick`, data)
+}
+
+export function updateBatchAssignment(id, data) {
+  return http.post(`/batches/${id}/assignment`, data)
 }
 
 export function getFieldDraftList() {

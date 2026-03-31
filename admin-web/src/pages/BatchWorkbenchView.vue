@@ -8,8 +8,11 @@ import {
   createTraceRecord,
   generateBatchQr,
   getBatchDetail,
+  getOperatorOptions,
+  updateBatchAssignment,
   uploadBatchFiles
 } from '../api/batch'
+import { useAuthStore } from '../stores/auth'
 import {
   createQualityForm,
   createTraceForm,
@@ -19,15 +22,27 @@ import {
   splitHighlightsInput,
   stageOptions
 } from '../utils/traceWorkflow'
+import { resolveQrStatusText, resolveRiskStatusText, resolveTaskStatusText, resolveTodayStatusText } from '../utils/statusPresentation'
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 
 const loading = ref(true)
 const detail = ref(null)
 const message = ref('')
 const messageType = ref('info')
 const dialog = ref({ visible: false, type: '' })
+const operatorOptions = ref([])
+const operatorLoading = ref(false)
+const assignmentSaving = ref(false)
+const assignmentForm = ref({ assigneeUserId: '' })
+const assignmentConfirm = ref({
+  visible: false,
+  mode: 'reassign',
+  message: '',
+  nextAssigneeUserId: ''
+})
 
 const traceForm = ref(createTraceForm())
 const qualityForm = ref(createQualityForm())
@@ -41,7 +56,83 @@ const recentRecords = computed(() => detail.value?.trace?.recentRecords ?? [])
 const latestRecord = computed(() => recentRecords.value[0] ?? null)
 const canHandleRisk = computed(() => ['FROZEN', 'RECALLED'].includes(detail.value?.status?.code))
 const canPreviewPublic = computed(() => Boolean(detail.value?.qr?.publicUrl))
+const canManageAssignment = computed(() => ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN'].includes(authStore.user?.roleCode))
+const currentAssigneeId = computed(() => detail.value?.task?.assigneeUserId ? String(detail.value.task.assigneeUserId) : '')
+const selectedAssigneeId = computed(() => assignmentForm.value.assigneeUserId ? String(assignmentForm.value.assigneeUserId) : '')
+const assignmentChanged = computed(() => selectedAssigneeId.value !== currentAssigneeId.value)
+const selectedAssignee = computed(() => operatorOptions.value.find((item) => String(item.id) === selectedAssigneeId.value) ?? null)
+const assignmentActionLabel = computed(() => {
+  if (!selectedAssigneeId.value) return '确认清空分配'
+  if (!currentAssigneeId.value) return '分配操作员'
+  if (assignmentChanged.value) return '确认改派'
+  return '当前分配未变更'
+})
+const assignmentHint = computed(() => {
+  if (!detail.value) return ''
+  if (detail.value.task?.draftPending) {
+    const assigneeName = detail.value.task?.assigneeName || '原分配人'
+    return detail.value.task?.draftUpdatedAt
+      ? `当前分配人 ${assigneeName} 还有未提交草稿，最近保存于 ${detail.value.task.draftUpdatedAt}。`
+      : `当前分配人 ${assigneeName} 还有未提交草稿。`
+  }
+  if (selectedAssignee.value) {
+    return `将由 ${selectedAssignee.value.realName || selectedAssignee.value.username} 接管该批次后续现场作业。`
+  }
+  return '清空后，该批次会从操作员待办中移除。'
+})
+const assignmentConfirmActionLabel = computed(() => {
+  return assignmentConfirm.value.mode === 'clear'
+    ? '强制清空分配并清除原分配人草稿'
+    : '强制改派并清除原分配人草稿'
+})
 const latestRiskAction = computed(() => detail.value?.riskHandling?.history?.[0] ?? null)
+const latestRecordImages = computed(() => recordPreviewImages(latestRecord.value))
+const earlierRecords = computed(() => recentRecords.value.slice(1))
+const latestQualityReport = computed(() => detail.value?.quality?.latestReport ?? null)
+const traceAction = computed(() => actionOf('ADD_TRACE'))
+const qualityAction = computed(() => actionOf('UPLOAD_QUALITY'))
+const qrAction = computed(() => actionOf('GENERATE_QR'))
+const publicAction = computed(() => actionOf('VIEW_PUBLIC'))
+const publishAction = computed(() => actionOf('PUBLISH'))
+const resumeAction = computed(() => actionOf('RESUME'))
+const freezeAction = computed(() => actionOf('FREEZE'))
+const recallAction = computed(() => actionOf('RECALL'))
+const publishReady = computed(() => publishAction.value.enabled || resumeAction.value.enabled)
+const qualityUploaded = computed(() => Number(detail.value?.quality?.reportCount || 0) > 0)
+const qualityResultCode = computed(() => String(latestQualityReport.value?.result || '').toUpperCase())
+const qualityAllowsPublish = computed(() => qualityUploaded.value && qualityResultCode.value !== 'FAIL')
+const riskStageCode = computed(() => String(detail.value?.riskHandling?.currentStage || detail.value?.risk?.status || '').toUpperCase())
+const riskStageText = computed(() => resolveRiskStatusText(detail.value?.risk, detail.value?.riskHandling))
+const batchStatusText = computed(() => detail.value?.status?.label || '状态待确认')
+const statusSummaryCopy = computed(() => batchStatusSummary(detail.value?.status?.code))
+const taskStatusText = computed(() => resolveTaskStatusText(detail.value?.task))
+const todayProgressText = computed(() => resolveTodayStatusText(detail.value?.task?.todayCompleted))
+const assignmentDraftText = computed(() => detail.value?.task?.draftStatusLabel || '无草稿')
+const latestRiskActionLabel = computed(() => {
+  if (!latestRiskAction.value) return canHandleRisk.value ? '尚未记录处理动作' : '暂无风险动作'
+  return `${latestRiskAction.value.actionLabel || latestRiskAction.value.actionType} · ${latestRiskAction.value.operatorName}`
+})
+const riskResolved = computed(() => {
+  const currentStage = riskStageCode.value
+  return currentStage === 'RECTIFIED' || Boolean(detail.value?.riskHandling?.canResume)
+})
+const riskResolutionText = computed(() => {
+  if (!canHandleRisk.value) return '无需整改'
+  return riskResolved.value ? '已完成整改' : '待完成整改'
+})
+const riskSummaryCopy = computed(() => {
+  if (!canHandleRisk.value) {
+    return '当前没有需要跟进的风险动作。'
+  }
+  return detail.value?.risk?.reason || detail.value?.status?.reason || '当前批次正在风险处理中。'
+})
+const riskPanelCopy = computed(() => {
+  if (!canHandleRisk.value) {
+    return '当前没有需要处理的风险事项。'
+  }
+  return detail.value?.risk?.tip || detail.value?.risk?.reason || '先补处理说明、整改记录，再完成整改状态。'
+})
+const riskPanelCalm = computed(() => !canHandleRisk.value || riskResolved.value)
 const riskChecklist = computed(() => {
   if (!canHandleRisk.value) {
     return []
@@ -66,66 +157,135 @@ const riskChecklist = computed(() => {
   ]
 })
 
-const pendingItems = computed(() => {
+const todoItems = computed(() => {
   if (!detail.value) return []
   const items = []
-  if (!recentRecords.value.length) items.push('补录追溯')
-  if (detail.value.quality?.status === 'PENDING') items.push('上传质检')
-  if (!detail.value.qr?.generated) items.push('生成二维码')
-  if (detail.value.status?.code !== 'PUBLISHED') items.push('发布批次')
+  if (!recentRecords.value.length && traceAction.value.enabled) {
+    items.push({ key: 'trace', title: '补录首条追溯', detail: '先补一条关键现场记录。' })
+  }
+  if (!qualityUploaded.value && qualityAction.value.enabled) {
+    items.push({ key: 'quality', title: '上传质检', detail: '发布前要先补质检摘要。' })
+  }
+  if (!detail.value.qr?.generated && qrAction.value.enabled) {
+    items.push({ key: 'qr', title: '生成二维码', detail: '公开页入口要先有二维码。' })
+  }
+  if (detail.value.status?.code === 'DRAFT') {
+    items.push({
+      key: 'publish',
+      title: publishReady.value ? '发布批次' : '满足发布条件',
+      detail: publishReady.value ? '条件已满足，可直接发布。' : (publishAction.value.hint || '先补齐发布前条件。')
+    })
+  }
+  if (canHandleRisk.value) {
+    items.push({
+      key: 'risk',
+      title: riskResolved.value ? '恢复发布' : '继续风险处理',
+      detail: riskResolved.value ? '已完成整改，可恢复发布。' : '先补处理说明、整改记录，再标记已整改。'
+    })
+  }
   return items
 })
 
 const quickActions = computed(() => {
-  const publishEnabled = actionOf('PUBLISH').enabled || actionOf('RESUME').enabled
   return [
     {
       key: 'trace',
       title: '补录追溯',
-      desc: recentRecords.value.length ? '继续补录最新环节，现场记录会直接进入时间线。' : '先补一条关键追溯记录，让批次具备基本可追溯信息。',
-      primaryText: '打开补录窗口',
+      status: recentRecords.value.length ? `最近记录：${formatStageLabel(latestRecord.value?.stageCode)}` : '当前还没有追溯记录',
+      desc: traceAction.value.hint || '使用快速录入补齐关键节点。',
+      available: traceAction.value.enabled,
+      primaryText: '补录追溯',
       primaryClass: 'primary',
       primaryAction: openTraceDialog,
+      disabled: !traceAction.value.enabled,
       secondaryText: '现场作业页',
-      secondaryAction: openFieldEntry
+      secondaryAction: openFieldEntry,
+      secondaryDisabled: false
     },
     {
       key: 'quality',
       title: '上传质检',
-      desc: detail.value?.quality?.status === 'PENDING' ? '发布前先补质检摘要，公开页首屏会直接展示结论。' : `当前结论：${detail.value?.quality?.label || '待补充'}`,
+      status: detail.value?.quality?.label || '待上传',
+      desc: latestQualityReport.value
+        ? `最近质检：${latestQualityReport.value.reportNo} · ${latestQualityReport.value.agency}`
+        : (qualityAction.value.hint || '发布前优先补齐质检摘要。'),
+      available: qualityAction.value.enabled,
       primaryText: '上传质检',
       primaryClass: 'primary',
-      primaryAction: openQualityDialog
+      primaryAction: openQualityDialog,
+      disabled: !qualityAction.value.enabled
     },
     {
       key: 'qr',
       title: '生成二维码',
-      desc: detail.value?.qr?.generated ? '二维码已可用，可直接打开公开页核对结果。' : '二维码生成后，扫码查询才能连到公开页。',
-      primaryText: detail.value?.qr?.generated ? '刷新二维码' : '生成二维码',
+      status: `二维码${resolveQrStatusText(detail.value?.qr)}`,
+      desc: detail.value?.qr?.generated
+        ? `二维码标识：${detail.value.qr.token || '已生成'}`
+        : (qrAction.value.hint || '同一批次默认只生成一次二维码。'),
+      available: qrAction.value.enabled,
+      primaryText: detail.value?.qr?.generated ? '二维码已生成' : '生成二维码',
       primaryClass: detail.value?.qr?.generated ? 'ghost' : 'primary',
       primaryAction: handleGenerateQr,
+      disabled: Boolean(detail.value?.qr?.generated) || !qrAction.value.enabled,
       secondaryText: canPreviewPublic.value ? '查看公开页' : '',
-      secondaryAction: openPublicPreview
+      secondaryAction: openPublicPreview,
+      secondaryDisabled: !canPreviewPublic.value
     },
     {
       key: 'publish',
-      title: '发布',
-      desc: publishEnabled ? '关键资料已满足要求，可以直接推进状态。' : (actionOf('PUBLISH').hint || actionOf('RESUME').hint || '暂不满足发布条件'),
-      primaryText: actionOf('RESUME').enabled ? '恢复发布' : '发布批次',
-      primaryClass: publishEnabled ? 'success' : 'ghost',
+      title: resumeAction.value.enabled ? '恢复发布' : '发布批次',
+      status: publishReady.value ? '可以发布' : '暂不可发布',
+      desc: publishReady.value ? '当前页可直接完成发布。' : (publishAction.value.hint || resumeAction.value.hint || '当前还不满足发布条件。'),
+      available: publishReady.value,
+      primaryText: resumeAction.value.enabled ? '恢复发布' : '发布批次',
+      primaryClass: publishReady.value ? 'success' : 'ghost',
       primaryAction: () => openStatusDialog('PUBLISHED'),
-      disabled: !publishEnabled
+      disabled: !publishReady.value,
+      secondaryText: publicAction.value.enabled ? '公开页入口' : '',
+      secondaryAction: openPublicPreview,
+      secondaryDisabled: !publicAction.value.enabled
     },
     {
       key: 'risk',
       title: '风险处理',
-      desc: canHandleRisk.value ? '当前批次处于风险状态，可继续补处理说明和整改记录。' : '当前无风险状态，如发现异常可在此冻结或召回。',
-      primaryText: canHandleRisk.value ? '补风险处理' : '状态处理',
-      primaryClass: canHandleRisk.value ? 'warning' : 'ghost',
-      primaryAction: canHandleRisk.value ? () => openRiskDialog('COMMENT') : () => openStatusDialog('FROZEN')
+      status: riskStageText.value,
+      desc: canHandleRisk.value
+        ? '补说明、整改并更新风险状态。'
+        : (freezeAction.value.enabled ? freezeAction.value.hint : (recallAction.value.hint || '当前无需风险处理。')),
+      available: canHandleRisk.value || freezeAction.value.enabled || recallAction.value.enabled,
+      primaryText: canHandleRisk.value ? '补处理说明' : (freezeAction.value.enabled ? '冻结批次' : '风险处理中'),
+      primaryClass: canHandleRisk.value || freezeAction.value.enabled ? 'warning' : 'ghost',
+      primaryAction: canHandleRisk.value ? () => openRiskDialog('COMMENT') : () => openStatusDialog('FROZEN'),
+      disabled: !(canHandleRisk.value || freezeAction.value.enabled),
+      secondaryText: recallAction.value.enabled ? '发起召回' : '',
+      secondaryAction: () => openStatusDialog('RECALLED'),
+      secondaryDisabled: !recallAction.value.enabled
     }
   ]
 })
+
+const publishChecks = computed(() => [
+  {
+    key: 'quality-uploaded',
+    label: '已上传质检摘要',
+    done: qualityUploaded.value,
+    detail: qualityUploaded.value ? `当前状态：${detail.value?.quality?.label || '已上传'}` : '还没有质检摘要'
+  },
+  {
+    key: 'quality-result',
+    label: '质检结论允许发布',
+    done: qualityAllowsPublish.value,
+    detail: !qualityUploaded.value
+      ? '先上传质检摘要'
+      : (qualityResultCode.value === 'FAIL' ? '当前结论不允许发布' : `当前结论：${detail.value?.quality?.label || '可发布'}`)
+  },
+  {
+    key: 'qr-generated',
+    label: '已生成二维码',
+    done: Boolean(detail.value?.qr?.generated),
+    detail: detail.value?.qr?.generated ? `二维码标识：${detail.value?.qr?.token || '已生成'}` : '先生成二维码'
+  }
+])
 
 function createRiskForm(actionType = 'COMMENT') {
   return { actionType, reason: '', comment: '', operatorName: '监管人员' }
@@ -154,6 +314,33 @@ function actionOf(code) {
 
 function statusClass(status) {
   return { DRAFT: 'draft', PUBLISHED: 'published', FROZEN: 'frozen', RECALLED: 'recalled' }[status] ?? 'draft'
+}
+
+function batchStatusSummary(status) {
+  return {
+    DRAFT: '当前批次还在后台准备阶段，先补齐现场、质检和二维码。',
+    PUBLISHED: '当前批次已对外公开，可继续回查公开页和最近记录。',
+    FROZEN: '当前批次已冻结，需先补处理说明和整改记录。',
+    RECALLED: '当前批次已召回，公开页会持续显示风险提示。'
+  }[String(status).toUpperCase()] ?? '当前批次状态待确认。'
+}
+
+function localizeWorkbenchText(text) {
+  const value = String(text || '').trim()
+  if (!value) return ''
+  return {
+    'Public trace page is available for this batch.': '当前批次已开放公开查询，可继续查看关键追溯节点。',
+    'Used to verify released-batch linkage with the workbench.': '用于核对已发布批次与工作台、公开页的联动状态。',
+    'The batch has been created and still needs field records, QA and QR data.': '当前批次已建档，仍需补录现场记录、质检和二维码。',
+    'Used for continuous field-entry verification before publish.': '用于发布前连续补录现场作业与工作台联动验证。',
+    'The batch is paused and waiting for follow-up handling.': '当前批次已暂停流转，等待后续风险处理。',
+    'Used to review frozen-batch rectification flow.': '用于核对冻结批次的整改处理流程。',
+    'Latest QA failed and the batch is waiting for recheck.': '最近一次质检未通过，当前批次等待复检。'
+  }[value] ?? value
+}
+
+function historyReasonText(item) {
+  return localizeWorkbenchText(item?.reason) || batchStatusSummary(item?.status)
 }
 
 function fileLabel(file) {
@@ -220,13 +407,126 @@ function closeDialog() {
   dialog.value = { visible: false, type: '' }
 }
 
+function syncAssignmentForm() {
+  assignmentForm.value.assigneeUserId = detail.value?.task?.assigneeUserId ? String(detail.value.task.assigneeUserId) : ''
+  assignmentConfirm.value = {
+    visible: false,
+    mode: 'reassign',
+    message: '',
+    nextAssigneeUserId: assignmentForm.value.assigneeUserId
+  }
+}
+
+function operatorOptionLabel(option) {
+  if (!option) return '请选择操作员'
+  const displayName = option.realName || option.username || '未命名操作员'
+  if (option.companyName) {
+    return `${displayName}（${option.username} / ${option.companyName}）`
+  }
+  if (option.username) {
+    return `${displayName}（${option.username}）`
+  }
+  return displayName
+}
+
+async function loadAssignableOperators() {
+  if (!canManageAssignment.value) {
+    operatorOptions.value = []
+    return
+  }
+  operatorLoading.value = true
+  try {
+    const response = await getOperatorOptions({
+      companyId: detail.value?.company?.id || undefined
+    })
+    operatorOptions.value = response.data ?? []
+  } catch (error) {
+    operatorOptions.value = []
+    showMessage(error?.response?.data?.message || error?.message || '操作员列表加载失败，请稍后再试。', 'error')
+  } finally {
+    operatorLoading.value = false
+  }
+}
+
+async function submitAssignment(forceClearDraft = false) {
+  if (!detail.value || !canManageAssignment.value) return
+  if (!assignmentChanged.value) {
+    showMessage('当前分配未发生变化。', 'info')
+    return
+  }
+
+  assignmentSaving.value = true
+  const assigneeUserId = selectedAssigneeId.value ? Number(selectedAssigneeId.value) : null
+  const nextMode = assigneeUserId == null ? 'clear' : (currentAssigneeId.value ? 'reassign' : 'assign')
+
+  try {
+    const response = await updateBatchAssignment(route.params.id, {
+      assigneeUserId,
+      forceClearDraft
+    })
+    detail.value = response.data
+    syncAssignmentForm()
+    await loadAssignableOperators()
+    if (assigneeUserId == null) {
+      showMessage(forceClearDraft ? '已强制清空分配，并清除原分配人的未提交草稿。' : '已清空当前批次分配。', 'success')
+    } else if (nextMode === 'assign') {
+      showMessage('操作员已分配到当前批次。', 'success')
+    } else {
+      showMessage(forceClearDraft ? '已强制改派，并清除原分配人的未提交草稿。' : '操作员已改派。', 'success')
+    }
+  } catch (error) {
+    const nextMessage = error?.response?.data?.message || error?.message || '任务分配更新失败，请稍后再试。'
+    if (!forceClearDraft && nextMessage.includes('存在未提交草稿')) {
+      assignmentConfirm.value = {
+        visible: true,
+        mode: nextMode === 'clear' ? 'clear' : 'reassign',
+        message: nextMessage,
+        nextAssigneeUserId: selectedAssigneeId.value
+      }
+      showMessage('该批次当前分配人存在未提交草稿，请确认是否继续强制改派。', 'error')
+      return
+    }
+    showMessage(nextMessage, 'error')
+  } finally {
+    assignmentSaving.value = false
+  }
+}
+
+async function clearAssignment() {
+  if (!detail.value?.task?.assigneeUserId) {
+    assignmentForm.value.assigneeUserId = ''
+    showMessage('当前批次本来就是未分配状态。', 'info')
+    return
+  }
+  assignmentForm.value.assigneeUserId = ''
+  await submitAssignment(false)
+}
+
+function cancelAssignmentConfirm() {
+  assignmentConfirm.value = {
+    visible: false,
+    mode: 'reassign',
+    message: '',
+    nextAssigneeUserId: currentAssigneeId.value
+  }
+  assignmentForm.value.assigneeUserId = currentAssigneeId.value
+}
+
+async function forceAssignmentChange() {
+  assignmentConfirm.value.visible = false
+  await submitAssignment(true)
+}
+
 async function loadDetail(id) {
   if (!id) return
   loading.value = true
   try {
     const response = await getBatchDetail(id)
     detail.value = response.data
+    syncAssignmentForm()
+    await loadAssignableOperators()
   } catch (error) {
+    operatorOptions.value = []
     showMessage(error?.response?.data?.message || error?.message || '批次工作台加载失败，请稍后再试。', 'error')
   } finally {
     loading.value = false
@@ -250,6 +550,7 @@ async function submitDialog(options = {}) {
         visibleToConsumer: traceForm.value.visibleToConsumer
       })
       detail.value = response.data
+      syncAssignmentForm()
       if (keepOpen) {
         traceForm.value = createTraceForm({ stage: traceForm.value.stage, operatorName: traceForm.value.operatorName, location: traceForm.value.location })
         showMessage('这条记录已保存，可以继续补下一条。', 'success')
@@ -266,14 +567,17 @@ async function submitDialog(options = {}) {
         attachmentIds: qualityForm.value.attachmentIds
       })
       detail.value = response.data
+      syncAssignmentForm()
       showMessage('质检摘要已上传。', 'success')
     } else if (dialog.value.type === 'risk') {
       response = await createRiskAction(route.params.id, riskForm.value)
       detail.value = response.data
+      syncAssignmentForm()
       showMessage('风险处理已记录。', 'success')
     } else if (dialog.value.type === 'status') {
       response = await changeBatchStatus(route.params.id, statusForm.value)
       detail.value = response.data
+      syncAssignmentForm()
       showMessage('批次状态已更新。', 'success')
     }
     closeDialog()
@@ -286,6 +590,7 @@ async function handleGenerateQr() {
   try {
     const response = await generateBatchQr(route.params.id)
     detail.value = response.data
+    syncAssignmentForm()
     showMessage('二维码已生成。', 'success')
   } catch (error) {
     showMessage(error?.response?.data?.message || error?.message || '二维码生成失败，请稍后再试。', 'error')
@@ -344,10 +649,6 @@ function removeQualityAttachment(fileId) {
   qualityForm.value.attachmentIds = qualityForm.value.uploadedFiles.map((item) => item.id)
 }
 
-function riskActionLabel(actionType = '') {
-  return { COMMENT: '处理说明', RECTIFICATION: '整改记录', PROCESSING: '处理中', RECTIFIED: '已整改' }[String(actionType).toUpperCase()] ?? actionType
-}
-
 watch(() => route.params.id, async (id) => { await loadDetail(id) })
 onMounted(async () => { await loadDetail(route.params.id) })
 </script>
@@ -378,143 +679,328 @@ onMounted(async () => { await loadDetail(route.params.id) })
         <article class="summary-card" data-testid="workbench-next-step-card">
           <span class="card-label">批次当前状态</span>
           <div class="card-head">
-            <strong class="status-badge" :class="statusClass(detail.status.code)">{{ detail.status.label }}</strong>
-            <small>{{ detail.status.changedAt }}</small>
+            <strong class="status-badge" :class="statusClass(detail.status.code)">{{ batchStatusText }}</strong>
+            <small>{{ detail.status.changedAt || '暂无时间' }}</small>
           </div>
           <p class="card-title">{{ detail.status.currentNode }}</p>
-          <p class="card-copy">{{ detail.status.reason }}</p>
+          <p class="card-copy">{{ statusSummaryCopy }}</p>
+        </article>
+
+        <article class="summary-card">
+          <span class="card-label">任务执行</span>
+          <p class="card-title">{{ detail.task?.assigneeName || '未分配操作员' }}</p>
+          <div class="summary-meta-list">
+            <div>
+              <span>任务状态</span>
+              <strong>{{ taskStatusText }}</strong>
+            </div>
+            <div>
+              <span>今日进度</span>
+              <strong>{{ todayProgressText }}</strong>
+            </div>
+          </div>
+          <p v-if="detail.task?.draftPending" class="task-draft-copy">
+            {{ assignmentDraftText }}
+            <template v-if="detail.task?.draftUpdatedAt"> · 最近保存 {{ detail.task.draftUpdatedAt }}</template>
+          </p>
         </article>
 
         <article class="summary-card">
           <span class="card-label">待完成事项</span>
-          <ul v-if="pendingItems.length" class="mini-list">
-            <li v-for="item in pendingItems" :key="item"><strong>{{ item }}</strong></li>
+          <ul v-if="todoItems.length" class="mini-list">
+            <li v-for="item in todoItems" :key="item.key">
+              <strong>{{ item.title }}</strong>
+              <small>{{ item.detail }}</small>
+            </li>
           </ul>
-          <p v-else class="empty-copy">当前关键事项已完成，可以继续核对公开页或后续流转。</p>
+          <p v-else class="empty-copy">当前关键事项已收口，可以继续核对公开页、风险和状态流转。</p>
         </article>
 
-        <article class="summary-card" :class="`risk-${detail.status.code === 'RECALLED' ? 'danger' : detail.status.code === 'FROZEN' ? 'warning' : 'normal'}`">
+        <article class="summary-card">
           <span class="card-label">风险事项</span>
-          <p class="card-title">{{ detail.risk.title }}</p>
-          <p class="card-copy">{{ detail.risk.reason }}</p>
-          <small v-if="latestRiskAction">{{ riskActionLabel(latestRiskAction.actionType) }} · {{ latestRiskAction.operatorName }}</small>
-          <small v-else>{{ canHandleRisk ? '当前需要继续补齐处理记录。' : '当前没有风险处理动作。' }}</small>
+          <p class="card-title">{{ riskStageText }}</p>
+          <p class="card-copy">{{ riskSummaryCopy }}</p>
+          <div class="summary-meta-list compact">
+            <div>
+              <span>最近动作</span>
+              <strong>{{ latestRiskActionLabel }}</strong>
+            </div>
+            <div>
+              <span>整改状态</span>
+              <strong>{{ riskResolutionText }}</strong>
+            </div>
+          </div>
         </article>
 
         <article class="summary-card">
-          <span class="card-label">任务分配</span>
-          <p class="card-title">{{ detail.task?.assigneeName || '未分配操作员' }}</p>
-          <p class="card-copy">任务状态：{{ detail.task?.taskStatusLabel || '待处理' }}</p>
-          <small>
-            <template v-if="detail.task?.assignedAt">分配时间 {{ detail.task.assignedAt }}</template>
-            <template v-else>暂未记录分配时间</template>
-            <template v-if="detail.task?.todayCompleted"> · 今日已完成</template>
-          </small>
-        </article>
-
-        <article class="summary-card">
-          <span class="card-label">最近记录</span>
+          <span class="card-label">最近一次关键记录</span>
           <template v-if="latestRecord">
-            <p class="card-title">{{ latestRecord.title }}</p>
+            <div class="summary-record-head">
+              <div>
+                <p class="card-title">{{ latestRecord.title }}</p>
+                <small>{{ formatStageLabel(latestRecord.stageCode) }} · {{ latestRecord.operatorName }}</small>
+              </div>
+              <small>{{ latestRecord.eventTime }}</small>
+            </div>
             <p class="card-copy">{{ latestRecord.summary }}</p>
-            <small>{{ latestRecord.eventTime }} · {{ latestRecord.operatorName }}</small>
+            <small>{{ latestRecord.location || '暂无地点' }}</small>
+            <div v-if="latestRecordImages.length" class="summary-image-strip">
+              <article v-for="asset in latestRecordImages" :key="asset.id" class="summary-image-frame">
+                <img class="summary-image" :src="asset.fileUrl" :alt="asset.fileName">
+              </article>
+            </div>
           </template>
-          <p v-else class="empty-copy">当前还没有追溯记录，建议先补第一条现场节点。</p>
+          <p v-else class="empty-copy">当前还没有追溯记录，建议先补一条关键现场节点。</p>
         </article>
       </section>
 
       <section class="action-panel" data-testid="workbench-action-groups">
-        <div class="section-head"><div><h2>业务操作</h2><p>把补录、质检、二维码、发布和风险处理集中到同一处。</p></div></div>
-        <div class="action-grid">
-          <article v-for="item in quickActions" :key="item.key" class="action-card">
-            <span class="card-label">{{ item.title }}</span>
-            <h3>{{ item.title }}</h3>
-            <p>{{ item.desc }}</p>
-            <div class="action-buttons">
-              <button :class="item.primaryClass" :disabled="item.disabled" @click="item.primaryAction">{{ item.primaryText }}</button>
-              <button v-if="item.secondaryText" class="ghost" @click="item.secondaryAction">{{ item.secondaryText }}</button>
+          <div class="section-head">
+            <div>
+              <h2>业务动作</h2>
+              <p>直接判断下一步能做什么。</p>
+            </div>
+          </div>
+        <div class="action-hub">
+          <div class="action-grid">
+            <article
+              v-for="item in quickActions"
+              :key="item.key"
+              class="action-card"
+              :class="{ unavailable: !item.available && item.disabled !== false }"
+            >
+              <div class="action-card-head">
+                <span class="card-label">{{ item.title }}</span>
+                <span class="availability-badge" :class="{ ok: item.available && !item.disabled, blocked: item.disabled || !item.available }">
+                  {{ item.available && !item.disabled ? '当前可做' : '暂不可做' }}
+                </span>
+              </div>
+              <h3>{{ item.title }}</h3>
+              <strong class="action-status">{{ item.status }}</strong>
+              <p>{{ item.disabled && item.desc ? `原因：${item.desc}` : item.desc }}</p>
+              <div class="action-buttons">
+                <button :class="item.primaryClass" :disabled="item.disabled" @click="item.primaryAction">{{ item.primaryText }}</button>
+                <button
+                  v-if="item.secondaryText"
+                  class="ghost"
+                  :disabled="item.secondaryDisabled"
+                  @click="item.secondaryAction"
+                >
+                  {{ item.secondaryText }}
+                </button>
+              </div>
+            </article>
+          </div>
+
+          <article class="panel release-panel">
+            <div class="section-head">
+              <div>
+                <h2>质检 / 二维码 / 发布</h2>
+                <p>发布前条件和公开入口都在这里。</p>
+              </div>
+            </div>
+
+            <div class="release-summary-grid">
+              <article class="release-summary-card" data-testid="workbench-quality-panel">
+                <div class="release-card-head">
+                  <div>
+                    <span class="card-label">质检</span>
+                    <strong>{{ detail.quality.label }}</strong>
+                  </div>
+                  <button class="ghost" @click="openQualityDialog">上传质检</button>
+                </div>
+                <p class="panel-copy">{{ latestQualityReport ? `最近质检：${latestQualityReport.reportNo} · ${latestQualityReport.agency}` : '当前还没有质检摘要。' }}</p>
+                <div class="compact-grid">
+                  <div>
+                    <span>是否已有质检</span>
+                    <strong>{{ qualityUploaded ? '已有' : '暂无' }}</strong>
+                  </div>
+                  <div>
+                    <span>质检结论</span>
+                    <strong>{{ latestQualityReport?.resultLabel || detail.quality.label }}</strong>
+                  </div>
+                </div>
+              </article>
+
+              <article class="release-summary-card" data-testid="workbench-qr-panel">
+                <div class="release-card-head">
+                  <div>
+                    <span class="card-label">二维码</span>
+                    <strong data-testid="workbench-qr-status">{{ resolveQrStatusText(detail.qr) }}</strong>
+                  </div>
+                  <button class="ghost" data-testid="workbench-qr-action-0" :disabled="detail.qr.generated || !qrAction.enabled" @click="handleGenerateQr">
+                    {{ detail.qr.generated ? '二维码已生成' : '生成二维码' }}
+                  </button>
+                </div>
+                <p class="panel-copy">{{ detail.qr.generated ? `公开访问标识：${detail.qr.token || '已生成'}` : (qrAction.hint || '先生成二维码，再核对公开页入口。') }}</p>
+                <a
+                  v-if="detail.qr.publicUrl"
+                  class="public-link"
+                  data-testid="workbench-public-preview"
+                  :href="detail.qr.publicUrl"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  打开公开页
+                </a>
+              </article>
+            </div>
+
+            <div class="publish-checklist">
+              <article v-for="item in publishChecks" :key="item.key" class="publish-check-card">
+                <strong>{{ item.label }}</strong>
+                <span :class="{ done: item.done }">{{ item.done ? '已满足' : '未满足' }}</span>
+                <small>{{ item.detail }}</small>
+              </article>
+            </div>
+
+            <div class="release-actions">
+              <button class="success" :disabled="!publishReady" @click="openStatusDialog('PUBLISHED')">
+                {{ resumeAction.enabled ? '恢复发布' : '发布批次' }}
+              </button>
+              <span class="release-tip">
+                {{ publishReady ? '条件已满足。' : (publishAction.hint || resumeAction.hint || '发布前需先补齐合格质检和二维码。') }}
+              </span>
             </div>
           </article>
         </div>
       </section>
+
       <section class="content-grid">
         <article class="panel" data-testid="workbench-recent-records">
           <div class="section-head">
             <div>
-              <h2>最近追溯记录</h2>
-              <p>优先查看最近几条现场记录，确认时间、地点、图片和说明是否完整。</p>
+              <h2>最近记录与图片回查</h2>
+              <p>先看最新一条，再回查更早记录，确认环节、提交人、提交时间和图片顺序。</p>
             </div>
             <div class="inline-actions">
               <button class="primary" @click="openTraceDialog">补录追溯</button>
             </div>
           </div>
-          <div v-if="recentRecords.length" class="record-list">
-            <article v-for="item in recentRecords" :key="item.id" class="record-card">
+
+          <article v-if="latestRecord" class="latest-record-card" data-testid="workbench-latest-record">
+            <div class="record-head">
+              <div>
+                <strong>{{ latestRecord.title }}</strong>
+                <span>{{ formatStageLabel(latestRecord.stageCode) }} · {{ latestRecord.operatorName }}</span>
+              </div>
+              <span class="record-tag">{{ latestRecord.eventTime }}</span>
+            </div>
+            <div class="record-meta-row">
+              <small>提交地点：{{ latestRecord.location || '暂无地点' }}</small>
+              <small>消费者可见：{{ latestRecord.visibleToConsumer ? '是' : '否' }}</small>
+            </div>
+            <p>{{ latestRecord.summary }}</p>
+            <div v-if="latestRecordImages.length" class="record-image-grid">
+              <article v-for="asset in latestRecordImages" :key="asset.id" class="record-image-frame">
+                <img class="record-image" :src="asset.fileUrl" :alt="asset.fileName">
+              </article>
+            </div>
+          </article>
+          <p v-else class="empty-copy">当前还没有追溯记录。</p>
+
+          <div v-if="earlierRecords.length" class="record-list compact-record-list">
+            <article v-for="item in earlierRecords" :key="item.id" class="record-card">
               <div class="record-head">
                 <div>
                   <strong>{{ item.title }}</strong>
-                  <span>{{ item.eventTime }} · {{ formatStageLabel(item.stageCode) }}</span>
+                  <span>{{ formatStageLabel(item.stageCode) }} · {{ item.operatorName }}</span>
                 </div>
-                <span class="record-tag">{{ item.operatorName }}</span>
+                <small>{{ item.eventTime }}</small>
               </div>
               <p>{{ item.summary }}</p>
-              <small>{{ item.location }}</small>
-              <div v-if="recordPreviewImages(item).length" class="record-image-grid">
+              <small>{{ item.location || '暂无地点' }}</small>
+              <div v-if="recordPreviewImages(item).length" class="record-image-grid compact-images">
                 <article v-for="asset in recordPreviewImages(item)" :key="asset.id" class="record-image-frame">
                   <img class="record-image" :src="asset.fileUrl" :alt="asset.fileName">
                 </article>
               </div>
             </article>
           </div>
-          <p v-else class="empty-copy">当前还没有追溯记录。</p>
         </article>
 
-        <div class="side-stack">
-          <article class="panel" data-testid="workbench-quality-panel">
-            <div class="section-head">
-              <div>
-                <h2>质检</h2>
-                <p>保留最关键的质检结论、机构和摘要。</p>
+        <article class="panel assignment-panel" data-testid="workbench-assignment-panel">
+          <div class="section-head">
+            <div>
+              <h2>任务分配</h2>
+              <p>在当前页直接分配、改派或清空。</p>
+            </div>
+          </div>
+          <div class="assignment-grid">
+            <div class="assignment-overview">
+              <div class="compact-grid">
+                <div>
+                  <span>分配时间</span>
+                  <strong>{{ detail.task?.assignedAt || '暂无记录' }}</strong>
+                </div>
+                <div>
+                  <span>草稿状态</span>
+                  <strong>{{ assignmentDraftText }}</strong>
+                </div>
+                <div>
+                  <span>草稿更新时间</span>
+                  <strong>{{ detail.task?.draftUpdatedAt || '暂无草稿' }}</strong>
+                </div>
               </div>
-              <button class="ghost" @click="openQualityDialog">上传质检</button>
+              <p class="panel-copy assignment-note">{{ assignmentHint }}</p>
             </div>
-            <div class="info-grid">
-              <div><span>当前状态</span><strong>{{ detail.quality.label }}</strong></div>
-              <div><span>报告数量</span><strong>{{ detail.quality.reportCount }}</strong></div>
-            </div>
-            <p class="panel-copy">{{ detail.quality.summary }}</p>
-            <div v-if="detail.quality.latestReport" class="report-card">
-              <strong>{{ detail.quality.latestReport.reportNo }}</strong>
-              <span>{{ detail.quality.latestReport.agency }}</span>
-              <small>{{ detail.quality.latestReport.reportTime }}</small>
-            </div>
-          </article>
 
-          <article class="panel" data-testid="workbench-qr-panel">
-            <div class="section-head">
-              <div>
-                <h2>二维码与发布</h2>
-                <p>二维码生成后可直接核对公开页，发布入口也在这里。</p>
+            <div v-if="canManageAssignment" class="assignment-actions">
+              <label>
+                <span>指派操作员</span>
+                <select v-model="assignmentForm.assigneeUserId" data-testid="assignment-operator-select" :disabled="operatorLoading || assignmentSaving">
+                  <option value="">未分配操作员</option>
+                  <option v-for="item in operatorOptions" :key="item.id" :value="String(item.id)">{{ operatorOptionLabel(item) }}</option>
+                </select>
+              </label>
+              <p class="assignment-helper">
+                <template v-if="operatorLoading">正在加载可分配操作员...</template>
+                <template v-else-if="operatorOptions.length">当前企业可分配 {{ operatorOptions.length }} 位操作员。</template>
+                <template v-else>当前没有可分配的操作员，请先检查企业账号与角色。</template>
+              </p>
+              <div class="action-buttons assignment-buttons">
+                <button
+                  class="primary"
+                  data-testid="assignment-save-button"
+                  :disabled="assignmentSaving || operatorLoading || !assignmentChanged"
+                  @click="submitAssignment(false)"
+                >
+                  {{ assignmentActionLabel }}
+                </button>
+                <button
+                  class="ghost danger"
+                  data-testid="assignment-clear-button"
+                  :disabled="assignmentSaving || !detail.task?.assigneeUserId"
+                  @click="clearAssignment"
+                >
+                  清空分配
+                </button>
               </div>
-              <div class="inline-actions">
-                <button class="ghost" data-testid="workbench-qr-action-0" @click="handleGenerateQr">{{ detail.qr.generated ? '刷新二维码' : '生成二维码' }}</button>
-                <button class="success" :disabled="!(actionOf('PUBLISH').enabled || actionOf('RESUME').enabled)" @click="openStatusDialog('PUBLISHED')">{{ actionOf('RESUME').enabled ? '恢复发布' : '发布批次' }}</button>
+
+              <div v-if="assignmentConfirm.visible" class="assignment-warning" data-testid="assignment-draft-confirm">
+                <strong>该批次存在未提交草稿</strong>
+                <p>{{ assignmentConfirm.message }}</p>
+                <div class="inline-actions">
+                  <button class="ghost" data-testid="assignment-draft-cancel" @click="cancelAssignmentConfirm">取消改派</button>
+                  <button class="warning" data-testid="assignment-draft-force" :disabled="assignmentSaving" @click="forceAssignmentChange">
+                    {{ assignmentConfirmActionLabel }}
+                  </button>
+                </div>
               </div>
             </div>
-            <div class="info-grid">
-              <div><span>二维码状态</span><strong data-testid="workbench-qr-status">{{ detail.qr.generated ? '已生成' : '待生成' }}</strong></div>
-              <div><span>公开访问标识</span><strong>{{ detail.qr.token || '暂无' }}</strong></div>
+
+            <div v-else class="assignment-readonly">
+              <p class="empty-copy">当前账号只查看分配结果，分配、改派和清空操作仅对管理员开放。</p>
             </div>
-            <a v-if="detail.qr.publicUrl" class="public-link" data-testid="workbench-public-preview" :href="detail.qr.publicUrl" target="_blank" rel="noreferrer">打开公开页</a>
-          </article>
-        </div>
+          </div>
+        </article>
       </section>
 
-      <section class="risk-panel panel" data-testid="workbench-risk-panel">
+      <section class="risk-panel panel" :class="{ calm: riskPanelCalm }" data-testid="workbench-risk-panel">
         <div class="section-head">
           <div>
             <h2>风险处理</h2>
-            <p>冻结、召回、整改和恢复发布都从这里处理。</p>
+            <p>{{ riskPanelCalm ? '当前只保留风险结论和最近动作。' : '补说明、整改并更新风险状态。' }}</p>
           </div>
           <div class="inline-actions" data-testid="workbench-group-status">
             <button class="ghost" :disabled="!canHandleRisk" @click="openRiskDialog('COMMENT')">补处理说明</button>
@@ -523,15 +1009,29 @@ onMounted(async () => { await loadDetail(route.params.id) })
             <button class="success" :disabled="!canHandleRisk" @click="openRiskDialog('RECTIFIED')">标记已整改</button>
           </div>
         </div>
+
+        <div class="risk-summary-grid">
+          <div class="summary-card slim">
+            <span class="card-label">当前风险状态</span>
+            <p class="card-title">{{ riskStageText }}</p>
+            <p class="card-copy">{{ detail.risk?.title || '当前无风险标题' }}</p>
+          </div>
+          <div class="summary-card slim">
+            <span class="card-label">最近风险动作</span>
+            <p class="card-title">{{ latestRiskActionLabel }}</p>
+            <p class="card-copy">{{ latestRiskAction?.createdAt || latestRiskAction?.operatedAt || '暂无动作时间' }}</p>
+          </div>
+          <div class="summary-card slim">
+            <span class="card-label">整改结果</span>
+            <p class="card-title">{{ riskResolutionText }}</p>
+            <p class="card-copy">{{ detail.riskHandling?.canResume ? '已满足恢复发布条件' : '当前还不能恢复发布' }}</p>
+          </div>
+        </div>
+
         <div class="risk-grid">
           <div>
-            <div class="info-grid">
-              <div><span>当前风险</span><strong>{{ detail.risk.title }}</strong></div>
-              <div><span>当前阶段</span><strong>{{ detail.riskHandling.currentStageLabel }}</strong></div>
-              <div><span>可恢复发布</span><strong>{{ detail.riskHandling.canResume ? '可以' : '还不行' }}</strong></div>
-            </div>
-            <p class="panel-copy">{{ detail.risk.tip }}</p>
-            <div v-if="riskChecklist.length" class="check-grid" data-testid="workbench-risk-checklist">
+            <p class="panel-copy">{{ riskPanelCopy }}</p>
+            <div v-if="riskChecklist.length && !riskPanelCalm" class="check-grid" data-testid="workbench-risk-checklist">
               <article v-for="item in riskChecklist" :key="item.label" class="check-card">
                 <strong>{{ item.label }}</strong>
                 <span :class="{ done: item.done }">{{ item.done ? '已完成' : '待补齐' }}</span>
@@ -542,7 +1042,7 @@ onMounted(async () => { await loadDetail(route.params.id) })
           <div>
             <div v-if="detail.riskHandling.history.length" class="history-list">
               <article v-for="item in detail.riskHandling.history" :key="item.id" class="history-card">
-                <strong>{{ riskActionLabel(item.actionType) }}</strong>
+                <strong>{{ item.actionLabel || item.actionType }}</strong>
                 <p v-if="item.reason">{{ item.reason }}</p>
                 <p v-if="item.comment">{{ item.comment }}</p>
                 <small>{{ item.operatorName }} · {{ item.createdAt || item.operatedAt }}</small>
@@ -554,13 +1054,18 @@ onMounted(async () => { await loadDetail(route.params.id) })
       </section>
 
       <section class="panel" data-testid="workbench-status-history">
-        <div class="section-head"><div><h2>状态流转</h2><p>查看批次从草稿到发布或风险处置的变化记录。</p></div></div>
+        <div class="section-head">
+          <div>
+            <h2>状态流转</h2>
+            <p>只保留关键状态变化。</p>
+          </div>
+        </div>
         <ul class="timeline-list">
           <li v-for="item in detail.statusHistory" :key="`${item.status}-${item.operatedAt}`">
             <span class="timeline-dot" :class="statusClass(item.status)" />
             <div>
-              <strong>{{ item.status }}</strong>
-              <p>{{ item.reason }}</p>
+              <strong>{{ item.statusLabel || item.status }}</strong>
+              <p>{{ historyReasonText(item) }}</p>
               <small>{{ item.operatorName }} · {{ item.operatedAt }}</small>
             </div>
           </li>
@@ -692,6 +1197,7 @@ onMounted(async () => { await loadDetail(route.params.id) })
 .card-head small,.summary-card small { color: var(--admin-text-soft); font-size: 12px; }
 .card-title { margin: 14px 0 8px; color: var(--admin-text); font-size: 18px; font-weight: 700; }
 .card-copy,.panel-copy,.action-card p,.history-card p { margin: 0; color: #4a6b90; line-height: 1.7; }
+.task-draft-copy { margin: 10px 0 0; color: #a35f17; font-size: 13px; font-weight: 600; }
 .empty-copy { margin: 14px 0 0; color: var(--admin-text-soft); line-height: 1.7; }
 .mini-list { margin: 12px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; }
 .mini-list li { padding: 12px 14px; border-radius: 14px; background: var(--admin-surface-soft); }
@@ -704,6 +1210,29 @@ onMounted(async () => { await loadDetail(route.params.id) })
 .action-card h3 { margin: 10px 0 8px; color: var(--admin-text); font-size: 18px; }
 .action-buttons,.inline-actions,.dialog-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .action-buttons { margin-top: 16px; }
+.assignment-panel { margin-top: 18px; }
+.assignment-grid { display: grid; grid-template-columns: 1.2fr .9fr; gap: 16px; margin-top: 16px; }
+.assignment-overview,
+.assignment-actions,
+.assignment-readonly {
+  padding: 18px;
+  border: 1px solid rgba(56,134,217,.1);
+  border-radius: 16px;
+  background: var(--admin-surface-soft);
+}
+.assignment-info-grid { margin-top: 0; }
+.assignment-note { margin-top: 14px; }
+.assignment-helper { margin: 10px 0 0; color: var(--admin-text-soft); line-height: 1.7; }
+.assignment-buttons { margin-top: 14px; }
+.assignment-warning {
+  margin-top: 14px;
+  padding: 16px;
+  border: 1px solid rgba(240, 139, 51, 0.24);
+  border-radius: 16px;
+  background: rgba(255, 245, 232, 0.96);
+}
+.assignment-warning strong { display: block; color: #9a6512; }
+.assignment-warning p { margin: 8px 0 0; color: #7a5a35; line-height: 1.7; }
 .content-grid,.risk-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; margin-top: 18px; }
 .side-stack,.record-list,.history-list,.timeline-list,.uploaded-file-list { display: grid; gap: 12px; }
 .record-head { display: flex; justify-content: space-between; gap: 12px; }
@@ -775,8 +1304,10 @@ button:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
 button.primary { background: var(--admin-primary); color: #fff; box-shadow: 0 10px 24px rgba(56, 134, 217, 0.18); }
 button.success { background: #1f9f66; color: #fff; box-shadow: 0 10px 24px rgba(31, 159, 102, 0.18); }
 button.warning { background: #f08b33; color: #fff; box-shadow: 0 10px 24px rgba(240, 139, 51, 0.2); }
+button.danger { border-color: rgba(224, 73, 73, 0.2); color: #a33030; }
 button.ghost,
 .preview-link { border-color: rgba(56, 134, 217, 0.18); background: #fff; color: var(--admin-primary-deep); }
+button.ghost.danger { border-color: rgba(224, 73, 73, 0.2); color: #a33030; }
 .upload-box {
   display: grid;
   gap: 8px;
@@ -800,11 +1331,70 @@ button.ghost,
 }
 .checkbox-field input { width: 18px; min-height: 18px; margin: 0; }
 .full-width { grid-column: 1 / -1; }
-@media (max-width: 1100px) {
+.top-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.summary-card.slim { padding: 18px; }
+.summary-meta-list,
+.compact-grid,
+.publish-checklist,
+.risk-summary-grid { display: grid; gap: 12px; }
+.risk-panel.calm { border-color: rgba(56, 134, 217, 0.08); background: rgba(250, 252, 255, 0.96); }
+.summary-meta-list { margin-top: 14px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.summary-meta-list.compact { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.summary-meta-list div,
+.compact-grid div,
+.risk-summary-grid .summary-card { border: 1px solid rgba(56, 134, 217, 0.1); background: var(--admin-surface-soft); }
+.risk-panel.calm .risk-summary-grid .summary-card { border-color: rgba(56, 134, 217, 0.06); background: rgba(248, 250, 253, 0.96); }
+.summary-meta-list div,
+.compact-grid div { padding: 12px 14px; border-radius: 14px; }
+.summary-meta-list span,
+.compact-grid span { display: block; margin-bottom: 8px; color: var(--admin-text-soft); font-size: 13px; }
+.summary-meta-list strong,
+.compact-grid strong { display: block; color: var(--admin-text); }
+.summary-record-head,
+.action-card-head,
+.release-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.summary-image-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+.summary-image-frame { overflow: hidden; border-radius: 14px; background: rgba(255, 255, 255, 0.88); }
+.summary-image { width: 100%; height: 96px; display: block; object-fit: cover; }
+.action-hub { display: grid; grid-template-columns: 1.55fr 1fr; gap: 16px; margin-top: 16px; }
+.action-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.action-card.unavailable { background: linear-gradient(180deg, rgba(245, 248, 252, 0.96), rgba(239, 244, 250, 0.96)); }
+.availability-badge { display: inline-flex; align-items: center; justify-content: center; min-height: 30px; padding: 0 12px; border-radius: 999px; background: rgba(224, 232, 243, 0.9); color: #5b7190; font-size: 12px; font-weight: 700; }
+.availability-badge.ok { background: rgba(33, 170, 110, 0.14); color: #17784f; }
+.availability-badge.blocked { background: rgba(248, 193, 73, 0.18); color: #946200; }
+.action-status { display: block; margin: 0 0 10px; color: var(--admin-text); font-size: 15px; }
+.action-reason { margin-top: 10px; color: #7a5a35; font-size: 13px; }
+.release-panel { margin-top: 0; }
+.release-summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+.release-summary-card,
+.publish-check-card,
+.latest-record-card { padding: 16px; border: 1px solid rgba(56,134,217,.1); border-radius: 16px; background: var(--admin-surface-soft); }
+.release-card-head strong { display: block; margin-top: 8px; color: var(--admin-text); font-size: 17px; }
+.publish-checklist { margin-top: 16px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.publish-check-card span { display: inline-flex; margin-top: 8px; color: #9a6512; font-size: 12px; font-weight: 700; }
+.publish-check-card span.done { color: var(--admin-success-text); }
+.publish-check-card small { display: block; margin-top: 8px; color: var(--admin-text-soft); font-size: 13px; }
+.release-actions { margin-top: 16px; align-items: center; }
+.release-tip { color: var(--admin-text-soft); line-height: 1.7; }
+.content-grid { grid-template-columns: 1.45fr 1fr; }
+.record-meta-row { display: flex; flex-wrap: wrap; gap: 16px; margin: 10px 0; }
+.compact-record-list { margin-top: 16px; }
+.record-image-grid.compact-images { grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); }
+.assignment-panel { margin-top: 0; }
+.assignment-grid { grid-template-columns: 1.15fr .95fr; }
+.compact-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.risk-summary-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 16px; }
+@media (max-width: 1160px) {
   .top-grid,
   .action-grid,
+  .summary-meta-list,
+  .publish-checklist,
+  .risk-summary-grid,
+  .release-summary-grid,
   .info-grid,
   .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .action-hub,
+  .assignment-grid,
   .content-grid,
   .risk-grid { grid-template-columns: 1fr; }
 }
@@ -812,15 +1402,26 @@ button.ghost,
   .page-shell { padding: 18px 14px 36px; }
   .top-grid,
   .action-grid,
+  .summary-meta-list,
+  .summary-meta-list.compact,
+  .release-summary-grid,
+  .publish-checklist,
+  .risk-summary-grid,
+  .compact-grid,
   .info-grid,
   .form-grid,
-  .check-grid { grid-template-columns: 1fr; }
+  .check-grid,
+  .summary-image-strip { grid-template-columns: 1fr; }
   .action-panel .section-head,
   .panel .section-head,
   .record-head,
   .card-head,
+  .summary-record-head,
+  .action-card-head,
+  .release-card-head,
   .dialog-head,
   .uploaded-file-item { flex-direction: column; align-items: flex-start; }
+  .record-meta-row { flex-direction: column; gap: 8px; }
   .dialog-mask { padding: 16px; }
   .dialog-card { padding: 18px; }
   .dialog-actions { width: 100%; }

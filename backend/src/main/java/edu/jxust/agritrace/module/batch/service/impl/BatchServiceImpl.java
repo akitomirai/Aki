@@ -10,6 +10,7 @@ import edu.jxust.agritrace.module.auth.mapper.SysUserMapper;
 import edu.jxust.agritrace.module.auth.mapper.po.SysUserPO;
 import edu.jxust.agritrace.module.auth.model.AuthUserSession;
 import edu.jxust.agritrace.module.batch.dto.BatchCreateRequest;
+import edu.jxust.agritrace.module.batch.dto.BatchAssignmentRequest;
 import edu.jxust.agritrace.module.batch.dto.BatchListQueryRequest;
 import edu.jxust.agritrace.module.batch.dto.BatchRiskActionCreateRequest;
 import edu.jxust.agritrace.module.batch.dto.BatchStatusActionRequest;
@@ -60,6 +61,7 @@ import edu.jxust.agritrace.module.batch.service.MasterDataService;
 import edu.jxust.agritrace.module.batch.service.support.AttachmentGovernanceService;
 import edu.jxust.agritrace.module.batch.service.support.AttachmentStorageService;
 import edu.jxust.agritrace.module.batch.service.support.BatchRiskResolver;
+import edu.jxust.agritrace.module.batch.service.support.TraceDisplayLabels;
 import edu.jxust.agritrace.module.batch.service.support.QrImageStorageService;
 import edu.jxust.agritrace.module.batch.service.support.TraceLinkBuilder;
 import edu.jxust.agritrace.module.batch.vo.AttachmentCleanupResultVO;
@@ -76,6 +78,7 @@ import edu.jxust.agritrace.module.batch.vo.CompanyOptionVO;
 import edu.jxust.agritrace.module.batch.vo.CompanySummaryVO;
 import edu.jxust.agritrace.module.batch.vo.FileAssetVO;
 import edu.jxust.agritrace.module.batch.vo.FieldDraftVO;
+import edu.jxust.agritrace.module.batch.vo.OperatorOptionVO;
 import edu.jxust.agritrace.module.batch.vo.ProductSummaryVO;
 import edu.jxust.agritrace.module.batch.vo.ProductOptionVO;
 import edu.jxust.agritrace.module.batch.vo.QrSummaryVO;
@@ -87,6 +90,8 @@ import edu.jxust.agritrace.module.batch.vo.ScanStatsSectionVO;
 import edu.jxust.agritrace.module.batch.vo.ScanTrendPointVO;
 import edu.jxust.agritrace.module.batch.vo.TraceRecordVO;
 import edu.jxust.agritrace.module.batch.vo.TraceSectionVO;
+import edu.jxust.agritrace.module.log.dto.OperationLogRecord;
+import edu.jxust.agritrace.module.log.service.OperationLogService;
 import edu.jxust.agritrace.module.publictrace.dto.PublicTraceAccessContext;
 import org.springframework.core.io.Resource;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -136,6 +141,7 @@ public class BatchServiceImpl implements BatchService {
     private final AttachmentStorageService attachmentStorageService;
     private final AttachmentGovernanceService attachmentGovernanceService;
     private final BatchRiskResolver batchRiskResolver;
+    private final OperationLogService operationLogService;
 
     public BatchServiceImpl(
             TraceBatchMapper traceBatchMapper,
@@ -156,7 +162,8 @@ public class BatchServiceImpl implements BatchService {
             QrImageStorageService qrImageStorageService,
             AttachmentStorageService attachmentStorageService,
             AttachmentGovernanceService attachmentGovernanceService,
-            BatchRiskResolver batchRiskResolver
+            BatchRiskResolver batchRiskResolver,
+            OperationLogService operationLogService
     ) {
         this.traceBatchMapper = traceBatchMapper;
         this.baseProductMapper = baseProductMapper;
@@ -177,6 +184,7 @@ public class BatchServiceImpl implements BatchService {
         this.attachmentStorageService = attachmentStorageService;
         this.attachmentGovernanceService = attachmentGovernanceService;
         this.batchRiskResolver = batchRiskResolver;
+        this.operationLogService = operationLogService;
     }
 
     @Override
@@ -234,6 +242,43 @@ public class BatchServiceImpl implements BatchService {
     }
 
     @Override
+    public List<OperatorOptionVO> listAssignableOperators(Long companyId) {
+        AuthUserSession currentUser = requireCurrentUser();
+        ensureAssignmentManager(currentUser);
+
+        Long effectiveCompanyId = normalizeOperatorLookupCompanyId(currentUser, companyId);
+        List<SysUserPO> operators = sysUserMapper.selectList(new LambdaQueryWrapper<SysUserPO>()
+                        .eq(SysUserPO::getStatus, 1)
+                        .eq(SysUserPO::getRoleCode, "OPERATOR")
+                        .eq(effectiveCompanyId != null, SysUserPO::getCompanyId, effectiveCompanyId)
+                        .orderByAsc(SysUserPO::getCompanyId)
+                        .orderByAsc(SysUserPO::getUsername))
+                .stream()
+                .filter(Objects::nonNull)
+                .toList();
+
+        Map<Long, String> companyNameMap = new LinkedHashMap<>();
+        for (SysUserPO operator : operators) {
+            if (operator.getCompanyId() == null || companyNameMap.containsKey(operator.getCompanyId())) {
+                continue;
+            }
+            OrgCompanyPO companyPO = orgCompanyMapper.selectById(operator.getCompanyId());
+            companyNameMap.put(operator.getCompanyId(), companyPO == null ? "" : defaultValue(companyPO.getName(), ""));
+        }
+
+        return operators.stream()
+                .map(operator -> new OperatorOptionVO(
+                        operator.getId(),
+                        operator.getUsername(),
+                        defaultValue(operator.getRealName(), defaultValue(operator.getUsername(), "")),
+                        operator.getRoleCode(),
+                        operator.getCompanyId(),
+                        companyNameMap.getOrDefault(operator.getCompanyId(), "")
+                ))
+                .toList();
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public List<FileAssetVO> uploadAttachments(String businessType, List<MultipartFile> files) {
         AttachmentBusinessType attachmentBusinessType = AttachmentBusinessType.fromCode(businessType);
@@ -255,6 +300,19 @@ public class BatchServiceImpl implements BatchService {
             attachmentPO.setFileUrl(traceLinkBuilder.buildAttachmentUrl(attachmentPO.getId()));
             bizAttachmentMapper.updateById(attachmentPO);
             uploaded.add(toFileAssetVO(attachmentPO));
+        }
+        AuthUserSession currentUser = currentUser();
+        if (attachmentBusinessType == AttachmentBusinessType.TRACE_IMAGE && currentUser != null && !uploaded.isEmpty()) {
+            FileAssetVO firstFile = uploaded.get(0);
+            writeOperationLog(
+                    currentUser,
+                    currentUser.companyId(),
+                    "TRACE_IMAGE_UPLOAD",
+                    "ATTACHMENT",
+                    firstFile.id(),
+                    "现场图片（" + uploaded.size() + "张）",
+                    "上传现场图片成功，共 " + uploaded.size() + " 张"
+            );
         }
         return uploaded;
     }
@@ -312,6 +370,7 @@ public class BatchServiceImpl implements BatchService {
     @Transactional(rollbackFor = Exception.class)
     public BatchWorkbenchVO changeStatus(Long batchId, BatchStatusActionRequest request) {
         TraceBatchPO batchPO = findBatchPO(batchId);
+        AuthUserSession currentUser = requireCurrentUser();
         BatchEntity batch = loadBatchEntity(batchPO);
         BatchStatus currentStatus = batch.getStatus();
         BatchStatus targetStatus = request.targetStatus();
@@ -337,6 +396,24 @@ public class BatchServiceImpl implements BatchService {
             qrCodePO.setStatus(toQrStatus(targetStatus));
             qrCodePO.setStatusReason(request.reason());
             qrCodeMapper.updateById(qrCodePO);
+        }
+
+        String actionType = null;
+        String summary = null;
+        if (targetStatus == BatchStatus.FROZEN) {
+            actionType = "RISK_FREEZE";
+            summary = "冻结批次 " + batchPO.getBatchCode() + "，原因：" + defaultValue(request.reason(), "已进入风险处理");
+        } else if (targetStatus == BatchStatus.PUBLISHED) {
+            if (currentStatus == BatchStatus.FROZEN || currentStatus == BatchStatus.RECALLED) {
+                actionType = "RISK_RESUME_PUBLISH";
+                summary = "恢复批次 " + batchPO.getBatchCode() + " 发布，说明：" + defaultValue(request.reason(), "整改完成");
+            } else {
+                actionType = "BATCH_PUBLISH";
+                summary = "发布批次 " + batchPO.getBatchCode() + " 到公开页";
+            }
+        }
+        if (actionType != null) {
+            writeOperationLog(currentUser, batchPO.getCompanyId(), actionType, "BATCH", batchId, batchPO.getBatchCode(), summary);
         }
 
         return toWorkbench(getBatchEntityById(batchId));
@@ -367,6 +444,66 @@ public class BatchServiceImpl implements BatchService {
         bindAttachmentsToBusiness(attachments, eventPO.getId());
         markTaskCompleted(batchPO, currentUser);
         deleteFieldDraftRecord(batchId, currentUser);
+        writeOperationLog(
+                currentUser,
+                batchPO.getCompanyId(),
+                "TRACE_RECORD_SUBMIT",
+                "TRACE_RECORD",
+                eventPO.getId(),
+                eventPO.getTitle(),
+                "为批次 " + batchPO.getBatchCode() + " 提交现场记录《" + eventPO.getTitle() + "》"
+        );
+
+        return toWorkbench(getBatchEntityById(batchId));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public BatchWorkbenchVO assignBatchOperator(Long batchId, BatchAssignmentRequest request) {
+        TraceBatchPO batchPO = findBatchPO(batchId);
+        AuthUserSession currentUser = requireCurrentUser();
+        ensureAssignmentManagerForBatch(currentUser, batchPO);
+
+        Long currentAssigneeUserId = batchPO.getAssigneeUserId();
+        Long nextAssigneeUserId = request == null ? null : request.assigneeUserId();
+        boolean forceClearDraft = request != null && Boolean.TRUE.equals(request.forceClearDraft());
+        boolean assignmentChanging = !Objects.equals(batchPO.getAssigneeUserId(), nextAssigneeUserId);
+        BatchFieldDraftPO existingDraft = findFieldDraftPO(batchId, currentAssigneeUserId);
+        SysUserPO previousAssigneePO = currentAssigneeUserId == null ? null : sysUserMapper.selectById(currentAssigneeUserId);
+        SysUserPO nextAssigneePO = null;
+
+        if (!assignmentChanging) {
+            return toWorkbench(getBatchEntityById(batchId));
+        }
+        if (existingDraft != null && !forceClearDraft) {
+            throw new IllegalArgumentException("该批次当前分配人存在未提交草稿，请先取消改派，或确认强制改派并清除原分配人的未提交草稿。");
+        }
+
+        if (nextAssigneeUserId == null) {
+            batchPO.setAssigneeUserId(null);
+            batchPO.setAssignedAt(null);
+        } else {
+            nextAssigneePO = findAssignableOperatorRequired(nextAssigneeUserId, batchPO, currentUser);
+            batchPO.setAssigneeUserId(nextAssigneePO.getId());
+            batchPO.setAssignedAt(LocalDateTime.now());
+        }
+        batchPO.setTaskStatus("PENDING");
+        batchPO.setTaskCompletedAt(null);
+        traceBatchMapper.updateById(batchPO);
+
+        if (existingDraft != null && currentAssigneeUserId != null) {
+            deleteFieldDraftRecord(batchId, currentAssigneeUserId);
+        }
+
+        writeOperationLog(
+                currentUser,
+                batchPO.getCompanyId(),
+                resolveAssignmentActionType(previousAssigneePO, nextAssigneePO),
+                "BATCH",
+                batchId,
+                batchPO.getBatchCode(),
+                buildAssignmentSummary(batchPO.getBatchCode(), previousAssigneePO, nextAssigneePO, existingDraft != null && forceClearDraft)
+        );
 
         return toWorkbench(getBatchEntityById(batchId));
     }
@@ -435,7 +572,8 @@ public class BatchServiceImpl implements BatchService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public BatchWorkbenchVO addQualityReport(Long batchId, QualityReportCreateRequest request) {
-        findBatchPO(batchId);
+        TraceBatchPO batchPO = findBatchPO(batchId);
+        AuthUserSession currentUser = requireCurrentUser();
         LocalDateTime reportTime = parseFlexibleDateTime(request.reportTime(), LocalDateTime.now());
         List<BizAttachmentPO> attachments = claimAttachments(request.attachmentIds(), AttachmentBusinessType.QUALITY_ATTACHMENT, null);
 
@@ -449,6 +587,15 @@ public class BatchServiceImpl implements BatchService {
         reportPO.setCreatedAt(reportTime);
         qualityReportMapper.insert(reportPO);
         bindAttachmentsToBusiness(attachments, reportPO.getId());
+        writeOperationLog(
+                currentUser,
+                batchPO.getCompanyId(),
+                "QUALITY_UPLOAD",
+                "QUALITY",
+                reportPO.getId(),
+                reportPO.getReportNo(),
+                "为批次 " + batchPO.getBatchCode() + " 上传质检，报告号：" + reportPO.getReportNo() + "，结论：" + TraceDisplayLabels.qualityStatus(reportPO.getResult())
+        );
 
         return toWorkbench(getBatchEntityById(batchId));
     }
@@ -457,6 +604,7 @@ public class BatchServiceImpl implements BatchService {
     @Transactional(rollbackFor = Exception.class)
     public BatchWorkbenchVO addRiskAction(Long batchId, BatchRiskActionCreateRequest request) {
         TraceBatchPO batchPO = findBatchPO(batchId);
+        AuthUserSession currentUser = requireCurrentUser();
         BatchEntity batch = loadBatchEntity(batchPO);
         if (batch.getStatus() != BatchStatus.FROZEN && batch.getStatus() != BatchStatus.RECALLED) {
             throw new IllegalArgumentException("risk handling can only be added when the batch is frozen or recalled");
@@ -476,6 +624,15 @@ public class BatchServiceImpl implements BatchService {
             batchPO.setStatusReason(defaultValue(request.reason(), defaultValue(request.comment(), batchPO.getStatusReason())));
             traceBatchMapper.updateById(batchPO);
         }
+        writeOperationLog(
+                currentUser,
+                batchPO.getCompanyId(),
+                resolveRiskActionLogType(request.actionType()),
+                "BATCH",
+                batchId,
+                batchPO.getBatchCode(),
+                buildRiskActionSummary(batchPO.getBatchCode(), request)
+        );
 
         return toWorkbench(getBatchEntityById(batchId));
     }
@@ -484,7 +641,9 @@ public class BatchServiceImpl implements BatchService {
     @Transactional(rollbackFor = Exception.class)
     public BatchWorkbenchVO generateQr(Long batchId) {
         TraceBatchPO batchPO = findBatchPO(batchId);
+        AuthUserSession currentUser = requireCurrentUser();
         QrCodePO existing = findQrByBatchId(batchId);
+        QrCodePO effectiveQrCode;
         if (existing == null) {
             String token = resolveUniqueToken(batchPO.getBatchCode(), batchId);
             String publicUrl = traceLinkBuilder.buildPublicTraceUrl(token);
@@ -498,9 +657,20 @@ public class BatchServiceImpl implements BatchService {
             qrCodePO.setRemark("批次二维码");
             qrCodePO.setPv(0L);
             qrCodeMapper.insert(qrCodePO);
+            effectiveQrCode = qrCodePO;
         } else {
             qrImageStorageService.ensureQrImage(existing.getQrToken(), traceLinkBuilder.buildPublicTraceUrl(existing.getQrToken()));
+            effectiveQrCode = existing;
         }
+        writeOperationLog(
+                currentUser,
+                batchPO.getCompanyId(),
+                "QR_GENERATE",
+                "QR",
+                effectiveQrCode.getId(),
+                effectiveQrCode.getQrToken(),
+                "为批次 " + batchPO.getBatchCode() + " 生成二维码，公开标识：" + effectiveQrCode.getQrToken()
+        );
         return toWorkbench(getBatchEntityById(batchId));
     }
 
@@ -765,6 +935,18 @@ public class BatchServiceImpl implements BatchService {
         AuthUserSession currentUser = currentUser();
         String effectiveTaskStatus = resolveEffectiveTaskStatus(batch);
         LocalDateTime effectiveTaskCompletedAt = resolveEffectiveTaskCompletedAt(batch);
+        BatchFieldDraftPO assignedDraft = findFieldDraftPO(batch.getId(), batch.getAssigneeUserId());
+        String qrStatus = batch.getQrCode() == null ? "NOT_GENERATED" : batch.getQrCode().status();
+        String qualityStatusCode = latestQuality == null
+                ? "PENDING"
+                : defaultValue(latestQuality.result(), "PENDING").toUpperCase(Locale.ROOT);
+        String qualityStatusLabel = TraceDisplayLabels.qualityStatus(qualityStatusCode);
+        BatchRiskResolver.RiskSnapshot riskSnapshot = batchRiskResolver.resolve(batch);
+        boolean canResume = batchRiskResolver.canResume(batch);
+        List<BatchActionVO> actions = buildActions(batch);
+        boolean publishReady = actions.stream()
+                .anyMatch(action -> ("PUBLISH".equals(action.code()) || "RESUME".equals(action.code())) && action.enabled());
+        boolean draftPending = assignedDraft != null;
         return new BatchListItemVO(
                 batch.getId(),
                 batch.getBatchCode(),
@@ -777,9 +959,18 @@ public class BatchServiceImpl implements BatchService {
                 batch.getOriginPlace(),
                 formatDate(batch.getProductionDate()),
                 formatDateTime(batch.getPublishedAt()),
-                batch.getQrCode() == null ? "NOT_GENERATED" : batch.getQrCode().status(),
-                latestQuality == null ? "待上传" : toQualityLabel(latestQuality.result()),
-                buildActions(batch),
+                qrStatus,
+                TraceDisplayLabels.qrStatus(qrStatus),
+                batch.getQrCode() == null ? null : batch.getQrCode().token(),
+                qualityStatusCode,
+                qualityStatusLabel,
+                publishReady,
+                riskSnapshot.status(),
+                riskSnapshot.statusLabel(),
+                latestRiskActionLabel(batch, riskSnapshot),
+                riskResolutionLabel(riskSnapshot),
+                canResume,
+                actions,
                 buildQuickTags(batch, latestQuality),
                 formatDateTime(latestActivityAt(batch)),
                 formatDateTime(latestTrace == null ? null : latestTrace.eventTime()),
@@ -787,9 +978,12 @@ public class BatchServiceImpl implements BatchService {
                 batch.getAssigneeName(),
                 formatDateTime(batch.getAssignedAt()),
                 effectiveTaskStatus,
-                toTaskStatusLabel(effectiveTaskStatus),
+                draftPending ? TraceDisplayLabels.draftStatus(true) : toTaskStatusLabel(effectiveTaskStatus),
                 formatDateTime(effectiveTaskCompletedAt),
-                isTaskCompletedToday(batch, currentUser)
+                isTaskCompletedToday(batch, currentUser),
+                draftPending,
+                TraceDisplayLabels.draftStatus(draftPending),
+                formatDateTime(assignedDraft == null ? null : assignedDraft.getUpdatedAt())
         );
     }
 
@@ -809,6 +1003,8 @@ public class BatchServiceImpl implements BatchService {
         QualityReportVO latestQuality = sortedQualityReports.isEmpty() ? null : sortedQualityReports.get(0);
         String effectiveTaskStatus = resolveEffectiveTaskStatus(batch);
         LocalDateTime effectiveTaskCompletedAt = resolveEffectiveTaskCompletedAt(batch);
+        BatchFieldDraftPO draftPO = findFieldDraftPO(batch.getId(), batch.getAssigneeUserId());
+        boolean draftPending = draftPO != null;
 
         return new BatchWorkbenchVO(
                 new BatchOverviewVO(
@@ -826,9 +1022,12 @@ public class BatchServiceImpl implements BatchService {
                         batch.getAssigneeName(),
                         formatDateTime(batch.getAssignedAt()),
                         effectiveTaskStatus,
-                        toTaskStatusLabel(effectiveTaskStatus),
+                        draftPending ? TraceDisplayLabels.draftStatus(true) : toTaskStatusLabel(effectiveTaskStatus),
                         formatDateTime(effectiveTaskCompletedAt),
-                        isTaskCompletedToday(batch)
+                        isTaskCompletedToday(batch),
+                        draftPending,
+                        TraceDisplayLabels.draftStatus(draftPending),
+                        formatDateTime(draftPO == null ? null : draftPO.getUpdatedAt())
                 ),
                 new ProductSummaryVO(
                         batch.getProduct().id(),
@@ -858,7 +1057,7 @@ public class BatchServiceImpl implements BatchService {
                 ),
                 new QualitySectionVO(
                         latestQuality == null ? "PENDING" : latestQuality.result(),
-                        latestQuality == null ? "待上传" : latestQuality.resultLabel(),
+                        latestQuality == null ? TraceDisplayLabels.qualityStatus(null) : latestQuality.resultLabel(),
                         latestQuality == null ? "当前尚未上传质检摘要，发布前应先补齐检测结论。" : buildQualitySummary(latestQuality),
                         sortedQualityReports.size(),
                         latestQuality,
@@ -888,6 +1087,7 @@ public class BatchServiceImpl implements BatchService {
         return new BatchRiskSummaryVO(
                 risk.hasRisk(),
                 risk.status(),
+                risk.statusLabel(),
                 risk.riskLevel(),
                 risk.title(),
                 risk.reason(),
@@ -911,12 +1111,13 @@ public class BatchServiceImpl implements BatchService {
 
     private QrSummaryVO toQrSummary(QrCodeEntity qrCode) {
         if (qrCode == null) {
-            return new QrSummaryVO(null, null, "NOT_GENERATED", null, null, null, null, 0, 0, false);
+            return new QrSummaryVO(null, null, "NOT_GENERATED", TraceDisplayLabels.qrStatus("NOT_GENERATED"), null, null, null, null, 0, 0, false);
         }
         return new QrSummaryVO(
                 qrCode.id(),
                 qrCode.token(),
                 qrCode.status(),
+                TraceDisplayLabels.qrStatus(qrCode.status()),
                 qrCode.publicUrl(),
                 qrCode.imageUrl(),
                 formatDateTime(qrCode.generatedAt()),
@@ -1058,6 +1259,7 @@ public class BatchServiceImpl implements BatchService {
     private BatchStatusLogVO toStatusLogVO(StatusHistoryEntity history) {
         return new BatchStatusLogVO(
                 history.status().name(),
+                toStatusLabel(history.status()),
                 history.reason(),
                 history.operatorName(),
                 formatDateTime(history.operatedAt())
@@ -1186,7 +1388,7 @@ public class BatchServiceImpl implements BatchService {
     private List<String> buildQuickTags(BatchEntity batch, QualityReportEntity latestQuality) {
         List<String> tags = new ArrayList<>();
         tags.add(toStatusLabel(batch.getStatus()));
-        tags.add(batch.getQrCode() == null ? "待生成二维码" : "支持扫码");
+        tags.add(batch.getQrCode() == null ? "待生成二维码" : TraceDisplayLabels.qrStatus(batch.getQrCode().status()));
         tags.add(latestQuality == null ? "待上传质检" : toQualityLabel(latestQuality.result()));
         if (batch.getQrCode() != null && batch.getQrCode().pv() > 0) {
             tags.add("已扫码 " + batch.getQrCode().pv() + " 次");
@@ -1202,6 +1404,29 @@ public class BatchServiceImpl implements BatchService {
             return latestQuality.resultLabel() + "，暂未补充更多检测亮点。";
         }
         return latestQuality.resultLabel() + "，重点结果：" + String.join("、", latestQuality.highlights());
+    }
+
+    private String latestRiskActionLabel(BatchEntity batch, BatchRiskResolver.RiskSnapshot riskSnapshot) {
+        BatchRiskActionEntity latestAction = batch.getRiskActions().stream()
+                .filter(Objects::nonNull)
+                .max(Comparator.comparing(BatchRiskActionEntity::createdAt))
+                .orElse(null);
+        if (latestAction == null) {
+            return riskSnapshot.hasRisk() ? "暂无处理动作" : "暂无风险动作";
+        }
+        return latestAction.actionType().label() + " · " + defaultValue(latestAction.operatorName(), "未知操作人");
+    }
+
+    private String riskResolutionLabel(BatchRiskResolver.RiskSnapshot riskSnapshot) {
+        String status = defaultValue(riskSnapshot == null ? null : riskSnapshot.status(), "NORMAL")
+                .toUpperCase(Locale.ROOT);
+        return switch (status) {
+            case "PROCESSING" -> "整改处理中";
+            case "RECTIFIED" -> "已完成整改";
+            case "FROZEN", "RISK_PENDING" -> "待完成整改";
+            case "RECALLED" -> "召回处理中";
+            default -> "无需整改";
+        };
     }
 
     private String resolveCurrentNode(BatchEntity batch, List<TraceRecordEntity> traceRecords) {
@@ -1239,12 +1464,7 @@ public class BatchServiceImpl implements BatchService {
     }
 
     private String toStatusLabel(BatchStatus status) {
-        return switch (status) {
-            case DRAFT -> "草稿";
-            case PUBLISHED -> "已发布";
-            case FROZEN -> "已冻结";
-            case RECALLED -> "已召回";
-        };
+        return TraceDisplayLabels.batchStatus(status);
     }
 
     private String toQrStatus(BatchStatus status) {
@@ -1257,21 +1477,11 @@ public class BatchServiceImpl implements BatchService {
     }
 
     private String toQualityLabel(String result) {
-        if (Objects.equals(result, "PASS")) {
-            return "合格";
-        }
-        if (Objects.equals(result, "FAIL")) {
-            return "不合格";
-        }
-        return "待确认";
+        return TraceDisplayLabels.qualityStatus(result);
     }
 
     private String toTaskStatusLabel(String taskStatus) {
-        return switch (defaultValue(taskStatus, "PENDING").toUpperCase(Locale.ROOT)) {
-            case "DRAFT" -> "草稿中";
-            case "COMPLETED" -> "今日已完成";
-            default -> "待处理";
-        };
+        return TraceDisplayLabels.taskStatus(taskStatus);
     }
 
     private String resolveEffectiveTaskStatus(BatchEntity batch) {
@@ -1313,7 +1523,11 @@ public class BatchServiceImpl implements BatchService {
         if (assigneePO == null) {
             return "";
         }
-        return defaultValue(assigneePO.getRealName(), defaultValue(assigneePO.getUsername(), ""));
+        String displayName = defaultValue(assigneePO.getRealName(), defaultValue(assigneePO.getUsername(), ""));
+        if (assigneePO.getStatus() != null && assigneePO.getStatus() != 1) {
+            return displayName + "（已停用）";
+        }
+        return displayName;
     }
 
     private String normalizeDraftStage(String stage) {
@@ -1353,22 +1567,30 @@ public class BatchServiceImpl implements BatchService {
     }
 
     private BatchFieldDraftPO findFieldDraftPO(Long batchId, AuthUserSession currentUser) {
-        if (batchId == null || currentUser == null) {
+        return findFieldDraftPO(batchId, currentUser == null ? null : currentUser.userId());
+    }
+
+    private BatchFieldDraftPO findFieldDraftPO(Long batchId, Long operatorUserId) {
+        if (batchId == null || operatorUserId == null) {
             return null;
         }
         return batchFieldDraftMapper.selectOne(new LambdaQueryWrapper<BatchFieldDraftPO>()
                 .eq(BatchFieldDraftPO::getBatchId, batchId)
-                .eq(BatchFieldDraftPO::getOperatorUserId, currentUser.userId())
+                .eq(BatchFieldDraftPO::getOperatorUserId, operatorUserId)
                 .last("limit 1"));
     }
 
     private void deleteFieldDraftRecord(Long batchId, AuthUserSession currentUser) {
-        if (batchId == null || currentUser == null) {
+        deleteFieldDraftRecord(batchId, currentUser == null ? null : currentUser.userId());
+    }
+
+    private void deleteFieldDraftRecord(Long batchId, Long operatorUserId) {
+        if (batchId == null || operatorUserId == null) {
             return;
         }
         batchFieldDraftMapper.delete(new LambdaQueryWrapper<BatchFieldDraftPO>()
                 .eq(BatchFieldDraftPO::getBatchId, batchId)
-                .eq(BatchFieldDraftPO::getOperatorUserId, currentUser.userId()));
+                .eq(BatchFieldDraftPO::getOperatorUserId, operatorUserId));
     }
 
     private void markTaskDrafting(TraceBatchPO batchPO) {
@@ -1469,10 +1691,81 @@ public class BatchServiceImpl implements BatchService {
         return principal instanceof AuthUserSession userSession ? userSession : null;
     }
 
+    private void writeOperationLog(AuthUserSession currentUser, Long companyId, String actionType, String targetType, Long targetId, String targetName, String summary) {
+        if (currentUser == null || !notBlank(actionType)) {
+            return;
+        }
+        operationLogService.record(new OperationLogRecord(
+                currentUser.userId(),
+                resolveActorName(currentUser),
+                currentUser.roleCode(),
+                companyId,
+                actionType,
+                targetType,
+                targetId,
+                targetName,
+                "SUCCESS",
+                summary
+        ));
+    }
+
+    private String resolveActorName(AuthUserSession currentUser) {
+        return defaultValue(currentUser == null ? null : currentUser.realName(), currentUser == null ? "" : currentUser.username());
+    }
+
+    private String resolveAssignmentActionType(SysUserPO previousAssigneePO, SysUserPO nextAssigneePO) {
+        if (previousAssigneePO == null && nextAssigneePO != null) {
+            return "BATCH_ASSIGN";
+        }
+        if (previousAssigneePO != null && nextAssigneePO == null) {
+            return "BATCH_UNASSIGN";
+        }
+        return "BATCH_REASSIGN";
+    }
+
+    private String buildAssignmentSummary(String batchCode, SysUserPO previousAssigneePO, SysUserPO nextAssigneePO, boolean clearedDraft) {
+        if (previousAssigneePO == null && nextAssigneePO != null) {
+            return "将批次 " + batchCode + " 分配给 " + resolveUserDisplayName(nextAssigneePO);
+        }
+        if (previousAssigneePO != null && nextAssigneePO == null) {
+            return "清空批次 " + batchCode + " 的分配，原分配人：" + resolveUserDisplayName(previousAssigneePO);
+        }
+        String summary = "将批次 " + batchCode + " 从 " + resolveUserDisplayName(previousAssigneePO) + " 改派给 " + resolveUserDisplayName(nextAssigneePO);
+        if (clearedDraft) {
+            return summary + "，并清除了原分配人的未提交草稿";
+        }
+        return summary;
+    }
+
+    private String resolveUserDisplayName(SysUserPO userPO) {
+        return defaultValue(userPO == null ? null : userPO.getRealName(), userPO == null ? "" : userPO.getUsername());
+    }
+
+    private String resolveRiskActionLogType(RiskActionType actionType) {
+        if (actionType == null) {
+            return "RISK_COMMENT";
+        }
+        return switch (actionType) {
+            case RECTIFICATION -> "RISK_RECTIFICATION";
+            case PROCESSING -> "RISK_PROCESSING";
+            case RECTIFIED -> "RISK_RECTIFIED";
+            default -> "RISK_COMMENT";
+        };
+    }
+
+    private String buildRiskActionSummary(String batchCode, BatchRiskActionCreateRequest request) {
+        String detail = defaultValue(trimToNull(request == null ? null : request.comment()), trimToNull(request == null ? null : request.reason()));
+        String summary = "为批次 " + batchCode + " 执行“" + (request == null || request.actionType() == null ? "风险处理" : request.actionType().label()) + "”";
+        if (notBlank(detail)) {
+            return summary + "，说明：" + detail;
+        }
+        return summary;
+    }
+
     private AuthUserSession requireCurrentUser() {
         AuthUserSession currentUser = currentUser();
         if (currentUser == null) {
-            throw new UnauthorizedException("current user is required");
+            throw new UnauthorizedException("当前登录状态已失效，请重新登录后再试。");
         }
         return currentUser;
     }
@@ -1483,12 +1776,61 @@ public class BatchServiceImpl implements BatchService {
             return;
         }
         if (!Objects.equals(batchPO.getAssigneeUserId(), currentUser.userId())) {
-            throw new UnauthorizedException("batch is not assigned to the current operator");
+            throw new UnauthorizedException("当前批次未分配给你，无法查看或提交。");
         }
+    }
+
+    private void ensureAssignmentManager(AuthUserSession currentUser) {
+        if (isPlatformAdmin(currentUser) || isEnterpriseAdmin(currentUser)) {
+            return;
+        }
+        throw new UnauthorizedException("你没有批次任务分配权限。");
+    }
+
+    private void ensureAssignmentManagerForBatch(AuthUserSession currentUser, TraceBatchPO batchPO) {
+        ensureAssignmentManager(currentUser);
+        if (isEnterpriseAdmin(currentUser) && !Objects.equals(currentUser.companyId(), batchPO.getCompanyId())) {
+            throw new UnauthorizedException("你无权改派该批次，只能管理本企业批次的任务分配。");
+        }
+    }
+
+    private Long normalizeOperatorLookupCompanyId(AuthUserSession currentUser, Long requestedCompanyId) {
+        if (isEnterpriseAdmin(currentUser)) {
+            if (requestedCompanyId != null && !Objects.equals(requestedCompanyId, currentUser.companyId())) {
+                throw new UnauthorizedException("你无权查看其他企业的操作员列表。");
+            }
+            return currentUser.companyId();
+        }
+        return requestedCompanyId;
+    }
+
+    private SysUserPO findAssignableOperatorRequired(Long operatorUserId, TraceBatchPO batchPO, AuthUserSession currentUser) {
+        SysUserPO operatorPO = sysUserMapper.selectById(operatorUserId);
+        if (operatorPO == null || operatorPO.getStatus() == null || operatorPO.getStatus() != 1) {
+            throw new IllegalArgumentException("所选操作员不存在或已停用。");
+        }
+        if (!"OPERATOR".equalsIgnoreCase(operatorPO.getRoleCode())) {
+            throw new IllegalArgumentException("所选用户不是可分配的操作员。");
+        }
+        if (isEnterpriseAdmin(currentUser) && !Objects.equals(operatorPO.getCompanyId(), currentUser.companyId())) {
+            throw new UnauthorizedException("你只能分配本企业的操作员。");
+        }
+        if (!Objects.equals(operatorPO.getCompanyId(), batchPO.getCompanyId())) {
+            throw new IllegalArgumentException("所选操作员不属于当前批次所属企业。");
+        }
+        return operatorPO;
     }
 
     private boolean isOperator(AuthUserSession currentUser) {
         return currentUser != null && "OPERATOR".equalsIgnoreCase(currentUser.roleCode());
+    }
+
+    private boolean isPlatformAdmin(AuthUserSession currentUser) {
+        return currentUser != null && "PLATFORM_ADMIN".equalsIgnoreCase(currentUser.roleCode());
+    }
+
+    private boolean isEnterpriseAdmin(AuthUserSession currentUser) {
+        return currentUser != null && "ENTERPRISE_ADMIN".equalsIgnoreCase(currentUser.roleCode());
     }
 
     private void ensureBatchCodeUnique(String batchCode, Long ignoredBatchId) {

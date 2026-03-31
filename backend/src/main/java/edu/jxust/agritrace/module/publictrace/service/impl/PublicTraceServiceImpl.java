@@ -6,6 +6,7 @@ import edu.jxust.agritrace.module.batch.entity.QualityReportEntity;
 import edu.jxust.agritrace.module.batch.entity.TraceRecordEntity;
 import edu.jxust.agritrace.module.batch.service.BatchService;
 import edu.jxust.agritrace.module.batch.service.support.BatchRiskResolver;
+import edu.jxust.agritrace.module.batch.service.support.TraceDisplayLabels;
 import edu.jxust.agritrace.module.publictrace.dto.PublicTraceAccessContext;
 import edu.jxust.agritrace.module.publictrace.service.PublicTraceService;
 import edu.jxust.agritrace.module.publictrace.vo.PublicCompanyVO;
@@ -53,7 +54,7 @@ public class PublicTraceServiceImpl implements PublicTraceService {
                         batch.getCompany().name(),
                         batch.getOriginPlace(),
                         toStatusLabel(batch.getStatus()),
-                        latestQuality == null ? "待补充" : toQualityLabel(latestQuality.result()),
+                        latestQuality == null ? TraceDisplayLabels.qualityStatus(null) : toQualityLabel(latestQuality.result()),
                         formatDate(batch.getProductionDate().atStartOfDay()),
                         formatDateTime(batch.getPublishedAt()),
                         "扫码后可直接查看批次状态、质检结论和关键追溯信息。"
@@ -74,7 +75,7 @@ public class PublicTraceServiceImpl implements PublicTraceService {
                         .toList(),
                 new PublicQualityVO(
                         latestQuality == null ? "PENDING" : latestQuality.result(),
-                        latestQuality == null ? "待补充" : toQualityLabel(latestQuality.result()),
+                        latestQuality == null ? TraceDisplayLabels.qualityStatus(null) : toQualityLabel(latestQuality.result()),
                         latestQuality == null ? "企业尚未上传公开质检摘要，请以后续补充信息为准。" : buildQualitySummary(latestQuality),
                         latestQuality == null ? null : latestQuality.agency(),
                         latestQuality == null ? null : latestQuality.reportNo(),
@@ -91,6 +92,7 @@ public class PublicTraceServiceImpl implements PublicTraceService {
                 new PublicRiskVO(
                         risk.hasRisk(),
                         risk.status(),
+                        risk.statusLabel(),
                         risk.riskLevel(),
                         risk.title(),
                         risk.reason(),
@@ -106,20 +108,11 @@ public class PublicTraceServiceImpl implements PublicTraceService {
     }
 
     private String toStatusLabel(BatchStatus status) {
-        return switch (status) {
-            case DRAFT -> "草稿";
-            case PUBLISHED -> "已发布";
-            case FROZEN -> "已冻结";
-            case RECALLED -> "已召回";
-        };
+        return TraceDisplayLabels.batchStatus(status);
     }
 
     private String toQualityLabel(String result) {
-        return switch (result) {
-            case "PASS" -> "合格";
-            case "FAIL" -> "不合格";
-            default -> "待复核";
-        };
+        return TraceDisplayLabels.qualityStatus(result);
     }
 
     private String buildQualitySummary(QualityReportEntity report) {

@@ -8,6 +8,8 @@ public class LoginUserVO {
     private String roleCode;
     private String roleName;
     private Long companyId;
+    private Boolean needChangePassword;
+    private String passwordUpdatedAt;
 
     public Long getId() {
         return id;
@@ -55,5 +57,21 @@ public class LoginUserVO {
 
     public void setCompanyId(Long companyId) {
         this.companyId = companyId;
+    }
+
+    public Boolean getNeedChangePassword() {
+        return needChangePassword;
+    }
+
+    public void setNeedChangePassword(Boolean needChangePassword) {
+        this.needChangePassword = needChangePassword;
+    }
+
+    public String getPasswordUpdatedAt() {
+        return passwordUpdatedAt;
+    }
+
+    public void setPasswordUpdatedAt(String passwordUpdatedAt) {
+        this.passwordUpdatedAt = passwordUpdatedAt;
     }
 }

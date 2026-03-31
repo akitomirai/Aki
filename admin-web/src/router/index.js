@@ -4,6 +4,7 @@ import { ALL_ADMIN_ROLES, getDefaultRouteByRole, hasRoleAccess } from '../utils/
 
 const qualityRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN', 'REGULATOR']
 const fieldRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN', 'OPERATOR']
+const userManageRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN']
 
 const routes = [
   {
@@ -67,6 +68,26 @@ const routes = [
         }
       },
       {
+        path: 'users',
+        name: 'users',
+        component: () => import('../pages/UserManage/UserManageView.vue'),
+        meta: {
+          requiresAuth: true,
+          title: '用户管理',
+          roles: userManageRoles
+        }
+      },
+      {
+        path: 'logs',
+        name: 'logs',
+        component: () => import('../pages/LogManage/LogManageView.vue'),
+        meta: {
+          requiresAuth: true,
+          title: '操作日志',
+          roles: userManageRoles
+        }
+      },
+      {
         path: 'batches',
         name: 'batches',
         component: () => import('../pages/BatchListView.vue'),
@@ -77,12 +98,19 @@ const routes = [
         }
       },
       {
+        path: 'qr',
+        name: 'qr-publish-entry',
+        component: () => import('../pages/QrPublishManageView.vue'),
+        meta: {
+          requiresAuth: true,
+          title: '二维码与发布',
+          roles: qualityRoles
+        }
+      },
+      {
         path: 'quality',
         name: 'quality-entry',
-        redirect: () => ({
-          path: '/batches',
-          query: { mode: 'READY' }
-        }),
+        component: () => import('../pages/QualityTodoView.vue'),
         meta: {
           requiresAuth: true,
           title: '质检待办',
@@ -92,10 +120,7 @@ const routes = [
       {
         path: 'risk',
         name: 'risk-entry',
-        redirect: () => ({
-          path: '/batches',
-          query: { mode: 'RISK' }
-        }),
+        component: () => import('../pages/RiskTodoView.vue'),
         meta: {
           requiresAuth: true,
           title: '风险处理',

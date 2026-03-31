@@ -1,5 +1,6 @@
 package edu.jxust.agritrace.module.batch.service;
 
+import edu.jxust.agritrace.module.batch.dto.BatchAssignmentRequest;
 import edu.jxust.agritrace.module.batch.dto.BatchCreateRequest;
 import edu.jxust.agritrace.module.batch.dto.BatchListQueryRequest;
 import edu.jxust.agritrace.module.batch.dto.BatchRiskActionCreateRequest;
@@ -15,6 +16,7 @@ import edu.jxust.agritrace.module.batch.vo.BatchWorkbenchVO;
 import edu.jxust.agritrace.module.batch.vo.CompanyOptionVO;
 import edu.jxust.agritrace.module.batch.vo.FileAssetVO;
 import edu.jxust.agritrace.module.batch.vo.FieldDraftVO;
+import edu.jxust.agritrace.module.batch.vo.OperatorOptionVO;
 import edu.jxust.agritrace.module.batch.vo.ProductOptionVO;
 import edu.jxust.agritrace.module.publictrace.dto.PublicTraceAccessContext;
 import org.springframework.core.io.Resource;
@@ -32,6 +34,8 @@ public interface BatchService {
 
     List<ProductOptionVO> listProductOptions(Long companyId, String keyword);
 
+    List<OperatorOptionVO> listAssignableOperators(Long companyId);
+
     List<FileAssetVO> uploadAttachments(String businessType, List<MultipartFile> files);
 
     AttachmentCleanupResultVO cleanupExpiredOrphanAttachments();
@@ -43,6 +47,8 @@ public interface BatchService {
     BatchWorkbenchVO changeStatus(Long batchId, BatchStatusActionRequest request);
 
     BatchWorkbenchVO addTraceRecord(Long batchId, TraceRecordCreateRequest request);
+
+    BatchWorkbenchVO assignBatchOperator(Long batchId, BatchAssignmentRequest request);
 
     List<FieldDraftVO> listMyFieldDrafts();
 

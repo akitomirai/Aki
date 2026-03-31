@@ -1,9 +1,11 @@
 package edu.jxust.agritrace.controller;
 
 import edu.jxust.agritrace.common.api.ApiResponse;
+import edu.jxust.agritrace.module.auth.dto.ChangePasswordRequest;
 import edu.jxust.agritrace.module.auth.dto.LoginRequest;
 import edu.jxust.agritrace.module.auth.service.AuthService;
 import edu.jxust.agritrace.module.auth.vo.LoginResponseVO;
+import edu.jxust.agritrace.module.auth.vo.LoginUserVO;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -23,5 +25,10 @@ public class AuthController {
     @PostMapping("/login")
     public ApiResponse<LoginResponseVO> login(@Valid @RequestBody LoginRequest request) {
         return ApiResponse.ok("登录成功", authService.login(request));
+    }
+
+    @PostMapping("/change-password")
+    public ApiResponse<LoginUserVO> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
+        return ApiResponse.ok("密码修改成功。", authService.changePassword(request));
     }
 }

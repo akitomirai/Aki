@@ -15,7 +15,16 @@ public record BatchListItemVO(
         String productionDate,
         String marketDate,
         String qrStatus,
+        String qrStatusLabel,
+        String qrToken,
+        String qualityStatusCode,
         String qualityStatus,
+        boolean publishReady,
+        String riskStatus,
+        String riskStatusLabel,
+        String latestRiskActionLabel,
+        String riskResolutionLabel,
+        boolean canResume,
         List<BatchActionVO> actions,
         List<String> quickTags,
         String lastUpdatedAt,
@@ -26,6 +35,9 @@ public record BatchListItemVO(
         String taskStatus,
         String taskStatusLabel,
         String taskCompletedAt,
-        boolean todayCompleted
+        boolean todayCompleted,
+        boolean draftPending,
+        String draftStatusLabel,
+        String draftUpdatedAt
 ) {
 }

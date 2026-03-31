@@ -4,6 +4,7 @@ public record QrSummaryVO(
         Long id,
         String token,
         String status,
+        String statusLabel,
         String publicUrl,
         String imageUrl,
         String generatedAt,

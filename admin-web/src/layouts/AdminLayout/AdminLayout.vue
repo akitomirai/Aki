@@ -29,6 +29,14 @@
             <strong>{{ displayName }}</strong>
             <span>{{ roleName }}</span>
           </div>
+          <button
+            class="header-secondary-button"
+            type="button"
+            data-testid="admin-change-password"
+            @click="openChangePassword"
+          >
+            修改密码
+          </button>
           <button class="logout-button" type="button" @click="logout">退出登录</button>
         </div>
       </header>
@@ -42,8 +50,14 @@
 
 <script setup>
 import { useAdminLayout } from '../../composables/useAdminLayout'
+import { useAuthStore } from '../../stores/auth'
 
+const authStore = useAuthStore()
 const { activeMenu, displayName, logout, menuSections, pageTitle, roleName } = useAdminLayout()
+
+function openChangePassword() {
+  authStore.openPasswordDialog()
+}
 </script>
 
 <style src="./admin-layout.css" scoped></style>

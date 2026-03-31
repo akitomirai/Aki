@@ -9,7 +9,7 @@ public record PublicTraceSummaryVO(
         String statusLabel,
         String qualityResult,
         String productionDate,
-        String marketDate,
+        String publishedAt,
         String slogan
 ) {
 }

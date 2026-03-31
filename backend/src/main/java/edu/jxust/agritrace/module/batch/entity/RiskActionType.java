@@ -5,8 +5,8 @@ import java.util.Arrays;
 public enum RiskActionType {
     COMMENT("COMMENT", "处理说明"),
     RECTIFICATION("RECTIFICATION", "整改记录"),
-    PROCESSING("PROCESSING", "处理中"),
-    RECTIFIED("RECTIFIED", "已完成整改");
+    PROCESSING("PROCESSING", "标记处理中"),
+    RECTIFIED("RECTIFIED", "标记已整改");
 
     private final String code;
     private final String label;

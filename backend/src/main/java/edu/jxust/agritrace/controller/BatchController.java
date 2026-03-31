@@ -1,6 +1,7 @@
 package edu.jxust.agritrace.controller;
 
 import edu.jxust.agritrace.common.api.ApiResponse;
+import edu.jxust.agritrace.module.batch.dto.BatchAssignmentRequest;
 import edu.jxust.agritrace.module.batch.dto.BatchCreateRequest;
 import edu.jxust.agritrace.module.batch.dto.BatchListQueryRequest;
 import edu.jxust.agritrace.module.batch.dto.BatchRiskActionCreateRequest;
@@ -16,6 +17,7 @@ import edu.jxust.agritrace.module.batch.vo.BatchWorkbenchVO;
 import edu.jxust.agritrace.module.batch.vo.CompanyOptionVO;
 import edu.jxust.agritrace.module.batch.vo.FieldDraftVO;
 import edu.jxust.agritrace.module.batch.vo.FileAssetVO;
+import edu.jxust.agritrace.module.batch.vo.OperatorOptionVO;
 import edu.jxust.agritrace.module.batch.vo.ProductOptionVO;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -59,6 +61,11 @@ public class BatchController {
             @RequestParam(required = false) String keyword
     ) {
         return ApiResponse.ok(batchService.listProductOptions(companyId, keyword));
+    }
+
+    @GetMapping("/lookup/operators")
+    public ApiResponse<List<OperatorOptionVO>> listOperatorOptions(@RequestParam(required = false) Long companyId) {
+        return ApiResponse.ok(batchService.listAssignableOperators(companyId));
     }
 
     @PostMapping("/files/upload")
@@ -124,6 +131,11 @@ public class BatchController {
     @PostMapping("/{batchId}/records/quick")
     public ApiResponse<BatchWorkbenchVO> addQuickTraceRecord(@PathVariable Long batchId, @Valid @RequestBody TraceRecordCreateRequest request) {
         return ApiResponse.ok("追溯记录已补充。", batchService.addTraceRecord(batchId, request));
+    }
+
+    @PostMapping("/{batchId}/assignment")
+    public ApiResponse<BatchWorkbenchVO> assignBatchOperator(@PathVariable Long batchId, @RequestBody BatchAssignmentRequest request) {
+        return ApiResponse.ok("批次分配已更新。", batchService.assignBatchOperator(batchId, request));
     }
 
     @PostMapping("/{batchId}/quality-reports")
