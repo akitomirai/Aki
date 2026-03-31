@@ -30,6 +30,7 @@ import {
   stageOptions,
   todayString
 } from '../utils/batchExperience'
+import { downloadCsvFile } from '../utils/exportTools'
 import { resolveQrStatusText, resolveTaskStatusText, resolveTodayStatusText } from '../utils/statusPresentation'
 
 const route = useRoute()
@@ -449,6 +450,52 @@ function cleanObject(source) {
 function showMessage(text, type = 'info') {
   message.value = text
   messageType.value = type
+}
+
+function exportTimestamp() {
+  const now = new Date()
+  const pad = (value) => String(value).padStart(2, '0')
+  return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
+}
+
+function latestUpdatedText(item) {
+  return item.lastUpdatedAt || item.latestTraceTime || item.productionDate || '暂无更新'
+}
+
+function exportCurrentLedger() {
+  const rows = visibleBatchCards.value.map(({ item }) => ({
+    productName: item.productName || '未命名批次',
+    batchCode: item.batchCode || '',
+    companyName: item.companyName || '',
+    statusLabel: item.statusLabel || '草稿',
+    qualityStatus: item.qualityStatus || '待上传',
+    qrStatus: resolveQrStatusText({ statusLabel: item.qrStatusLabel, status: item.qrStatus }),
+    assigneeName: item.assigneeName || '未分配操作员',
+    taskStatusLabel: resolveTaskStatusText(item),
+    updatedAt: latestUpdatedText(item)
+  }))
+
+  if (!rows.length) {
+    showMessage('当前筛选结果没有可导出的批次。', 'info')
+    return
+  }
+
+  downloadCsvFile({
+    filename: `批次台账-${exportTimestamp()}.csv`,
+    columns: [
+      { key: 'productName', label: '批次名称' },
+      { key: 'batchCode', label: '批次编号' },
+      { key: 'companyName', label: '企业' },
+      { key: 'statusLabel', label: '批次状态' },
+      { key: 'qualityStatus', label: '质检状态' },
+      { key: 'qrStatus', label: '二维码状态' },
+      { key: 'assigneeName', label: '分配人' },
+      { key: 'taskStatusLabel', label: '任务状态' },
+      { key: 'updatedAt', label: '最近更新时间' }
+    ],
+    rows
+  })
+  showMessage(`批次台账已导出，共 ${rows.length} 条。`, 'success')
 }
 
 function resetFilters() {
@@ -1051,6 +1098,9 @@ function statusClass(status) {
       <div class="toolbar">
         <span class="list-summary">共 {{ listStats.total }} 个批次，当前显示 {{ visibleBatchCards.length }} 个。</span>
         <div class="toolbar-actions">
+          <button class="ghost" data-testid="batch-export-ledger" :disabled="loading || !visibleBatchCards.length" @click="exportCurrentLedger">
+            导出台账
+          </button>
           <button class="primary" :disabled="loading" @click="fetchBatches">查询</button>
           <button class="ghost" :disabled="loading" @click="resetFilters">重置</button>
         </div>

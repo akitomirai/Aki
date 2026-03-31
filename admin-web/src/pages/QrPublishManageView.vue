@@ -1,9 +1,10 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { changeBatchStatus, generateBatchQr, getBatchDetail, getBatchList } from '../api/batch'
 import { useAuthStore } from '../stores/auth'
 import { getFriendlyErrorMessage } from '../utils/batchExperience'
+import { openPrintPreviewWindow, renderQrPrintPreview } from '../utils/exportTools'
 import { resolveQrStatusText } from '../utils/statusPresentation'
 
 const router = useRouter()
@@ -17,9 +18,11 @@ const activeTab = ref('NEED_QR')
 const filters = ref(createFilterState())
 const qrSubmittingId = ref(null)
 const downloadSubmittingId = ref(null)
+const bulkPrintSubmitting = ref(false)
 const publishSubmitting = ref(false)
 const previewDialog = ref(createPreviewDialogState())
 const publishDialog = ref(createPublishDialogState())
+const selectedIds = ref([])
 
 const tabs = [
   { value: 'NEED_QR', label: '待生成二维码' },
@@ -37,6 +40,12 @@ const statusOptions = [
 ]
 
 const visibleRows = computed(() => rows.value.filter((item) => matchesKeyword(item) && matchesCompany(item) && matchesTab(item)))
+const selectableVisibleRows = computed(() => visibleRows.value.filter((item) => hasQr(item)))
+const selectedVisibleRows = computed(() => visibleRows.value.filter((item) => selectedIds.value.includes(item.id)))
+const selectedPrintableRows = computed(() => selectedVisibleRows.value.filter((item) => hasQr(item)))
+const allSelectableVisibleChecked = computed(() => {
+  return Boolean(selectableVisibleRows.value.length) && selectableVisibleRows.value.every((item) => selectedIds.value.includes(item.id))
+})
 
 const tabCounts = computed(() => {
   return tabs.reduce((acc, tab) => {
@@ -48,6 +57,11 @@ const tabCounts = computed(() => {
 onMounted(async () => {
   await fetchRows()
 })
+
+watch([activeTab, filters], () => {
+  const visibleIds = new Set(visibleRows.value.map((item) => item.id))
+  selectedIds.value = selectedIds.value.filter((id) => visibleIds.has(id))
+}, { deep: true })
 
 function createFilterState() {
   return {
@@ -218,6 +232,41 @@ function latestUpdatedText(item) {
   return item.lastUpdatedAt || item.latestTraceTime || '暂无更新'
 }
 
+function printTimestamp() {
+  return new Date().toLocaleString('zh-CN', {
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  })
+}
+
+function toggleRowSelection(item, checked) {
+  if (!hasQr(item)) {
+    return
+  }
+  if (checked) {
+    selectedIds.value = [...new Set([...selectedIds.value, item.id])]
+    return
+  }
+  selectedIds.value = selectedIds.value.filter((id) => id !== item.id)
+}
+
+function toggleSelectAllPrintable(checked) {
+  if (!checked) {
+    selectedIds.value = selectedIds.value.filter((id) => !selectableVisibleRows.value.some((item) => item.id === id))
+    return
+  }
+  selectedIds.value = [...new Set([...selectedIds.value, ...selectableVisibleRows.value.map((item) => item.id)])]
+}
+
+function clearSelection() {
+  selectedIds.value = []
+}
+
 function matchesKeyword(item) {
   const keyword = filters.value.keyword.trim().toLowerCase()
   if (!keyword) {
@@ -257,6 +306,8 @@ async function fetchRows() {
       status: filters.value.status || undefined
     }))
     rows.value = response.data ?? []
+    const rowIds = new Set(rows.value.map((item) => item.id))
+    selectedIds.value = selectedIds.value.filter((id) => rowIds.has(id))
   } catch (error) {
     showMessage(getFriendlyErrorMessage(error, '二维码与发布列表加载失败，请稍后再试。'), 'error')
   } finally {
@@ -323,6 +374,50 @@ async function openPreviewDialog(item) {
 
 function closePreviewDialog() {
   previewDialog.value = createPreviewDialogState()
+}
+
+async function openBulkPrintPreview() {
+  if (!selectedPrintableRows.value.length) {
+    showMessage('请先勾选至少 1 个已生成二维码的批次。', 'info')
+    return
+  }
+
+  let popup
+  try {
+    popup = openPrintPreviewWindow('二维码批量打印预览')
+  } catch (error) {
+    showMessage(getFriendlyErrorMessage(error, '打印预览窗口打开失败，请稍后重试。'), 'error')
+    return
+  }
+
+  bulkPrintSubmitting.value = true
+  try {
+    const items = await Promise.all(
+      selectedPrintableRows.value.map(async (item) => {
+        const qr = await resolveQrPreview(item)
+        return {
+          batchCode: item.batchCode,
+          productName: item.productName || item.batchCode,
+          companyName: item.companyName || '未标注企业',
+          qrToken: qr.token,
+          publicUrl: qr.publicUrl,
+          imageUrl: qr.imageUrl
+        }
+      })
+    )
+    renderQrPrintPreview(popup, {
+      title: '二维码批量打印预览',
+      subtitle: `共 ${items.length} 个批次，已按当前列表选择生成打印内容。`,
+      printedAt: printTimestamp(),
+      items
+    })
+    showMessage(`已生成 ${items.length} 个批次的打印预览。`, 'success')
+  } catch (error) {
+    popup.close()
+    showMessage(getFriendlyErrorMessage(error, '批量打印预览生成失败，请稍后重试。'), 'error')
+  } finally {
+    bulkPrintSubmitting.value = false
+  }
 }
 
 async function downloadQr(item) {
@@ -455,6 +550,32 @@ async function submitPublish() {
         <div class="list-summary">
           当前显示 {{ visibleRows.length }} 个批次，直接看二维码是否就绪、为什么能发，以及下一步应该做什么。
         </div>
+        <div class="toolbar-actions">
+          <button
+            class="ghost"
+            data-testid="qr-bulk-select-all"
+            :disabled="!selectableVisibleRows.length"
+            @click="toggleSelectAllPrintable(!allSelectableVisibleChecked)"
+          >
+            {{ allSelectableVisibleChecked ? '取消本页全选' : '全选本页已有码批次' }}
+          </button>
+          <button
+            class="ghost"
+            data-testid="qr-bulk-clear"
+            :disabled="!selectedIds.length"
+            @click="clearSelection"
+          >
+            清空选择
+          </button>
+          <button
+            class="primary"
+            data-testid="qr-bulk-print"
+            :disabled="bulkPrintSubmitting || !selectedPrintableRows.length"
+            @click="openBulkPrintPreview"
+          >
+            {{ bulkPrintSubmitting ? '正在生成打印页...' : `批量打印预览（${selectedPrintableRows.length}）` }}
+          </button>
+        </div>
       </div>
     </section>
 
@@ -462,6 +583,7 @@ async function submitPublish() {
 
     <section class="panel">
       <div class="todo-table-head qr-head">
+        <span>选择</span>
         <span>批次</span>
         <span>企业 / 更新时间</span>
         <span>当前状态</span>
@@ -491,6 +613,19 @@ async function submitPublish() {
           class="todo-row qr-row"
           :data-testid="`qr-row-${item.id}`"
         >
+          <div class="row-select">
+            <label class="selection-check">
+              <input
+                :checked="selectedIds.includes(item.id)"
+                :disabled="!hasQr(item)"
+                :data-testid="`qr-select-row-${item.id}`"
+                type="checkbox"
+                @change="toggleRowSelection(item, $event.target.checked)"
+              >
+              <span>{{ hasQr(item) ? '加入批打' : '待生成' }}</span>
+            </label>
+          </div>
+
           <div class="row-main">
             <strong>{{ item.productName }}</strong>
             <small>{{ item.batchCode }}</small>
@@ -689,12 +824,41 @@ async function submitPublish() {
 .qr-head,
 .qr-row {
   grid-template-columns:
+    minmax(0, 0.55fr)
     minmax(0, 1.25fr)
     minmax(0, 1fr)
     minmax(0, 1fr)
     minmax(0, 1.5fr)
     minmax(0, 0.95fr)
     minmax(0, 1.35fr);
+}
+
+.row-select {
+  display: flex;
+  align-items: center;
+}
+
+.selection-check {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  color: var(--admin-text-soft);
+  font-size: 13px;
+}
+
+.selection-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--admin-primary);
+}
+
+.selection-check span {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(48, 149, 246, 0.08);
 }
 
 .success {
@@ -715,6 +879,10 @@ async function submitPublish() {
 @media (max-width: 760px) {
   .qr-row {
     grid-template-columns: 1fr;
+  }
+
+  .row-select {
+    margin-bottom: 4px;
   }
 }
 </style>
