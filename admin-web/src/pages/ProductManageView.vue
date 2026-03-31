@@ -161,11 +161,17 @@
     <el-dialog
       v-model="showDialog"
       :title="dialogMode === 'create' ? '新增产品' : '编辑产品'"
-      width="560px"
+      width="700px"
       @closed="resetForm"
     >
-      <el-form :model="form" label-width="92px" class="dialog-form">
-        <el-form-item label="所属企业" required>
+      <div class="dialog-intro-card">
+        <strong>{{ dialogMode === 'create' ? '先把产品归到企业下，再继续去批次管理建批次。' : '当前正在调整产品资料，保存后会同步回到产品台账。' }}</strong>
+        <span>产品名称、企业归属和产地会直接影响批次建档、工作台展示和公开查询。</span>
+      </div>
+
+      <el-form :model="form" label-width="126px" class="dialog-form dialog-form--grouped">
+        <div class="dialog-section-title">归属关系</div>
+        <el-form-item label="所属企业（必填）" required>
           <el-select
             v-model="form.companyId"
             filterable
@@ -180,25 +186,27 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="产品名称" required>
+        <el-form-item label="产品名称（必填）" required>
           <el-input v-model.trim="form.productName" maxlength="64" show-word-limit placeholder="请输入产品名称" />
         </el-form-item>
-        <el-form-item label="产品编码">
-          <el-input v-model.trim="form.productCode" maxlength="64" show-word-limit placeholder="可选，便于内部管理" />
+        <el-form-item label="产品编码（选填）">
+          <el-input v-model.trim="form.productCode" maxlength="64" show-word-limit placeholder="可选，便于内部台账和打印标识" />
         </el-form-item>
-        <el-form-item label="产品分类" required>
+        <div class="dialog-section-title">产品资料</div>
+        <el-form-item label="产品分类（必填）" required>
           <el-input v-model.trim="form.category" maxlength="32" show-word-limit placeholder="如水果、茶叶、粮油" />
         </el-form-item>
-        <el-form-item label="产地" required>
+        <el-form-item label="产地（必填）" required>
           <el-input v-model.trim="form.originPlace" maxlength="128" show-word-limit placeholder="请输入主要产地" />
         </el-form-item>
-        <el-form-item label="规格">
+        <el-form-item label="规格（选填）">
           <el-input v-model.trim="form.specification" maxlength="64" show-word-limit placeholder="可选，如 5kg / 箱" />
         </el-form-item>
-        <el-form-item label="计量单位">
+        <el-form-item label="计量单位（选填）">
           <el-input v-model.trim="form.unit" maxlength="16" show-word-limit placeholder="可选，如 箱、斤、袋" />
         </el-form-item>
-        <el-form-item label="状态">
+        <div class="dialog-section-title">状态设置</div>
+        <el-form-item label="当前状态">
           <el-select v-model="form.status" placeholder="请选择状态">
             <el-option
               v-for="item in statusOptions"
@@ -208,6 +216,10 @@
             />
           </el-select>
         </el-form-item>
+        <div class="full-row dialog-status-note">
+          <strong>{{ statusText(form.status) }}</strong>
+          <span>{{ productStatusHint(form.status) }}</span>
+        </div>
       </el-form>
 
       <template #footer>
@@ -301,11 +313,38 @@ function statusClass(value) {
   return 'is-enabled'
 }
 
+function productStatusHint(status) {
+  const normalized = String(status || '').trim().toUpperCase()
+  if (normalized === 'DISABLED') {
+    return '已停用的产品会保留历史台账，后续建批次前建议先确认是否继续使用。'
+  }
+  if (normalized === 'ARCHIVED') {
+    return '已归档的产品主要用于历史回查，不建议继续作为日常建档入口。'
+  }
+  return '启用中的产品可继续用于批次建档、工作台回查和公开展示。'
+}
+
 function joinSpec(specification, unit) {
   const specText = textOf(specification, '')
   const unitText = textOf(unit, '')
   if (specText && unitText) return `${specText} / ${unitText}`
   return specText || unitText || '未填写'
+}
+
+function validateProductForm() {
+  if (!form.companyId) {
+    return '请先选择所属企业，产品必须明确归属企业后才能建批次。'
+  }
+  if (!form.productName.trim()) {
+    return '请填写产品名称，后续批次会沿用这个名称展示。'
+  }
+  if (!form.category.trim()) {
+    return '请补充产品分类，方便后台筛选和台账回查。'
+  }
+  if (!form.originPlace.trim()) {
+    return '请填写主要产地，后续批次和公开页都会用到。'
+  }
+  return ''
 }
 
 async function loadCompanyOptions() {
@@ -383,12 +422,9 @@ function handleReset() {
 }
 
 async function handleSubmit() {
-  if (!form.companyId) {
-    ElMessage.warning('请先选择所属企业')
-    return
-  }
-  if (!form.productName || !form.category || !form.originPlace) {
-    ElMessage.warning('请补全产品名称、分类和产地')
+  const validationMessage = validateProductForm()
+  if (validationMessage) {
+    ElMessage.warning(validationMessage)
     return
   }
 
@@ -411,7 +447,7 @@ async function handleSubmit() {
       : await updateProduct(editingId.value, payload)
 
     if (isSuccessResponse(res)) {
-      ElMessage.success(dialogMode.value === 'create' ? '产品已新增' : '产品已更新')
+      ElMessage.success(dialogMode.value === 'create' ? '产品已创建，可直接去批次管理建批次。' : '产品资料已更新。')
       showDialog.value = false
       await loadProducts()
     } else {
@@ -552,6 +588,59 @@ onMounted(async () => {
   width: 100%;
 }
 
+.dialog-intro-card,
+.dialog-status-note {
+  border: 1px solid var(--admin-border);
+  border-radius: 18px;
+  background: var(--admin-surface-soft);
+}
+
+.dialog-intro-card {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+}
+
+.dialog-intro-card strong,
+.dialog-status-note strong,
+.dialog-section-title {
+  color: var(--admin-text);
+}
+
+.dialog-intro-card span,
+.dialog-status-note span {
+  color: var(--admin-text-soft);
+  line-height: 1.6;
+}
+
+.dialog-form--grouped {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 16px;
+}
+
+.dialog-form--grouped :deep(.el-form-item) {
+  margin-bottom: 18px;
+}
+
+.dialog-section-title,
+.full-row {
+  grid-column: 1 / -1;
+}
+
+.dialog-section-title {
+  margin-bottom: 10px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.dialog-status-note {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+}
+
 @media (max-width: 768px) {
   .product-manage {
     padding: 14px;
@@ -560,6 +649,10 @@ onMounted(async () => {
   .summary-slot {
     justify-content: flex-start;
     padding-right: 0;
+  }
+
+  .dialog-form--grouped {
+    grid-template-columns: 1fr;
   }
 }
 </style>

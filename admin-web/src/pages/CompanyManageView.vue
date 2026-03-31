@@ -139,33 +139,41 @@
     <el-dialog
       v-model="showDialog"
       :title="dialogMode === 'create' ? '新增企业' : '编辑企业'"
-      width="560px"
+      width="680px"
       @closed="resetForm"
     >
-      <el-form :model="form" label-width="92px" class="dialog-form">
-        <el-form-item label="企业名称" required>
+      <div class="dialog-intro-card">
+        <strong>{{ dialogMode === 'create' ? '先补齐企业档案，再去创建产品和批次。' : '当前正在调整企业档案，保存后会同步回到企业台账。' }}</strong>
+        <span>带“必填”字段会直接用于产品归属、批次建档和后续联系人回查。</span>
+      </div>
+
+      <el-form :model="form" label-width="118px" class="dialog-form dialog-form--grouped">
+        <div class="dialog-section-title">基础信息</div>
+        <el-form-item label="企业名称（必填）" required>
           <el-input v-model.trim="form.name" maxlength="64" show-word-limit placeholder="请输入企业名称" />
         </el-form-item>
-        <el-form-item label="营业执照号">
-          <el-input v-model.trim="form.licenseNo" maxlength="64" show-word-limit placeholder="可选，便于备案管理" />
+        <el-form-item label="营业执照号（选填）">
+          <el-input v-model.trim="form.licenseNo" maxlength="64" show-word-limit placeholder="可选，便于备案和回查" />
         </el-form-item>
-        <el-form-item label="联系人" required>
+        <div class="dialog-section-title">联系信息</div>
+        <el-form-item label="联系人（必填）" required>
           <el-input v-model.trim="form.contactPerson" maxlength="32" show-word-limit placeholder="请输入联系人姓名" />
         </el-form-item>
-        <el-form-item label="联系电话" required>
-          <el-input v-model.trim="form.contactPhone" maxlength="32" show-word-limit placeholder="请输入联系电话" />
+        <el-form-item label="联系电话（必填）" required>
+          <el-input v-model.trim="form.contactPhone" maxlength="32" show-word-limit placeholder="请输入联系电话，至少保留一个可回拨号码" />
         </el-form-item>
-        <el-form-item label="联系地址" required>
+        <el-form-item label="联系地址（必填）" required class="full-row">
           <el-input
             v-model.trim="form.address"
             type="textarea"
             :rows="3"
             maxlength="200"
             show-word-limit
-            placeholder="请输入联系地址"
+            placeholder="请输入联系地址，至少写到园区、仓库或办公地点"
           />
         </el-form-item>
-        <el-form-item label="状态">
+        <div class="dialog-section-title">状态设置</div>
+        <el-form-item label="当前状态">
           <el-select v-model="form.status" placeholder="请选择状态">
             <el-option
               v-for="item in statusOptions"
@@ -175,6 +183,10 @@
             />
           </el-select>
         </el-form-item>
+        <div class="full-row dialog-status-note">
+          <strong>{{ statusText(form.status) }}</strong>
+          <span>{{ companyStatusHint(form.status) }}</span>
+        </div>
       </el-form>
 
       <template #footer>
@@ -257,6 +269,36 @@ function statusClass(value) {
   return 'is-enabled'
 }
 
+function companyStatusHint(status) {
+  const normalized = String(status || '').trim().toUpperCase()
+  if (normalized === 'DISABLED') {
+    return '已停用的企业会保留历史台账，后续新建产品或批次前建议先确认是否继续使用。'
+  }
+  if (normalized === 'ARCHIVED') {
+    return '已归档的企业主要用于台账回查，不建议继续作为日常建档入口。'
+  }
+  return '启用中的企业可继续关联产品、创建批次和执行日常维护。'
+}
+
+function validateCompanyForm() {
+  if (!form.name.trim()) {
+    return '请先填写企业名称，后续产品和批次都会挂到这个企业下。'
+  }
+  if (!form.contactPerson.trim()) {
+    return '请填写联系人，方便后续批次、质检或风险问题回查。'
+  }
+  if (!form.contactPhone.trim()) {
+    return '请填写联系电话，至少保留一个能联系到企业的号码。'
+  }
+  if (form.contactPhone.trim().length < 6) {
+    return '联系电话看起来太短了，请再核对一次。'
+  }
+  if (!form.address.trim()) {
+    return '请填写联系地址，至少写到园区、仓库或办公地点。'
+  }
+  return ''
+}
+
 async function loadCompanies() {
   loading.value = true
   try {
@@ -311,8 +353,9 @@ function handleReset() {
 }
 
 async function handleSubmit() {
-  if (!form.name || !form.contactPerson || !form.contactPhone || !form.address) {
-    ElMessage.warning('请补全企业名称、联系人、电话和地址')
+  const validationMessage = validateCompanyForm()
+  if (validationMessage) {
+    ElMessage.warning(validationMessage)
     return
   }
 
@@ -332,7 +375,7 @@ async function handleSubmit() {
       : await updateCompany(editingId.value, payload)
 
     if (isSuccessResponse(res)) {
-      ElMessage.success(dialogMode.value === 'create' ? '企业已新增' : '企业已更新')
+      ElMessage.success(dialogMode.value === 'create' ? '企业已创建，可继续到产品管理补产品。' : '企业资料已更新。')
       showDialog.value = false
       await loadCompanies()
     } else {
@@ -473,6 +516,59 @@ onMounted(() => {
   width: 100%;
 }
 
+.dialog-intro-card,
+.dialog-status-note {
+  border: 1px solid var(--admin-border);
+  border-radius: 18px;
+  background: var(--admin-surface-soft);
+}
+
+.dialog-intro-card {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+}
+
+.dialog-intro-card strong,
+.dialog-status-note strong,
+.dialog-section-title {
+  color: var(--admin-text);
+}
+
+.dialog-intro-card span,
+.dialog-status-note span {
+  color: var(--admin-text-soft);
+  line-height: 1.6;
+}
+
+.dialog-form--grouped {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 16px;
+}
+
+.dialog-form--grouped :deep(.el-form-item) {
+  margin-bottom: 18px;
+}
+
+.dialog-section-title,
+.full-row {
+  grid-column: 1 / -1;
+}
+
+.dialog-section-title {
+  margin-bottom: 10px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.dialog-status-note {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+}
+
 @media (max-width: 768px) {
   .company-manage {
     padding: 14px;
@@ -481,6 +577,10 @@ onMounted(() => {
   .summary-slot {
     justify-content: flex-start;
     padding-right: 0;
+  }
+
+  .dialog-form--grouped {
+    grid-template-columns: 1fr;
   }
 }
 </style>

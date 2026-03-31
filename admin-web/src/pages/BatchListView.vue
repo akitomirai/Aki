@@ -58,6 +58,7 @@ const operatorLoading = ref(false)
 const assignmentSaving = ref(false)
 const traceUploading = ref(false)
 const qualityUploading = ref(false)
+const lastProductOriginPrefill = ref('')
 const lastTraceStage = ref('PRODUCE')
 const traceDialogContext = ref({
   latestRecord: null,
@@ -88,7 +89,10 @@ const companyOptions = computed(() => {
 })
 
 const selectedProductOption = computed(() => {
-  return formProductOptions.value.find((item) => item.id === batchForm.value.productId) ?? null
+  return formProductOptions.value.find((item) => String(item.id) === String(batchForm.value.productId ?? '')) ?? null
+})
+const selectedCompanyOption = computed(() => {
+  return formCompanyOptions.value.find((item) => String(item.id) === String(batchForm.value.companyId ?? '')) ?? null
 })
 const canManageAssignment = computed(() => ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN'].includes(authStore.user?.roleCode))
 const currentAssignmentAssigneeId = computed(() => assignmentDialog.value.currentAssigneeUserId ? String(assignmentDialog.value.currentAssigneeUserId) : '')
@@ -422,6 +426,13 @@ function createBatchForm() {
   }
 }
 
+function batchDialogGuideText() {
+  if (dialog.value.type === 'edit') {
+    return '保存后会回到当前批次工作台，继续补录追溯、上传质检和生成二维码。'
+  }
+  return '先选企业，再选产品，保存后会直接进入新批次工作台继续补录。'
+}
+
 function localizeVisibleText(text) {
   const value = String(text || '').trim()
   if (!value) {
@@ -528,6 +539,7 @@ async function openCreateDialog() {
   await loadCompanyOptions()
   batchForm.value = createBatchForm()
   formProductOptions.value = []
+  lastProductOriginPrefill.value = ''
   dialog.value = {
     visible: true,
     type: 'create',
@@ -551,6 +563,7 @@ async function openEditDialog(item) {
       publicRemark: detail.batch.publicRemark ?? '',
       internalRemark: detail.batch.internalRemark ?? ''
     }
+    lastProductOriginPrefill.value = detail.product.originPlace || detail.batch.originPlace || ''
     dialog.value = {
       visible: true,
       type: 'edit',
@@ -620,11 +633,35 @@ function closeDialog() {
   dialog.value = createDialogState()
 }
 
+function validateBatchForm() {
+  if (!String(batchForm.value.batchCode || '').trim()) {
+    return '请填写批次编号，后续台账、二维码和公开页都会用它关联。'
+  }
+  if (!batchForm.value.companyId) {
+    return '请先选择企业，再继续选择产品和创建批次。'
+  }
+  if (!batchForm.value.productId) {
+    return '请先选择归属产品，批次必须明确挂到具体产品下。'
+  }
+  if (!String(batchForm.value.productionDate || '').trim()) {
+    return '请补充关键日期，至少填写生产日期。'
+  }
+  if (!String(batchForm.value.originPlace || '').trim()) {
+    return '请补充产地，工作台和公开页回查时都会用到。'
+  }
+  return ''
+}
+
 async function submitDialog(options = {}) {
   const { keepOpen = false } = options
 
   try {
     if (dialog.value.type === 'create') {
+      const validationMessage = validateBatchForm()
+      if (validationMessage) {
+        showMessage(validationMessage, 'error')
+        return
+      }
       const response = await createBatch({
         batchCode: batchForm.value.batchCode,
         productId: batchForm.value.productId,
@@ -648,6 +685,11 @@ async function submitDialog(options = {}) {
     }
 
     if (dialog.value.type === 'edit') {
+      const validationMessage = validateBatchForm()
+      if (validationMessage) {
+        showMessage(validationMessage, 'error')
+        return
+      }
       const response = await updateBatch(dialog.value.batchId, {
         productId: batchForm.value.productId,
         companyId: batchForm.value.companyId,
@@ -739,9 +781,21 @@ async function handleGenerateQr(item) {
 async function handleBatchCompanyChange(resetProduct = true) {
   const companyId = batchForm.value.companyId
   if (resetProduct) {
+    if (batchForm.value.originPlace === lastProductOriginPrefill.value) {
+      batchForm.value.originPlace = ''
+    }
     batchForm.value.productId = null
+    lastProductOriginPrefill.value = ''
   }
   await loadProductOptions(companyId)
+}
+
+function handleBatchProductChange() {
+  const productOrigin = String(selectedProductOption.value?.originPlace || '').trim()
+  if (productOrigin && (!batchForm.value.originPlace || batchForm.value.originPlace === lastProductOriginPrefill.value)) {
+    batchForm.value.originPlace = productOrigin
+  }
+  lastProductOriginPrefill.value = productOrigin
 }
 
 async function handleTraceFilesChange(event) {
@@ -1251,34 +1305,50 @@ function statusClass(status) {
         </div>
 
         <div v-if="dialog.type === 'create' || dialog.type === 'edit'" class="form-grid" data-testid="batch-edit-dialog">
-          <label v-if="dialog.type === 'create'">
-            <span>批次号</span>
-            <input v-model.trim="batchForm.batchCode" type="text">
-          </label>
-          <label v-else>
-            <span>批次号</span>
-            <input :value="batchForm.batchCode" type="text" disabled>
-          </label>
+          <div class="full-width form-intro-banner">
+            <strong>{{ dialog.type === 'create' ? '先完成批次建档，再直接进入工作台继续处理。' : '当前正在调整批次建档信息。' }}</strong>
+            <span>{{ batchDialogGuideText() }}</span>
+          </div>
+
+          <div class="full-width form-section-title">归属关系</div>
+
           <label>
-            <span>企业</span>
+            <span>企业（必填）</span>
             <select v-model="batchForm.companyId" @change="handleBatchCompanyChange()">
               <option :value="null">请选择企业</option>
               <option v-for="item in formCompanyOptions" :key="item.id" :value="item.id">{{ item.name }}</option>
             </select>
           </label>
           <label>
-            <span>产品</span>
-            <select v-model="batchForm.productId" :disabled="!batchForm.companyId">
+            <span>产品（必填）</span>
+            <select v-model="batchForm.productId" :disabled="!batchForm.companyId" @change="handleBatchProductChange">
               <option :value="null">{{ batchForm.companyId ? '请选择产品' : '请先选择企业' }}</option>
               <option v-for="item in formProductOptions" :key="item.id" :value="item.id">{{ item.name }}</option>
             </select>
           </label>
+
+          <label v-if="dialog.type === 'create'">
+            <span>批次编号（必填）</span>
+            <input v-model.trim="batchForm.batchCode" type="text">
+          </label>
+          <label v-else>
+            <span>批次编号</span>
+            <input :value="batchForm.batchCode" type="text" disabled>
+          </label>
+
+          <label class="full-width" v-if="selectedCompanyOption">
+            <span>当前企业</span>
+            <div class="field-note">
+              <strong>{{ selectedCompanyOption.name }}</strong>
+              <small>先在当前企业下选产品，后续批次、分配和质检都会沿用这个企业归属。</small>
+            </div>
+          </label>
           <label>
-            <span>产地</span>
+            <span>产地（必填）</span>
             <input v-model.trim="batchForm.originPlace" type="text" placeholder="例如 江西赣州信丰">
           </label>
           <label>
-            <span>生产日期</span>
+            <span>生产日期（必填）</span>
             <input v-model="batchForm.productionDate" type="date">
           </label>
           <label v-if="selectedProductOption" class="full-width">
@@ -1287,12 +1357,19 @@ function statusClass(status) {
               <strong>{{ selectedProductOption.name }}</strong>
               <small>
                 分类：{{ selectedProductOption.category || '待补充' }}；
-                规格：{{ selectedProductOption.specification || '待补充' }}
+                规格：{{ selectedProductOption.specification || '待补充' }}；
+                批次名称将沿用这个产品名称
               </small>
             </div>
           </label>
+          <div v-else-if="batchForm.companyId && !formProductOptions.length" class="full-width flow-tip warning-tip">
+            <strong>当前企业还没有可建档产品。</strong>
+            <span>请先去产品管理新增产品，再回来继续建批次。</span>
+          </div>
+
+          <div class="full-width form-section-title">补充说明</div>
           <label class="full-width">
-            <span>公开说明</span>
+            <span>公开说明（选填）</span>
             <textarea
               v-model.trim="batchForm.publicRemark"
               rows="3"
@@ -1300,7 +1377,7 @@ function statusClass(status) {
             />
           </label>
           <label class="full-width">
-            <span>内部备注</span>
+            <span>内部备注（选填）</span>
             <textarea
               v-model.trim="batchForm.internalRemark"
               rows="3"
@@ -1911,6 +1988,7 @@ textarea {
 .field-note,
 .upload-box,
 .uploaded-file-item,
+.form-intro-banner,
 .flow-tip,
 .quick-entry-card,
 .last-record-card,
@@ -1921,6 +1999,7 @@ textarea {
 }
 
 .field-note,
+.form-intro-banner,
 .flow-tip,
 .quick-entry-card,
 .last-record-card,
@@ -1929,6 +2008,7 @@ textarea {
 }
 
 .flow-tip span,
+.form-intro-banner span,
 .field-note small,
 .quick-entry-card p,
 .last-record-card p,
@@ -1940,11 +2020,24 @@ textarea {
 }
 
 .flow-tip strong,
+.form-intro-banner strong,
 .last-record-card strong,
 .field-note strong,
 .uploaded-file-item strong {
   display: block;
   color: var(--admin-text);
+}
+
+.form-section-title {
+  color: var(--admin-text);
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: -4px;
+}
+
+.warning-tip {
+  border-color: rgba(242, 139, 34, 0.28);
+  background: rgba(255, 244, 228, 0.72);
 }
 
 .quick-entry-card {

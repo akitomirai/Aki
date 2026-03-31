@@ -5,6 +5,7 @@ public record ProductOptionVO(
         Long companyId,
         String name,
         String category,
+        String originPlace,
         String specification,
         String unit,
         String imageUrl

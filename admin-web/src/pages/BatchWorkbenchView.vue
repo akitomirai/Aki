@@ -56,6 +56,7 @@ const recentRecords = computed(() => detail.value?.trace?.recentRecords ?? [])
 const latestRecord = computed(() => recentRecords.value[0] ?? null)
 const canHandleRisk = computed(() => ['FROZEN', 'RECALLED'].includes(detail.value?.status?.code))
 const canPreviewPublic = computed(() => Boolean(detail.value?.qr?.publicUrl))
+const isFreshCreated = computed(() => String(route.query.created || '') === '1')
 const canManageAssignment = computed(() => ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN'].includes(authStore.user?.roleCode))
 const currentAssigneeId = computed(() => detail.value?.task?.assigneeUserId ? String(detail.value.task.assigneeUserId) : '')
 const selectedAssigneeId = computed(() => assignmentForm.value.assigneeUserId ? String(assignmentForm.value.assigneeUserId) : '')
@@ -155,6 +156,11 @@ const riskChecklist = computed(() => {
       hint: '需要标记已整改，恢复发布才会开放。'
     }
   ]
+})
+
+const freshBatchGuide = computed(() => {
+  if (!isFreshCreated.value) return ''
+  return '这个批次刚完成建档，建议先补录首条追溯，再上传质检、生成二维码，最后发布。'
 })
 
 const todoItems = computed(() => {
@@ -317,6 +323,9 @@ function statusClass(status) {
 }
 
 function batchStatusSummary(status) {
+  if (isFreshCreated.value && String(status).toUpperCase() === 'DRAFT') {
+    return '这个批次刚完成建档，先补现场记录、上传质检、生成二维码，再发布。'
+  }
   return {
     DRAFT: '当前批次还在后台准备阶段，先补齐现场、质检和二维码。',
     PUBLISHED: '当前批次已对外公开，可继续回查公开页和最近记录。',
@@ -371,6 +380,25 @@ function recordPreviewImages(record) {
     }]
   }
   return []
+}
+
+function openFreshBatchNextStep() {
+  if (traceAction.value.enabled) {
+    openTraceDialog()
+    return
+  }
+  if (qualityAction.value.enabled) {
+    openQualityDialog()
+    return
+  }
+  if (qrAction.value.enabled) {
+    handleGenerateQr()
+  }
+}
+
+function scrollToActionHub() {
+  const target = document.querySelector('[data-testid="workbench-action-groups"]')
+  target?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
 function openFieldEntry() {
@@ -650,7 +678,12 @@ function removeQualityAttachment(fileId) {
 }
 
 watch(() => route.params.id, async (id) => { await loadDetail(id) })
-onMounted(async () => { await loadDetail(route.params.id) })
+onMounted(async () => {
+  await loadDetail(route.params.id)
+  if (isFreshCreated.value) {
+    showMessage('批次已创建成功，先补录追溯、上传质检和生成二维码。', 'success')
+  }
+})
 </script>
 
 <template>
@@ -674,6 +707,18 @@ onMounted(async () => { await loadDetail(route.params.id) })
       </section>
 
       <section v-if="message" class="message-bar" :class="messageType">{{ message }}</section>
+
+      <section v-if="isFreshCreated" class="fresh-batch-banner" data-testid="fresh-batch-banner">
+        <div>
+          <span class="card-label">刚创建完成</span>
+          <h2>{{ detail.batch.batchCode }} 已建档</h2>
+          <p>{{ freshBatchGuide }}</p>
+        </div>
+        <div class="banner-actions">
+          <button class="primary" data-testid="fresh-batch-trace-button" @click="openFreshBatchNextStep">去补第一条记录</button>
+          <button class="ghost" @click="scrollToActionHub">查看待完成事项</button>
+        </div>
+      </section>
 
       <section class="top-grid" data-testid="workbench-top-grid">
         <article class="summary-card" data-testid="workbench-next-step-card">
@@ -1189,6 +1234,10 @@ onMounted(async () => { await loadDetail(route.params.id) })
 .message-bar,.action-panel,.panel,.loading-card { margin-top: 18px; padding: 22px; }
 .message-bar.success { background: var(--admin-success-bg); color: var(--admin-success-text); }
 .message-bar.error { background: rgba(253,236,235,.94); color: #8f2f29; }
+.fresh-batch-banner { margin-top: 18px; padding: 20px 22px; border: 1px solid rgba(48,149,246,.18); border-radius: 20px; background: linear-gradient(135deg, rgba(48,149,246,.12) 0%, rgba(255,255,255,.96) 100%); box-shadow: var(--admin-shadow); display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.fresh-batch-banner h2 { margin: 8px 0 6px; color: var(--admin-text); font-size: 22px; }
+.fresh-batch-banner p { margin: 0; color: var(--admin-text-soft); line-height: 1.7; }
+.banner-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .loading-card { display: flex; align-items: center; justify-content: center; min-height: 220px; color: var(--admin-text-soft); }
 .top-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-top: 18px; }
 .summary-card { padding: 20px; }
@@ -1400,6 +1449,7 @@ button.ghost.danger { border-color: rgba(224, 73, 73, 0.2); color: #a33030; }
 }
 @media (max-width: 760px) {
   .page-shell { padding: 18px 14px 36px; }
+  .fresh-batch-banner,
   .top-grid,
   .action-grid,
   .summary-meta-list,
@@ -1414,6 +1464,7 @@ button.ghost.danger { border-color: rgba(224, 73, 73, 0.2); color: #a33030; }
   .summary-image-strip { grid-template-columns: 1fr; }
   .action-panel .section-head,
   .panel .section-head,
+  .fresh-batch-banner,
   .record-head,
   .card-head,
   .summary-record-head,

@@ -281,6 +281,7 @@ public class MasterDataServiceImpl implements MasterDataService {
                         product.getCompanyId(),
                         product.getName(),
                         product.getCategory(),
+                        product.getOriginPlace(),
                         defaultValue(product.getSpec(), null),
                         defaultValue(product.getUnit(), null),
                         defaultValue(product.getImageUrl(), resolveProductImage(product.getName(), product.getCategory()))
