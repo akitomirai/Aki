@@ -60,6 +60,7 @@ const traceUploading = ref(false)
 const qualityUploading = ref(false)
 const lastProductOriginPrefill = ref('')
 const lastTraceStage = ref('PRODUCE')
+const lastHandledCopySourceId = ref('')
 const traceDialogContext = ref({
   latestRecord: null,
   totalCount: 0
@@ -182,6 +183,8 @@ const dialogTitle = computed(() => {
   switch (dialog.value.type) {
     case 'create':
       return '新增批次'
+    case 'copy':
+      return `复制为新批次：${dialog.value.batchName}`
     case 'edit':
       return `编辑批次：${dialog.value.batchName}`
     case 'trace':
@@ -199,12 +202,20 @@ onMounted(async () => {
   syncListModeFromRoute()
   await loadCompanyOptions()
   await fetchBatches()
+  await maybeOpenCopyDialogFromRoute()
 })
 
 watch(
   () => route.query.mode,
   () => {
     syncListModeFromRoute()
+  }
+)
+
+watch(
+  () => route.query.copyFrom,
+  async () => {
+    await maybeOpenCopyDialogFromRoute()
   }
 )
 
@@ -258,7 +269,9 @@ function createDialogState() {
     visible: false,
     type: '',
     batchId: null,
-    batchName: ''
+    batchName: '',
+    sourceBatchCode: '',
+    sourceProductName: ''
   }
 }
 
@@ -427,10 +440,34 @@ function createBatchForm() {
 }
 
 function batchDialogGuideText() {
+  if (dialog.value.type === 'copy') {
+    return '会继承企业、产品、产地和基础备注，但不会带入旧追溯、质检、二维码、风险、分配和草稿。'
+  }
   if (dialog.value.type === 'edit') {
     return '保存后会回到当前批次工作台，继续补录追溯、上传质检和生成二维码。'
   }
   return '先选企业，再选产品，保存后会直接进入新批次工作台继续补录。'
+}
+
+function clearCopyQuery() {
+  if (!route.query.copyFrom) {
+    return
+  }
+  const nextQuery = { ...route.query }
+  delete nextQuery.copyFrom
+  router.replace({
+    path: route.path,
+    query: nextQuery
+  })
+}
+
+async function maybeOpenCopyDialogFromRoute() {
+  const copyFrom = String(route.query.copyFrom || '').trim()
+  if (!copyFrom || copyFrom === lastHandledCopySourceId.value) {
+    return
+  }
+  lastHandledCopySourceId.value = copyFrom
+  await openCopyDialog({ id: Number(copyFrom) }, { fromRoute: true })
 }
 
 function localizeVisibleText(text) {
@@ -548,6 +585,42 @@ async function openCreateDialog() {
   }
 }
 
+async function openCopyDialog(item, options = {}) {
+  const { fromRoute = false } = options
+  try {
+    const response = await getBatchDetail(item.id)
+    const detail = response.data
+    await loadCompanyOptions()
+    await loadProductOptions(detail.company.id)
+    batchForm.value = {
+      batchCode: createBatchCode(),
+      productId: detail.product.id,
+      companyId: detail.company.id,
+      originPlace: detail.batch.originPlace,
+      productionDate: todayString(),
+      publicRemark: detail.batch.publicRemark ?? '',
+      internalRemark: detail.batch.internalRemark ?? ''
+    }
+    lastProductOriginPrefill.value = detail.batch.originPlace || detail.product.originPlace || ''
+    dialog.value = {
+      visible: true,
+      type: 'copy',
+      batchId: item.id,
+      batchName: detail.batch.batchCode,
+      sourceBatchCode: detail.batch.batchCode,
+      sourceProductName: detail.product.name
+    }
+    if (fromRoute) {
+      clearCopyQuery()
+    }
+  } catch (error) {
+    if (fromRoute) {
+      clearCopyQuery()
+    }
+    showMessage(getFriendlyErrorMessage(error, '复制源批次加载失败，请稍后再试。'), 'error')
+  }
+}
+
 async function openEditDialog(item) {
   try {
     const response = await getBatchDetail(item.id)
@@ -630,6 +703,9 @@ function openStatusDialog(item, targetStatus) {
 }
 
 function closeDialog() {
+  if (dialog.value.type === 'copy') {
+    clearCopyQuery()
+  }
   dialog.value = createDialogState()
 }
 
@@ -656,7 +732,7 @@ async function submitDialog(options = {}) {
   const { keepOpen = false } = options
 
   try {
-    if (dialog.value.type === 'create') {
+    if (dialog.value.type === 'create' || dialog.value.type === 'copy') {
       const validationMessage = validateBatchForm()
       if (validationMessage) {
         showMessage(validationMessage, 'error')
@@ -671,15 +747,26 @@ async function submitDialog(options = {}) {
         publicRemark: batchForm.value.publicRemark,
         internalRemark: batchForm.value.internalRemark
       })
-      showMessage('批次已创建，已直接带你进入工作台继续补录。', 'success')
+      const isCopyDialog = dialog.value.type === 'copy'
+      const copySourceBatchCode = dialog.value.sourceBatchCode
+      const createdBatchCode = response.data?.batch?.batchCode || batchForm.value.batchCode
+      if (isCopyDialog) {
+        showMessage(`已基于批次 ${copySourceBatchCode} 复制出新批次 ${createdBatchCode}。`, 'success')
+      } else {
+        showMessage('批次已创建，已直接带你进入工作台继续补录。', 'success')
+      }
+      const nextQuery = {
+        created: '1',
+        focus: 'trace'
+      }
+      if (isCopyDialog && copySourceBatchCode) {
+        nextQuery.copiedFrom = copySourceBatchCode
+      }
       closeDialog()
       await fetchBatches()
       router.push({
         path: `/batches/${response.data.batch.id}`,
-        query: {
-          created: '1',
-          focus: 'trace'
-        }
+        query: nextQuery
       })
       return
     }
@@ -985,6 +1072,10 @@ function handleRowCommand(card, command) {
     openEditDialog(card.item)
     return
   }
+  if (command === 'copy') {
+    openCopyDialog(card.item)
+    return
+  }
   if (command === 'trace') {
     openTraceDialog(card.item)
     return
@@ -1264,6 +1355,13 @@ function statusClass(status) {
             </button>
             <button
               class="text-button"
+              :data-testid="`batch-copy-${card.item.id}`"
+              @click="openCopyDialog(card.item)"
+            >
+              复制批次
+            </button>
+            <button
+              class="text-button"
               :data-testid="`batch-recommend-${card.item.id}`"
               @click="runRecommendedAction(card)"
             >
@@ -1274,6 +1372,7 @@ function statusClass(status) {
               <template #dropdown>
                 <el-dropdown-menu>
                   <el-dropdown-item v-if="canManageAssignment" command="assignment">任务分配</el-dropdown-item>
+                  <el-dropdown-item command="copy">复制为新批次</el-dropdown-item>
                   <el-dropdown-item command="edit">编辑资料</el-dropdown-item>
                   <el-dropdown-item command="trace">补录追溯</el-dropdown-item>
                   <el-dropdown-item command="quality">上传质检</el-dropdown-item>
@@ -1304,11 +1403,28 @@ function statusClass(status) {
           <button class="ghost icon-button" @click="closeDialog">关闭</button>
         </div>
 
-        <div v-if="dialog.type === 'create' || dialog.type === 'edit'" class="form-grid" data-testid="batch-edit-dialog">
+        <div v-if="dialog.type === 'create' || dialog.type === 'copy' || dialog.type === 'edit'" class="form-grid" data-testid="batch-edit-dialog">
           <div class="full-width form-intro-banner">
-            <strong>{{ dialog.type === 'create' ? '先完成批次建档，再直接进入工作台继续处理。' : '当前正在调整批次建档信息。' }}</strong>
+            <strong>
+              {{
+                dialog.type === 'copy'
+                  ? '会基于当前批次带入基础信息，但新批次仍会从干净状态开始。'
+                  : (dialog.type === 'create' ? '先完成批次建档，再直接进入工作台继续处理。' : '当前正在调整批次建档信息。')
+              }}
+            </strong>
             <span>{{ batchDialogGuideText() }}</span>
           </div>
+
+          <label v-if="dialog.type === 'copy'" class="full-width">
+            <span>复制来源</span>
+            <div class="field-note field-note--accent" data-testid="batch-copy-source-note">
+              <strong>{{ dialog.sourceBatchCode }}</strong>
+              <small>
+                产品：{{ dialog.sourceProductName || '沿用原产品' }}；
+                不会继承旧追溯、质检、二维码、风险、分配、草稿和任务状态。
+              </small>
+            </div>
+          </label>
 
           <div class="full-width form-section-title">归属关系</div>
 
@@ -1327,7 +1443,7 @@ function statusClass(status) {
             </select>
           </label>
 
-          <label v-if="dialog.type === 'create'">
+          <label v-if="dialog.type === 'create' || dialog.type === 'copy'">
             <span>批次编号（必填）</span>
             <input v-model.trim="batchForm.batchCode" type="text">
           </label>
@@ -1350,6 +1466,13 @@ function statusClass(status) {
           <label>
             <span>生产日期（必填）</span>
             <input v-model="batchForm.productionDate" type="date">
+          </label>
+          <label v-if="dialog.type === 'copy'" class="full-width">
+            <span>复制提示</span>
+            <div class="field-note">
+              <strong>当前日期已重新带入</strong>
+              <small>请重新确认新批次编号和生产日期，复制出的批次会回到“刚创建”的初始状态。</small>
+            </div>
           </label>
           <label v-if="selectedProductOption" class="full-width">
             <span>当前产品</span>
@@ -1385,7 +1508,13 @@ function statusClass(status) {
             />
           </label>
           <div class="full-width flow-tip">
-            <strong>{{ dialog.type === 'create' ? '创建后将直接进入批次工作台。' : '保存后将返回批次工作台。' }}</strong>
+            <strong>
+              {{
+                dialog.type === 'copy'
+                  ? '复制后将直接进入新批次工作台。'
+                  : (dialog.type === 'create' ? '创建后将直接进入批次工作台。' : '保存后将返回批次工作台。')
+              }}
+            </strong>
             <span>下一步入口会继续保留在工作台中，可补录追溯、上传质检和生成二维码。</span>
           </div>
         </div>
@@ -1604,7 +1733,7 @@ function statusClass(status) {
             淇濆瓨骞剁户缁?
           </button>
           <button class="primary" data-testid="batch-dialog-submit" @click="submitDialog()">
-            {{ dialog.type === 'create' ? '鍒涘缓骞惰繘鍏ュ伐浣滃彴' : '纭淇濆瓨' }}
+            {{ dialog.type === 'copy' ? '复制并进入工作台' : (dialog.type === 'create' ? '鍒涘缓骞惰繘鍏ュ伐浣滃彴' : '纭淇濆瓨') }}
           </button>
         </div>
       </section>
@@ -2038,6 +2167,11 @@ textarea {
 .warning-tip {
   border-color: rgba(242, 139, 34, 0.28);
   background: rgba(255, 244, 228, 0.72);
+}
+
+.field-note--accent {
+  border-color: rgba(48, 149, 246, 0.24);
+  background: linear-gradient(135deg, rgba(48, 149, 246, 0.12) 0%, rgba(255, 255, 255, 0.96) 100%);
 }
 
 .quick-entry-card {

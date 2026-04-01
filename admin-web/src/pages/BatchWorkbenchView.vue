@@ -57,6 +57,7 @@ const latestRecord = computed(() => recentRecords.value[0] ?? null)
 const canHandleRisk = computed(() => ['FROZEN', 'RECALLED'].includes(detail.value?.status?.code))
 const canPreviewPublic = computed(() => Boolean(detail.value?.qr?.publicUrl))
 const isFreshCreated = computed(() => String(route.query.created || '') === '1')
+const copiedFromCode = computed(() => String(route.query.copiedFrom || '').trim())
 const canManageAssignment = computed(() => ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN'].includes(authStore.user?.roleCode))
 const currentAssigneeId = computed(() => detail.value?.task?.assigneeUserId ? String(detail.value.task.assigneeUserId) : '')
 const selectedAssigneeId = computed(() => assignmentForm.value.assigneeUserId ? String(assignmentForm.value.assigneeUserId) : '')
@@ -160,6 +161,9 @@ const riskChecklist = computed(() => {
 
 const freshBatchGuide = computed(() => {
   if (!isFreshCreated.value) return ''
+  if (copiedFromCode.value) {
+    return `已基于批次 ${copiedFromCode.value} 带入基础信息。接下来仍需补录追溯、上传质检、生成二维码，再发布。`
+  }
   return '这个批次刚完成建档，建议先补录首条追溯，再上传质检、生成二维码，最后发布。'
 })
 
@@ -399,6 +403,17 @@ function openFreshBatchNextStep() {
 function scrollToActionHub() {
   const target = document.querySelector('[data-testid="workbench-action-groups"]')
   target?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+function openCopyBatch() {
+  if (!detail.value?.batch?.id) return
+  router.push({
+    path: '/batches',
+    query: {
+      mode: 'ALL',
+      copyFrom: String(detail.value.batch.id)
+    }
+  })
 }
 
 function openFieldEntry() {
@@ -681,7 +696,11 @@ watch(() => route.params.id, async (id) => { await loadDetail(id) })
 onMounted(async () => {
   await loadDetail(route.params.id)
   if (isFreshCreated.value) {
-    showMessage('批次已创建成功，先补录追溯、上传质检和生成二维码。', 'success')
+    if (copiedFromCode.value) {
+      showMessage(`已基于批次 ${copiedFromCode.value} 复制出新批次，先补录追溯、上传质检和生成二维码。`, 'success')
+    } else {
+      showMessage('批次已创建成功，先补录追溯、上传质检和生成二维码。', 'success')
+    }
   }
 })
 </script>
@@ -701,6 +720,7 @@ onMounted(async () => {
         </div>
         <div class="manage-page-actions">
           <button class="ghost" @click="router.push('/batches')">返回批次列表</button>
+          <button class="ghost" data-testid="workbench-copy-batch-button" @click="openCopyBatch">复制为新批次</button>
           <button class="ghost" data-testid="workbench-field-entry-button" @click="openFieldEntry">现场作业页</button>
           <button class="ghost" :disabled="!canPreviewPublic" @click="openPublicPreview">公开页预览</button>
         </div>
@@ -712,6 +732,7 @@ onMounted(async () => {
         <div>
           <span class="card-label">刚创建完成</span>
           <h2>{{ detail.batch.batchCode }} 已建档</h2>
+          <small v-if="copiedFromCode" class="fresh-copy-source" data-testid="fresh-batch-copy-source">复制来源：{{ copiedFromCode }}</small>
           <p>{{ freshBatchGuide }}</p>
         </div>
         <div class="banner-actions">
@@ -1236,6 +1257,7 @@ onMounted(async () => {
 .message-bar.error { background: rgba(253,236,235,.94); color: #8f2f29; }
 .fresh-batch-banner { margin-top: 18px; padding: 20px 22px; border: 1px solid rgba(48,149,246,.18); border-radius: 20px; background: linear-gradient(135deg, rgba(48,149,246,.12) 0%, rgba(255,255,255,.96) 100%); box-shadow: var(--admin-shadow); display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .fresh-batch-banner h2 { margin: 8px 0 6px; color: var(--admin-text); font-size: 22px; }
+.fresh-copy-source { display: inline-block; margin-bottom: 8px; color: #2d5f95; font-weight: 600; }
 .fresh-batch-banner p { margin: 0; color: var(--admin-text-soft); line-height: 1.7; }
 .banner-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .loading-card { display: flex; align-items: center; justify-content: center; min-height: 220px; color: var(--admin-text-soft); }
