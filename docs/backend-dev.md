@@ -114,6 +114,20 @@ The demo backend profile uses these files:
 
 That means restarting the backend with the `demo` profile rebuilds the in-memory H2 demo baseline from those main-resource seed files.
 
+## Runtime Precheck Distinction
+
+The current local toolchain now separates anonymous-safe checks from authenticated admin checks:
+
+1. `scripts/check-local.ps1`
+   - Only checks service health, the admin login route, and the public trace route
+   - Does not call authenticated admin APIs
+2. `scripts/demo-precheck.ps1`
+   - Logs in as `platform / 123456`
+   - Verifies the authenticated admin batch baseline through `/api/batches`
+   - Still checks the anonymous public trace page separately
+
+This matters because `/api/batches` is no longer treated as an anonymous precheck endpoint in the current system.
+
 ## Test Database Baseline
 
 The backend integration tests currently depend on these test resources:
@@ -172,6 +186,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\backend-test.ps1 -
 ```
 
 That `mvn test` entry is the main backend regression gate. `OperationLogControllerIntegrationTest` is now part of that full suite.
+
+For runtime verification around the same area:
+
+1. Run `scripts/demo-precheck.ps1` if you need a quick auth-aware demo baseline check
+2. Run `scripts/run-baseline-regression.ps1` if you need the browser baseline, which now also executes the log permission smoke
 
 ## Recommended Daily Flow
 

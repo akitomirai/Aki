@@ -2,10 +2,13 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { createQualityReport, getBatchDetail, getBatchList, uploadBatchFiles } from '../api/batch'
+import { useAuthStore } from '../stores/auth'
 import { createQualityForm, getFriendlyErrorMessage, getFriendlyUploadError, qualityOptions, splitHighlights } from '../utils/batchExperience'
+import { isRegulator } from '../utils/access'
 import { resolveQrStatusText } from '../utils/statusPresentation'
 
 const router = useRouter()
+const authStore = useAuthStore()
 
 const loading = ref(false)
 const rows = ref([])
@@ -18,6 +21,17 @@ const qualitySubmitting = ref(false)
 const qualityForm = ref(createQualityForm())
 const resultDialog = ref(createResultDialogState())
 const uploadDialog = ref(createUploadDialogState())
+const roleCode = computed(() => authStore.user?.roleCode || '')
+const readOnlyQualityView = computed(() => isRegulator(roleCode.value))
+const pageTitle = computed(() => readOnlyQualityView.value ? '质检查看' : '质检待办')
+const pageSubtitle = computed(() => {
+  if (readOnlyQualityView.value) {
+    return '监管账号可统一查看批次质检状态、报告结果、附件和发布准备情况，不提供上传或修改入口。'
+  }
+  return '从全局视角处理待上传、已合格、不合格和已上传待发布的批次，不必逐个进工作台找。'
+})
+const readOnlyBannerText = computed(() => '当前为监管查看模式，页面保留批次、企业、质检结论、二维码状态和最近更新时间，便于直接核对质检链路。')
+const openWorkbenchText = computed(() => readOnlyQualityView.value ? '查看批次详情' : '进入工作台')
 
 const qualityTabs = [
   { value: 'PENDING', label: '待上传' },
@@ -200,6 +214,9 @@ function closeResultDialog() {
 }
 
 function openUploadDialog(item) {
+  if (readOnlyQualityView.value) {
+    return
+  }
   uploadDialog.value = {
     visible: true,
     batch: item
@@ -280,12 +297,17 @@ function formatFileSize(size) {
   <div class="page-shell" data-testid="quality-page">
     <section class="manage-page-header">
       <div>
-        <h1 class="manage-page-title">质检待办</h1>
-        <p class="manage-page-subtitle">从全局视角处理待上传、已合格、不合格和已上传待发布的批次，不必逐个进工作台找。</p>
+        <h1 class="manage-page-title">{{ pageTitle }}</h1>
+        <p class="manage-page-subtitle">{{ pageSubtitle }}</p>
       </div>
       <div class="manage-page-actions">
         <button class="ghost" data-testid="quality-refresh-button" :disabled="loading" @click="fetchRows">刷新</button>
       </div>
+    </section>
+
+    <section v-if="readOnlyQualityView" class="panel readonly-banner" data-testid="quality-readonly-banner">
+      <strong>监管查看模式</strong>
+      <span>{{ readOnlyBannerText }}</span>
     </section>
 
     <section class="panel todo-tabs-panel">
@@ -408,9 +430,17 @@ function formatFileSize(size) {
           </div>
 
           <div class="row-actions">
-            <button class="text-button primary-text" :data-testid="`quality-open-workbench-${item.id}`" @click="openWorkbench(item)">进入工作台</button>
+            <button class="text-button primary-text" :data-testid="`quality-open-workbench-${item.id}`" @click="openWorkbench(item)">{{ openWorkbenchText }}</button>
             <button class="text-button" :data-testid="`quality-open-report-${item.id}`" :disabled="item.qualityStatusCode === 'PENDING'" @click="openResultDialog(item)">查看质检结果</button>
-            <button class="text-button" :data-testid="`quality-upload-${item.id}`" :disabled="!actionEnabled(item, 'UPLOAD_QUALITY')" @click="openUploadDialog(item)">上传质检</button>
+            <button
+              v-if="!readOnlyQualityView"
+              class="text-button"
+              :data-testid="`quality-upload-${item.id}`"
+              :disabled="!actionEnabled(item, 'UPLOAD_QUALITY')"
+              @click="openUploadDialog(item)"
+            >
+              上传质检
+            </button>
           </div>
         </article>
       </div>
@@ -478,7 +508,7 @@ function formatFileSize(size) {
             data-testid="quality-result-open-workbench"
             @click="openWorkbench(resultDialog.batch); closeResultDialog()"
           >
-            去工作台核对
+            {{ openWorkbenchText }}
           </button>
         </div>
       </section>
@@ -587,6 +617,21 @@ function formatFileSize(size) {
 
 .primary-text {
   font-weight: 700;
+}
+
+.readonly-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.readonly-banner strong {
+  color: var(--admin-text);
+}
+
+.readonly-banner span {
+  color: var(--admin-text-soft);
+  line-height: 1.7;
 }
 
 @media (max-width: 760px) {

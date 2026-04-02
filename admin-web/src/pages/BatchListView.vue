@@ -100,11 +100,33 @@ const roleCode = computed(() => authStore.user?.roleCode || '')
 const canManageBatch = computed(() => canManageAdminBatch(roleCode.value))
 const canManageAssignment = computed(() => ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN'].includes(authStore.user?.roleCode))
 const readOnlyBatchView = computed(() => isRegulator(roleCode.value))
-const listModeOptions = computed(() => {
-  if (!readOnlyBatchView.value) {
-    return listModes
+const pageTitle = computed(() => readOnlyBatchView.value ? '批次查看' : '批次管理')
+const pageSubtitle = computed(() => {
+  if (readOnlyBatchView.value) {
+    return '监管账号可统一查看企业、质检、二维码、任务和风险状态，不提供新增、分配、复制、上传或发布入口。'
   }
-  return listModes.filter((item) => item.value !== 'READY')
+  return '围绕批次建档、分配、质检、二维码和发布链路集中处理高频动作。'
+})
+const readOnlyBannerText = computed(() => {
+  return '当前为监管查看模式，页面保留批次编号、企业、质检结论、二维码状态、任务状态、风险状态和最近更新时间，便于直接判断批次风险。'
+})
+const listModeOptions = computed(() => {
+  const source = readOnlyBatchView.value
+    ? listModes.filter((item) => item.value !== 'READY')
+    : listModes
+  if (!readOnlyBatchView.value) {
+    return source
+  }
+  const labelMap = {
+    ACTION: '重点关注',
+    RISK: '风险批次',
+    LIVE: '已发布',
+    ALL: '全部批次'
+  }
+  return source.map((item) => ({
+    ...item,
+    label: labelMap[item.value] || item.label
+  }))
 })
 const currentAssignmentAssigneeId = computed(() => assignmentDialog.value.currentAssigneeUserId ? String(assignmentDialog.value.currentAssigneeUserId) : '')
 const selectedAssignmentAssigneeId = computed(() => assignmentDialog.value.assigneeUserId ? String(assignmentDialog.value.assigneeUserId) : '')
@@ -518,6 +540,18 @@ function exportTimestamp() {
 
 function latestUpdatedText(item) {
   return item.lastUpdatedAt || item.latestTraceTime || item.productionDate || '暂无更新'
+}
+
+function riskStatusText(item) {
+  return item.riskStatusLabel || '当前无风险'
+}
+
+function latestRiskActionText(item) {
+  return item.latestRiskActionLabel || '暂无风险动作'
+}
+
+function openWorkbenchLabel() {
+  return readOnlyBatchView.value ? '查看详情' : '工作台'
 }
 
 function exportCurrentLedger() {
@@ -1195,7 +1229,8 @@ function statusClass(status) {
   <div class="page-shell" data-testid="batch-list-page">
     <section class="manage-page-header">
       <div>
-        <h1 class="manage-page-title">批次管理</h1>
+        <h1 class="manage-page-title">{{ pageTitle }}</h1>
+        <p class="manage-page-subtitle">{{ pageSubtitle }}</p>
       </div>
       <div class="manage-page-actions">
         <el-button :loading="loading" data-testid="batch-search-button" @click="fetchBatches">刷新</el-button>
@@ -1208,6 +1243,11 @@ function statusClass(status) {
           新增批次
         </el-button>
       </div>
+    </section>
+
+    <section v-if="readOnlyBatchView" class="panel profile-banner" data-testid="batch-regulator-banner">
+      <strong>监管查看模式</strong>
+      <span>{{ readOnlyBannerText }}</span>
     </section>
 
     <section class="panel batch-tabs-panel">
@@ -1299,10 +1339,10 @@ function statusClass(status) {
       <div class="batch-table-head">
         <span>批次信息</span>
         <span>企业 / 节点</span>
-        <span>质量 / 二维码</span>
-        <span>状态 / 下一步</span>
+        <span>质量 / 二维码 / 风险</span>
+        <span>状态 / 最近风险动作</span>
         <span>任务分配</span>
-        <span>操作</span>
+        <span>{{ readOnlyBatchView ? '查看' : '操作' }}</span>
       </div>
 
       <div class="batch-row-list">
@@ -1321,16 +1361,19 @@ function statusClass(status) {
           <div class="row-meta">
             <strong>{{ card.item.companyName }}</strong>
             <span>{{ card.item.currentNode }}</span>
+            <small>最近更新：{{ latestUpdatedText(card.item) }}</small>
           </div>
 
           <div class="row-meta">
             <strong>{{ card.item.qualityStatus }}</strong>
             <span>{{ resolveQrStatusText({ statusLabel: card.item.qrStatusLabel, status: card.item.qrStatus }) }}</span>
+            <small data-testid="batch-risk-status">{{ riskStatusText(card.item) }}</small>
           </div>
 
           <div class="row-status">
             <span class="status-badge" :class="statusClass(card.item.status)">{{ card.item.statusLabel }}</span>
             <span class="next-badge" :data-testid="`batch-next-${card.item.id}`">{{ card.insight.nextLabel }}</span>
+            <small>{{ latestRiskActionText(card.item) }}</small>
           </div>
 
           <div class="row-task" :data-testid="`batch-task-block-${card.item.id}`">
@@ -1375,7 +1418,7 @@ function statusClass(status) {
               :data-testid="`batch-open-workbench-${card.item.id}`"
               @click="router.push(`/batches/${card.item.id}`)"
             >
-              工作台
+              {{ openWorkbenchLabel() }}
             </button>
             <button
               v-if="canManageBatch"
@@ -2037,6 +2080,23 @@ h1 {
   margin-top: 18px;
 }
 
+.profile-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid rgba(48, 149, 246, 0.18);
+  background: linear-gradient(135deg, rgba(48, 149, 246, 0.12) 0%, rgba(255, 255, 255, 0.96) 100%);
+}
+
+.profile-banner strong {
+  color: var(--admin-text);
+}
+
+.profile-banner span {
+  color: var(--admin-text-soft);
+  line-height: 1.7;
+}
+
 .toolbar {
   align-items: center;
   justify-content: space-between;
@@ -2395,6 +2455,8 @@ button:disabled {
 .row-main span,
 .row-main small,
 .row-meta span,
+.row-meta small,
+.row-status small,
 .row-task span {
   color: var(--admin-text-soft);
   font-size: 12px;

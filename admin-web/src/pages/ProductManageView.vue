@@ -1,15 +1,20 @@
 <template>
-  <div class="manage-page product-manage">
+  <div class="manage-page product-manage" data-testid="products-page">
     <section class="manage-page-header">
       <div>
-        <h1 class="manage-page-title">产品管理</h1>
-        <p class="manage-page-desc">维护产品基础资料，供企业建批次、补录追溯和公开查询统一调用。</p>
+        <h1 class="manage-page-title">{{ pageTitle }}</h1>
+        <p class="manage-page-desc">{{ pageDesc }}</p>
       </div>
       <div class="manage-page-actions">
-        <el-button @click="loadProducts" :loading="loading">刷新</el-button>
-        <el-button v-if="canManage" type="primary" @click="openCreateDialog">新增产品</el-button>
+        <el-button data-testid="products-refresh-button" @click="loadProducts" :loading="loading">刷新</el-button>
+        <el-button v-if="canManage" type="primary" data-testid="products-open-create" @click="openCreateDialog">新增产品</el-button>
       </div>
     </section>
+
+    <el-card v-if="isEnterpriseAdmin" shadow="never" class="profile-banner" data-testid="products-self-mode">
+      <strong>当前为本企业产品模式</strong>
+      <span>{{ scopedModeHint }}</span>
+    </el-card>
 
     <el-card shadow="never" class="manage-filter-card">
       <div class="manage-filter-grid">
@@ -20,6 +25,7 @@
           class="manage-filter-item"
           placeholder="选择企业"
           :disabled="isCompanyLocked"
+          data-testid="products-filter-company"
         >
           <el-option
             v-for="item in companyOptions"
@@ -52,7 +58,7 @@
         </el-select>
 
         <div class="summary-slot">
-          <span class="manage-muted">当前共 {{ productList.length }} 个产品</span>
+          <span class="manage-muted">{{ summaryLabel }} {{ productList.length }} 个产品</span>
         </div>
 
         <el-button type="primary" @click="loadProducts">查询</el-button>
@@ -70,8 +76,8 @@
       <template #header>
         <div class="manage-table-header">
           <div>
-            <p class="manage-table-title">产品台账</p>
-            <p class="manage-table-tip">优先按企业、状态和关键词筛选，右侧直接执行编辑、停用、归档和删除。</p>
+            <p class="manage-table-title">{{ tableTitle }}</p>
+            <p class="manage-table-tip">{{ tableTip }}</p>
           </div>
         </div>
       </template>
@@ -82,10 +88,11 @@
         border
         stripe
         empty-text="暂无产品数据"
+        data-testid="products-table"
       >
         <el-table-column label="产品名称" min-width="220" show-overflow-tooltip>
           <template #default="{ row }">
-            <div class="name-cell">
+            <div class="name-cell" :data-testid="`products-row-${row.id}`">
               <strong>{{ textOf(row.productName, '未命名产品') }}</strong>
               <span>{{ textOf(row.productCode, '未设置产品编码') }}</span>
             </div>
@@ -138,7 +145,7 @@
         <el-table-column label="操作" min-width="260" fixed="right" v-if="canManage">
           <template #default="{ row }">
             <div class="action-cell">
-              <el-button type="primary" link class="table-action-link" @click="openEditDialog(row)">编辑</el-button>
+              <el-button type="primary" link class="table-action-link" :data-testid="`products-edit-${row.id}`" @click="openEditDialog(row)">编辑</el-button>
               <el-dropdown @command="(command) => handleMoreCommand(row, command)">
                 <el-button link class="table-action-link">
                   更多操作
@@ -169,7 +176,7 @@
         <span>产品名称、企业归属和产地会直接影响批次建档、工作台展示和公开查询。</span>
       </div>
 
-      <el-form :model="form" label-width="126px" class="dialog-form dialog-form--grouped">
+      <el-form :model="form" label-width="126px" class="dialog-form dialog-form--grouped" data-testid="products-form-dialog">
         <div class="dialog-section-title">归属关系</div>
         <el-form-item label="所属企业（必填）" required>
           <el-select
@@ -177,6 +184,7 @@
             filterable
             placeholder="请选择企业"
             :disabled="isCompanyLocked"
+            data-testid="products-form-company"
           >
             <el-option
               v-for="item in companyOptions"
@@ -187,23 +195,23 @@
           </el-select>
         </el-form-item>
         <el-form-item label="产品名称（必填）" required>
-          <el-input v-model.trim="form.productName" maxlength="64" show-word-limit placeholder="请输入产品名称" />
+          <el-input v-model.trim="form.productName" maxlength="64" show-word-limit placeholder="请输入产品名称" data-testid="products-form-name" />
         </el-form-item>
         <el-form-item label="产品编码（选填）">
-          <el-input v-model.trim="form.productCode" maxlength="64" show-word-limit placeholder="可选，便于内部台账和打印标识" />
+          <el-input v-model.trim="form.productCode" maxlength="64" show-word-limit placeholder="可选，便于内部台账和打印标识" data-testid="products-form-code" />
         </el-form-item>
         <div class="dialog-section-title">产品资料</div>
         <el-form-item label="产品分类（必填）" required>
-          <el-input v-model.trim="form.category" maxlength="32" show-word-limit placeholder="如水果、茶叶、粮油" />
+          <el-input v-model.trim="form.category" maxlength="32" show-word-limit placeholder="如水果、茶叶、粮油" data-testid="products-form-category" />
         </el-form-item>
         <el-form-item label="产地（必填）" required>
-          <el-input v-model.trim="form.originPlace" maxlength="128" show-word-limit placeholder="请输入主要产地" />
+          <el-input v-model.trim="form.originPlace" maxlength="128" show-word-limit placeholder="请输入主要产地" data-testid="products-form-origin" />
         </el-form-item>
         <el-form-item label="规格（选填）">
-          <el-input v-model.trim="form.specification" maxlength="64" show-word-limit placeholder="可选，如 5kg / 箱" />
+          <el-input v-model.trim="form.specification" maxlength="64" show-word-limit placeholder="可选，如 5kg / 箱" data-testid="products-form-specification" />
         </el-form-item>
         <el-form-item label="计量单位（选填）">
-          <el-input v-model.trim="form.unit" maxlength="16" show-word-limit placeholder="可选，如 箱、斤、袋" />
+          <el-input v-model.trim="form.unit" maxlength="16" show-word-limit placeholder="可选，如 箱、斤、袋" data-testid="products-form-unit" />
         </el-form-item>
         <div class="dialog-section-title">状态设置</div>
         <el-form-item label="当前状态">
@@ -224,7 +232,7 @@
 
       <template #footer>
         <el-button @click="showDialog = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="handleSubmit">
+        <el-button type="primary" :loading="submitting" data-testid="products-form-submit" @click="handleSubmit">
           {{ dialogMode === 'create' ? '确认新增' : '保存修改' }}
         </el-button>
       </template>
@@ -243,8 +251,10 @@ import { extractErrorMessage } from '../utils/feedback'
 const authStore = useAuthStore()
 const roleCode = computed(() => authStore.user?.roleCode || '')
 const isPlatformAdmin = computed(() => roleCode.value === 'PLATFORM_ADMIN')
+const isEnterpriseAdmin = computed(() => roleCode.value === 'ENTERPRISE_ADMIN')
 const canManage = computed(() => ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN'].includes(roleCode.value))
 const isCompanyLocked = computed(() => roleCode.value === 'ENTERPRISE_ADMIN' && Boolean(authStore.user?.companyId))
+const currentCompanyName = computed(() => authStore.user?.companyName || '当前企业')
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -277,6 +287,23 @@ const statusOptions = [
   { value: 'DISABLED', label: '已停用' },
   { value: 'ARCHIVED', label: '已归档' }
 ]
+
+const pageTitle = computed(() => isEnterpriseAdmin.value ? '本企业产品' : '产品管理')
+const pageDesc = computed(() => {
+  if (isEnterpriseAdmin.value) {
+    return `这里只展示并维护 ${currentCompanyName.value} 的产品资料，企业归属已固定，不能切换到其他企业。`
+  }
+  return '维护产品基础资料，供企业建批次、补录追溯和公开查询统一调用。'
+})
+const scopedModeHint = computed(() => `当前账号只维护 ${currentCompanyName.value} 的产品，前后端都会按本企业范围校验，不能把产品挂到其他企业。`)
+const tableTitle = computed(() => isEnterpriseAdmin.value ? '本企业产品台账' : '产品台账')
+const tableTip = computed(() => {
+  if (isEnterpriseAdmin.value) {
+    return '当前仅展示本企业产品，企业归属已经固定；你可以维护本企业产品资料，但不能切换到其他企业。'
+  }
+  return '优先按企业、状态和关键词筛选，右侧直接执行编辑、停用、归档和删除。'
+})
+const summaryLabel = computed(() => isEnterpriseAdmin.value ? '当前可维护' : '当前共')
 
 function isSuccessResponse(res) {
   return res?.success === true || res?.code === 0 || String(res?.code) === '0'
@@ -546,6 +573,25 @@ onMounted(async () => {
 <style scoped>
 .product-manage {
   padding: 20px;
+}
+
+.profile-banner {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(29, 111, 161, 0.16);
+  background: linear-gradient(135deg, rgba(246, 251, 255, 0.96), rgba(236, 245, 255, 0.92));
+}
+
+.profile-banner strong {
+  color: var(--admin-text);
+  font-size: 15px;
+}
+
+.profile-banner span {
+  color: var(--admin-text-soft);
+  line-height: 1.7;
 }
 
 .summary-slot {

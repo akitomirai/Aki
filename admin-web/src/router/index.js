@@ -10,7 +10,8 @@ import {
 
 const batchReadRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN', 'REGULATOR']
 const dashboardRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN']
-const qualityRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN']
+const qualityManageRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN']
+const qualityReadRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN', 'REGULATOR']
 const riskRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN', 'REGULATOR']
 const fieldRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN', 'OPERATOR']
 const userManageRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN']
@@ -113,7 +114,7 @@ const routes = [
         meta: {
           requiresAuth: true,
           title: '二维码与发布',
-          roles: qualityRoles
+          roles: qualityManageRoles
         }
       },
       {
@@ -122,8 +123,8 @@ const routes = [
         component: () => import('../pages/QualityTodoView.vue'),
         meta: {
           requiresAuth: true,
-          title: '质检待办',
-          roles: qualityRoles
+          title: '质检查看',
+          roles: qualityReadRoles
         }
       },
       {
@@ -166,7 +167,7 @@ function resolveRouteRoles(to) {
     ?.meta?.roles
 
   if (to.path === '/batches' && ['READY'].includes(String(to.query.mode || '').toUpperCase())) {
-    return qualityRoles
+    return qualityReadRoles
   }
   if (to.path === '/batches' && ['RISK'].includes(String(to.query.mode || '').toUpperCase())) {
     return riskRoles

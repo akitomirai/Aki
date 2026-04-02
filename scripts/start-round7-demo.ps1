@@ -47,14 +47,14 @@ $admin = Start-Round8Process `
     -Command ("cd /d ""{0}"" && npx vite --host 127.0.0.1 --port 5174 > ""{1}"" 2>&1" -f (Join-Path (Get-Round8Root) 'admin-web'), (Join-Path $paths.ServiceLogs 'admin-web.log')) `
     -LogFile (Join-Path $paths.ServiceLogs 'admin-web.log') `
     -Port 5174 `
-    -ReadyUrl 'http://127.0.0.1:5174/batches'
+    -ReadyUrl 'http://127.0.0.1:5174/login'
 
 $trace = Start-Round8Process `
     -Name 'trace-web' `
     -Command ("cd /d ""{0}"" && npx vite --host 127.0.0.1 --port 5173 > ""{1}"" 2>&1" -f (Join-Path (Get-Round8Root) 'trace-web'), (Join-Path $paths.ServiceLogs 'trace-web.log')) `
     -LogFile (Join-Path $paths.ServiceLogs 'trace-web.log') `
     -Port 5173 `
-    -ReadyUrl 'http://127.0.0.1:5173/t/demo-normal-2026'
+    -ReadyUrl 'http://127.0.0.1:5173/t/orange-202603-d1'
 
 $services = @($backend, $admin, $trace)
 Write-Round8State -Services $services
@@ -101,8 +101,8 @@ Write-Host ("  trace-web PID:    {0}" -f $trace.pid)
 Write-Host ""
 Write-Host "Ready URLs"
 Write-Host "  Backend: http://127.0.0.1:8080/actuator/health"
-Write-Host "  Admin:   http://127.0.0.1:5174/batches"
-Write-Host "  Trace:   http://127.0.0.1:5173/t/demo-normal-2026"
+Write-Host "  Admin:   http://127.0.0.1:5174/login"
+Write-Host "  Trace:   http://127.0.0.1:5173/t/orange-202603-d1"
 Write-Host ""
 Write-Host "Tracked state"
 Write-Host ("  {0}" -f $paths.StateFile)

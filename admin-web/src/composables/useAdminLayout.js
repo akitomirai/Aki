@@ -45,14 +45,25 @@ export function useAdminLayout() {
     const regulatorOnly = isRegulator(role)
     const sections = []
 
-    if (!regulatorOnly) {
-      sections.push({
-        title: '工作台',
-        items: [
-          { key: '/dashboard', label: '首页总览', to: '/dashboard' }
-        ]
-      })
+    if (regulatorOnly) {
+      return [
+        {
+          title: '监管查看',
+          items: [
+            { key: '/risk', label: '风险查看', to: '/risk' },
+            { key: '/batches', label: '批次查看', to: '/batches' },
+            { key: '/quality', label: '质检查看', to: '/quality' }
+          ]
+        }
+      ]
     }
+
+    sections.push({
+      title: '工作台',
+      items: [
+        { key: '/dashboard', label: '首页总览', to: '/dashboard' }
+      ]
+    })
 
     const baseDataItems = []
     if (hasRoleAccess(role, ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN'])) {
@@ -83,9 +94,9 @@ export function useAdminLayout() {
     }
 
     sections.push({
-      title: regulatorOnly ? '监管查看' : '业务管理',
+      title: '业务管理',
       items: [
-        { key: '/batches', label: regulatorOnly ? '批次查看' : '批次管理', to: '/batches' }
+        { key: '/batches', label: '批次管理', to: '/batches' }
       ]
     })
 

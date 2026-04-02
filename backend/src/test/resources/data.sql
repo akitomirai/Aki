@@ -4,7 +4,8 @@ INSERT INTO org_company (id, name, license_no, address, contact, phone, status, 
 INSERT INTO sys_user (id, username, password, real_name, role_code, company_id, status, need_change_password, password_updated_at, created_at, updated_at) VALUES
 (1, 'platform', '{noop}123456', 'Platform Admin', 'PLATFORM_ADMIN', NULL, 1, 0, '2026-03-11 08:00:00', '2026-03-11 08:00:00', '2026-03-11 08:00:00'),
 (2, 'enterprise_admin', '{noop}123456', 'Enterprise Admin', 'ENTERPRISE_ADMIN', 1, 1, 0, '2026-03-11 08:10:00', '2026-03-11 08:10:00', '2026-03-11 08:10:00'),
-(3, 'operator', '{noop}123456', 'Field Operator', 'OPERATOR', 1, 1, 0, '2026-03-11 08:20:00', '2026-03-11 08:20:00', '2026-03-11 08:20:00');
+(3, 'operator', '{noop}123456', 'Field Operator', 'OPERATOR', 1, 1, 0, '2026-03-11 08:20:00', '2026-03-11 08:20:00', '2026-03-11 08:20:00'),
+(4, 'regulator', '{noop}123456', 'Regulator', 'REGULATOR', NULL, 1, 0, '2026-03-11 08:30:00', '2026-03-11 08:30:00', '2026-03-11 08:30:00');
 
 INSERT INTO base_product (id, company_id, product_code, name, category, origin_place, spec, unit, image_url, status, created_at) VALUES
 (1, 1, 'ORANGE-001', 'Navel Orange', 'Fruit', 'Jiangxi Ganzhou Xinfeng', '10kg/box', 'box', '/images/products/orange-batch.svg', 'ENABLED', '2026-03-11 10:00:00');

@@ -62,6 +62,15 @@ const copiedFromCode = computed(() => String(route.query.copiedFrom || '').trim(
 const roleCode = computed(() => authStore.user?.roleCode || '')
 const canManageBatch = computed(() => canManageAdminBatch(roleCode.value))
 const readOnlyBatchView = computed(() => isRegulator(roleCode.value))
+const pageSubtitle = computed(() => {
+  if (readOnlyBatchView.value) {
+    return '监管查看模式已保留批次状态、质检结果、二维码状态、最近记录、任务分配和风险动作，所有写操作都已收口。'
+  }
+  return ''
+})
+const readOnlyBannerText = computed(() => {
+  return '当前账号只查看批次详情、质检摘要、二维码状态、任务分配和风险记录，不提供复制、现场录入、上传、发布或风险写入入口。'
+})
 const canManageAssignment = computed(() => ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN'].includes(authStore.user?.roleCode))
 const currentAssigneeId = computed(() => detail.value?.task?.assigneeUserId ? String(detail.value.task.assigneeUserId) : '')
 const selectedAssigneeId = computed(() => assignmentForm.value.assigneeUserId ? String(assignmentForm.value.assigneeUserId) : '')
@@ -80,6 +89,11 @@ const assignmentHint = computed(() => {
     return detail.value.task?.draftUpdatedAt
       ? `当前分配人 ${assigneeName} 还有未提交草稿，最近保存于 ${detail.value.task.draftUpdatedAt}。`
       : `当前分配人 ${assigneeName} 还有未提交草稿。`
+  }
+  if (readOnlyBatchView.value) {
+    return detail.value.task?.assigneeName
+      ? `当前由 ${detail.value.task.assigneeName} 负责后续现场作业，可继续结合任务状态和最近记录判断执行情况。`
+      : '当前还没有分配操作员，可结合任务状态与最近更新时间继续判断后续跟进情况。'
   }
   if (selectedAssignee.value) {
     return `将由 ${selectedAssignee.value.realName || selectedAssignee.value.username} 接管该批次后续现场作业。`
@@ -111,6 +125,7 @@ const riskStageCode = computed(() => String(detail.value?.riskHandling?.currentS
 const riskStageText = computed(() => resolveRiskStatusText(detail.value?.risk, detail.value?.riskHandling))
 const batchStatusText = computed(() => detail.value?.status?.label || '状态待确认')
 const statusSummaryCopy = computed(() => batchStatusSummary(detail.value?.status?.code))
+const todoSectionLabel = computed(() => readOnlyBatchView.value ? '监管关注点' : '待完成事项')
 const taskStatusText = computed(() => resolveTaskStatusText(detail.value?.task))
 const todayProgressText = computed(() => resolveTodayStatusText(detail.value?.task?.todayCompleted))
 const assignmentDraftText = computed(() => detail.value?.task?.draftStatusLabel || '无草稿')
@@ -128,17 +143,33 @@ const riskResolutionText = computed(() => {
 })
 const riskSummaryCopy = computed(() => {
   if (!canHandleRisk.value) {
-    return '当前没有需要跟进的风险动作。'
+    return readOnlyBatchView.value ? '当前没有处于风险链路中的动作，可继续回查质检、二维码和状态流转。' : '当前没有需要跟进的风险动作。'
   }
-  return detail.value?.risk?.reason || detail.value?.status?.reason || '当前批次正在风险处理中。'
+  return detail.value?.risk?.reason || detail.value?.status?.reason || (readOnlyBatchView.value ? '当前批次仍在风险处理中，请结合最近动作和整改结果继续判断。' : '当前批次正在风险处理中。')
 })
 const riskPanelCopy = computed(() => {
   if (!canHandleRisk.value) {
-    return '当前没有需要处理的风险事项。'
+    return readOnlyBatchView.value ? '当前没有需要继续写入的风险动作，可重点查看最近风险记录和状态流转。' : '当前没有需要处理的风险事项。'
   }
-  return detail.value?.risk?.tip || detail.value?.risk?.reason || '先补处理说明、整改记录，再完成整改状态。'
+  return detail.value?.risk?.tip || detail.value?.risk?.reason || (readOnlyBatchView.value ? '这里保留最近风险动作、整改结果和历史留痕，便于直接回查处理链。' : '先补处理说明、整改记录，再完成整改状态。')
 })
 const riskPanelCalm = computed(() => !canHandleRisk.value || riskResolved.value)
+const riskPanelHeadline = computed(() => readOnlyBatchView.value ? '风险查看' : '风险处理')
+const riskPanelIntro = computed(() => {
+  if (readOnlyBatchView.value) {
+    return riskPanelCalm.value ? '当前只保留风险结论、最近动作和整改结果。' : '当前展示最近风险动作、整改进度和历史留痕，便于监管回查。'
+  }
+  return riskPanelCalm.value ? '当前只保留风险结论和最近动作。' : '补说明、整改并更新风险状态。'
+})
+const assignmentPanelCopy = computed(() => {
+  return readOnlyBatchView.value ? '查看当前分配结果、草稿状态和最近保存时间。' : '在当前页直接分配、改派或清空。'
+})
+const recordEmptyText = computed(() => {
+  return readOnlyBatchView.value ? '当前还没有追溯记录，可据此判断现场资料仍未补齐。' : '当前还没有追溯记录。'
+})
+const todoEmptyText = computed(() => {
+  return readOnlyBatchView.value ? '当前关键资料已收口，可继续核对公开页、风险和状态流转。' : '当前关键事项已收口，可以继续核对公开页、风险和状态流转。'
+})
 const riskChecklist = computed(() => {
   if (!canHandleRisk.value) {
     return []
@@ -173,28 +204,41 @@ const freshBatchGuide = computed(() => {
 
 const todoItems = computed(() => {
   if (!detail.value) return []
+  const readOnly = readOnlyBatchView.value
   const items = []
-  if (!recentRecords.value.length && traceAction.value.enabled) {
-    items.push({ key: 'trace', title: '补录首条追溯', detail: '先补一条关键现场记录。' })
+  if (!recentRecords.value.length && (readOnly || traceAction.value.enabled)) {
+    items.push({
+      key: 'trace',
+      title: readOnly ? '缺少现场追溯' : '补录首条追溯',
+      detail: readOnly ? '当前还没有关键现场记录，可据此判断批次资料仍未补齐。' : '先补一条关键现场记录。'
+    })
   }
-  if (!qualityUploaded.value && qualityAction.value.enabled) {
-    items.push({ key: 'quality', title: '上传质检', detail: '发布前要先补质检摘要。' })
+  if (!qualityUploaded.value && (readOnly || qualityAction.value.enabled)) {
+    items.push({
+      key: 'quality',
+      title: readOnly ? '缺少质检摘要' : '上传质检',
+      detail: readOnly ? '当前还没有最新质检结论，建议继续关注是否补齐报告。' : '发布前要先补质检摘要。'
+    })
   }
-  if (!detail.value.qr?.generated && qrAction.value.enabled) {
-    items.push({ key: 'qr', title: '生成二维码', detail: '公开页入口要先有二维码。' })
+  if (!detail.value.qr?.generated && (readOnly || qrAction.value.enabled)) {
+    items.push({
+      key: 'qr',
+      title: readOnly ? '尚未生成二维码' : '生成二维码',
+      detail: readOnly ? '公开页入口尚未就绪，可继续跟进发布准备状态。' : '公开页入口要先有二维码。'
+    })
   }
   if (detail.value.status?.code === 'DRAFT') {
     items.push({
       key: 'publish',
-      title: publishReady.value ? '发布批次' : '满足发布条件',
-      detail: publishReady.value ? '条件已满足，可直接发布。' : (publishAction.value.hint || '先补齐发布前条件。')
+      title: readOnly ? (publishReady.value ? '已满足发布条件' : '尚未满足发布条件') : (publishReady.value ? '发布批次' : '满足发布条件'),
+      detail: readOnly ? (publishReady.value ? '当前资料已满足发布条件，但监管账号仅保留查看。' : (publishAction.value.hint || '当前仍缺少发布前关键资料。')) : (publishReady.value ? '条件已满足，可直接发布。' : (publishAction.value.hint || '先补齐发布前条件。'))
     })
   }
   if (canHandleRisk.value) {
     items.push({
       key: 'risk',
-      title: riskResolved.value ? '恢复发布' : '继续风险处理',
-      detail: riskResolved.value ? '已完成整改，可恢复发布。' : '先补处理说明、整改记录，再标记已整改。'
+      title: readOnly ? '风险链路回查' : (riskResolved.value ? '恢复发布' : '继续风险处理'),
+      detail: readOnly ? (riskResolved.value ? '整改动作已基本完成，可继续核对是否满足恢复发布条件。' : '当前仍在风险处理阶段，可继续查看最近动作和整改记录。') : (riskResolved.value ? '已完成整改，可恢复发布。' : '先补处理说明、整改记录，再标记已整改。')
     })
   }
   return items
@@ -335,7 +379,17 @@ function statusClass(status) {
 
 function batchStatusSummary(status) {
   if (isFreshCreated.value && String(status).toUpperCase() === 'DRAFT') {
-    return '这个批次刚完成建档，先补现场记录、上传质检、生成二维码，再发布。'
+    return readOnlyBatchView.value
+      ? '这个批次刚完成建档，现场记录、质检和二维码可能仍在补齐中。'
+      : '这个批次刚完成建档，先补现场记录、上传质检、生成二维码，再发布。'
+  }
+  if (readOnlyBatchView.value) {
+    return {
+      DRAFT: '当前批次仍在准备阶段，可重点核对现场记录、质检和二维码是否齐全。',
+      PUBLISHED: '当前批次已对外公开，可继续回查公开页、最近记录和风险状态。',
+      FROZEN: '当前批次已冻结，可继续查看最近风险动作和整改结果。',
+      RECALLED: '当前批次已召回，公开页会持续展示风险提示。'
+    }[String(status).toUpperCase()] ?? '当前批次状态待确认。'
   }
   return {
     DRAFT: '当前批次还在后台准备阶段，先补齐现场、质检和二维码。',
@@ -724,6 +778,7 @@ onMounted(async () => {
             {{ detail.batch.batchCode }} · {{ detail.company.name }}
             <template v-if="detail.task?.assigneeName"> · 已分配给 {{ detail.task.assigneeName }}</template>
           </p>
+          <p v-if="pageSubtitle" class="manage-page-subtitle">{{ pageSubtitle }}</p>
         </div>
         <div class="manage-page-actions">
           <button class="ghost" @click="router.push('/batches')">返回批次列表</button>
@@ -734,6 +789,14 @@ onMounted(async () => {
       </section>
 
       <section v-if="message" class="message-bar" :class="messageType">{{ message }}</section>
+
+      <section v-if="readOnlyBatchView" class="fresh-batch-banner" data-testid="workbench-readonly-banner">
+        <div>
+          <span class="card-label">监管查看</span>
+          <h2>当前批次为只读监管视图</h2>
+          <p>{{ readOnlyBannerText }}</p>
+        </div>
+      </section>
 
       <section v-if="isFreshCreated" class="fresh-batch-banner" data-testid="fresh-batch-banner">
         <div>
@@ -779,14 +842,14 @@ onMounted(async () => {
         </article>
 
         <article class="summary-card">
-          <span class="card-label">待完成事项</span>
+          <span class="card-label">{{ todoSectionLabel }}</span>
           <ul v-if="todoItems.length" class="mini-list">
             <li v-for="item in todoItems" :key="item.key">
               <strong>{{ item.title }}</strong>
               <small>{{ item.detail }}</small>
             </li>
           </ul>
-          <p v-else class="empty-copy">当前关键事项已收口，可以继续核对公开页、风险和状态流转。</p>
+          <p v-else class="empty-copy">{{ todoEmptyText }}</p>
         </article>
 
         <article class="summary-card">
@@ -823,19 +886,19 @@ onMounted(async () => {
               </article>
             </div>
           </template>
-          <p v-else class="empty-copy">当前还没有追溯记录，建议先补一条关键现场节点。</p>
+          <p v-else class="empty-copy">{{ recordEmptyText }}</p>
         </article>
       </section>
 
-      <section v-if="!readOnlyBatchView" class="action-panel" data-testid="workbench-action-groups">
-          <div class="section-head">
-            <div>
-              <h2>业务动作</h2>
-              <p>直接判断下一步能做什么。</p>
-            </div>
+      <section class="action-panel">
+        <div class="section-head">
+          <div>
+            <h2>{{ readOnlyBatchView ? '监管摘要' : '业务动作' }}</h2>
+            <p>{{ readOnlyBatchView ? '保留质检、二维码、发布条件和公开入口，便于直接判断批次是否具备对外展示条件。' : '直接判断下一步能做什么。' }}</p>
           </div>
+        </div>
         <div class="action-hub">
-          <div class="action-grid">
+          <div v-if="!readOnlyBatchView" class="action-grid" data-testid="workbench-action-groups">
             <article
               v-for="item in quickActions"
               :key="item.key"
@@ -865,6 +928,24 @@ onMounted(async () => {
             </article>
           </div>
 
+          <div v-else class="summary-card release-readonly-card" data-testid="workbench-release-readonly">
+            <span class="card-label">监管提示</span>
+            <p class="card-title">{{ publishReady ? '已满足发布条件' : '仍需继续补齐资料' }}</p>
+            <p class="card-copy">
+              {{ publishReady ? '当前批次已经具备发布条件，但监管账号仅保留查看。' : (publishAction.hint || resumeAction.hint || '当前仍需继续关注质检、二维码或风险整改情况。') }}
+            </p>
+            <div class="summary-meta-list compact">
+              <div>
+                <span>质检状态</span>
+                <strong>{{ detail.quality.label }}</strong>
+              </div>
+              <div>
+                <span>二维码状态</span>
+                <strong>{{ resolveQrStatusText(detail.qr) }}</strong>
+              </div>
+            </div>
+          </div>
+
           <article class="panel release-panel">
             <div class="section-head">
               <div>
@@ -892,6 +973,39 @@ onMounted(async () => {
                     <span>质检结论</span>
                     <strong>{{ latestQualityReport?.resultLabel || detail.quality.label }}</strong>
                   </div>
+                  <div>
+                    <span>报告编号</span>
+                    <strong>{{ latestQualityReport?.reportNo || '暂无报告' }}</strong>
+                  </div>
+                  <div>
+                    <span>检测时间</span>
+                    <strong>{{ latestQualityReport?.reportTime || '暂无时间' }}</strong>
+                  </div>
+                </div>
+                <ul
+                  v-if="latestQualityReport?.highlights?.length"
+                  class="mini-list quality-highlight-list"
+                  data-testid="workbench-quality-highlights"
+                >
+                  <li v-for="item in latestQualityReport.highlights" :key="item">
+                    <strong>{{ item }}</strong>
+                  </li>
+                </ul>
+                <div
+                  v-if="latestQualityReport?.attachments?.length"
+                  class="inline-actions quality-attachment-links"
+                  data-testid="workbench-quality-attachments"
+                >
+                  <a
+                    v-for="item in latestQualityReport.attachments"
+                    :key="item.id || item.fileUrl"
+                    class="preview-link"
+                    :href="item.fileUrl"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    查看{{ item.fileName || '质检附件' }}
+                  </a>
                 </div>
               </article>
 
@@ -976,7 +1090,7 @@ onMounted(async () => {
               </article>
             </div>
           </article>
-          <p v-else class="empty-copy">当前还没有追溯记录。</p>
+          <p v-else class="empty-copy">{{ recordEmptyText }}</p>
 
           <div v-if="earlierRecords.length" class="record-list compact-record-list">
             <article v-for="item in earlierRecords" :key="item.id" class="record-card">
@@ -1002,7 +1116,7 @@ onMounted(async () => {
           <div class="section-head">
             <div>
               <h2>任务分配</h2>
-              <p>在当前页直接分配、改派或清空。</p>
+              <p>{{ assignmentPanelCopy }}</p>
             </div>
           </div>
           <div class="assignment-grid">
@@ -1078,8 +1192,8 @@ onMounted(async () => {
       <section class="risk-panel panel" :class="{ calm: riskPanelCalm }" data-testid="workbench-risk-panel">
         <div class="section-head">
           <div>
-            <h2>风险处理</h2>
-            <p>{{ riskPanelCalm ? '当前只保留风险结论和最近动作。' : '补说明、整改并更新风险状态。' }}</p>
+            <h2>{{ riskPanelHeadline }}</h2>
+            <p>{{ riskPanelIntro }}</p>
           </div>
           <div v-if="canManageBatch" class="inline-actions" data-testid="workbench-group-status">
             <button class="ghost" :disabled="!canHandleRisk" @click="openRiskDialog('COMMENT')">补处理说明</button>
@@ -1443,6 +1557,9 @@ button.ghost.danger { border-color: rgba(224, 73, 73, 0.2); color: #a33030; }
 .action-hub { display: grid; grid-template-columns: 1.55fr 1fr; gap: 16px; margin-top: 16px; }
 .action-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .action-card.unavailable { background: linear-gradient(180deg, rgba(245, 248, 252, 0.96), rgba(239, 244, 250, 0.96)); }
+.release-readonly-card { padding: 18px; border: 1px solid rgba(56, 134, 217, 0.1); border-radius: 16px; background: var(--admin-surface-soft); }
+.quality-highlight-list { margin-top: 16px; }
+.quality-attachment-links { margin-top: 16px; }
 .availability-badge { display: inline-flex; align-items: center; justify-content: center; min-height: 30px; padding: 0 12px; border-radius: 999px; background: rgba(224, 232, 243, 0.9); color: #5b7190; font-size: 12px; font-weight: 700; }
 .availability-badge.ok { background: rgba(33, 170, 110, 0.14); color: #17784f; }
 .availability-badge.blocked { background: rgba(248, 193, 73, 0.18); color: #946200; }

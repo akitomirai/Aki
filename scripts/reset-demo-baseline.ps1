@@ -57,8 +57,8 @@ Write-Host 'Demo baseline reset complete.' -ForegroundColor Green
 Write-Host "Backend PID : $($process.Id)"
 Write-Host "Backend Log : $backendLog"
 Write-Host 'Seed baseline:' -ForegroundColor Cyan
-Write-Host '  batch 2 = PUBLISHED'
+Write-Host '  batch 2 = 已发布 (PUBLISHED)'
 Write-Host '  publishedAt = 2026-03-21 11:30'
-Write-Host '  quality = PASS'
+Write-Host '  quality = 合格'
 Write-Host '  qr token = orange-202603-d1'
-Write-Host '  default assignee = operator_support'
+Write-Host '  default assignee = 现场操作员B / operator_support'

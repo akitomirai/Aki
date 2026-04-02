@@ -171,18 +171,18 @@
       <el-form :model="form" label-width="118px" class="dialog-form dialog-form--grouped" data-testid="company-form-dialog">
         <div class="dialog-section-title">基础信息</div>
         <el-form-item label="企业名称（必填）" required>
-          <el-input v-model.trim="form.name" maxlength="64" show-word-limit placeholder="请输入企业名称" />
+          <el-input v-model.trim="form.name" maxlength="64" show-word-limit placeholder="请输入企业名称" data-testid="company-form-name" />
         </el-form-item>
         <el-form-item label="许可证号（选填）">
-          <el-input v-model.trim="form.licenseNo" maxlength="64" show-word-limit placeholder="便于备案和回查" />
+          <el-input v-model.trim="form.licenseNo" maxlength="64" show-word-limit placeholder="便于备案和回查" data-testid="company-form-license" />
         </el-form-item>
 
         <div class="dialog-section-title">联系信息</div>
         <el-form-item label="联系人（必填）" required>
-          <el-input v-model.trim="form.contactPerson" maxlength="32" show-word-limit placeholder="请输入联系人姓名" />
+          <el-input v-model.trim="form.contactPerson" maxlength="32" show-word-limit placeholder="请输入联系人姓名" data-testid="company-form-contact-person" />
         </el-form-item>
         <el-form-item label="联系电话（必填）" required>
-          <el-input v-model.trim="form.contactPhone" maxlength="32" show-word-limit placeholder="至少保留一个可回拨号码" />
+          <el-input v-model.trim="form.contactPhone" maxlength="32" show-word-limit placeholder="至少保留一个可回拨号码" data-testid="company-form-contact-phone" />
         </el-form-item>
         <el-form-item label="联系地址（必填）" required class="full-row">
           <el-input
@@ -192,6 +192,7 @@
             maxlength="200"
             show-word-limit
             placeholder="请填写园区、仓库或办公地点"
+            data-testid="company-form-address"
           />
         </el-form-item>
 

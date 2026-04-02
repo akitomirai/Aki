@@ -6,6 +6,7 @@ $scriptPath = Join-Path $root 'output\playwright\full-regression-baseline.mjs'
 $screenshotDir = Join-Path $root 'output\playwright'
 $playwrightDir = Join-Path $root 'tests\e2e'
 $logPermissionSpec = 'specs/log-permission-smoke.spec.mjs'
+$regulatorReadonlySpec = 'specs/regulator-readonly-smoke.spec.mjs'
 
 function Wait-HttpOk {
     param(
@@ -61,17 +62,22 @@ function Add-Issue {
     $script:issues += $Message
 }
 
-function Invoke-LogPermissionSmoke {
+function Invoke-PlaywrightSmoke {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Spec
+    )
+
     $env:ADMIN_BASE_URL = 'http://127.0.0.1:5174'
     $env:TRACE_BASE_URL = 'http://127.0.0.1:5173'
     $env:API_BASE_URL = 'http://127.0.0.1:8080/api'
 
-    Write-Host "Running log permission smoke: $logPermissionSpec" -ForegroundColor Cyan
+    Write-Host "Running Playwright smoke: $Spec" -ForegroundColor Cyan
     Push-Location $playwrightDir
     try {
-        npm run test -- $logPermissionSpec
+        npm run test -- $Spec
         if ($LASTEXITCODE -ne 0) {
-            throw "Log permission smoke failed with exit code: $LASTEXITCODE"
+            throw "Playwright smoke failed with exit code: $LASTEXITCODE"
         }
     }
     finally {
@@ -103,7 +109,8 @@ if (-not (Test-Path $jsonPath)) {
 $result = Get-Content $jsonPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $issues = @()
 
-Invoke-LogPermissionSmoke
+Invoke-PlaywrightSmoke -Spec $logPermissionSpec
+Invoke-PlaywrightSmoke -Spec $regulatorReadonlySpec
 
 if ($result.seedBaseline.workbench.batchStatusCode -ne 'PUBLISHED') {
     Add-Issue "Seed baseline batch 2 code is not PUBLISHED: $($result.seedBaseline.workbench.batchStatusCode)"
@@ -193,5 +200,6 @@ Write-Host 'Verified gates:' -ForegroundColor Cyan
 Write-Host '  - demo seed is restored to the published baseline'
 Write-Host '  - assignment chain, draft blocking, operator submit, risk chain, and public linkage all passed'
 Write-Host '  - log permission smoke passed for platform, enterprise_admin, and operator'
+Write-Host '  - regulator readonly smoke passed for default landing, read-only pages, and deny logging'
 Write-Host '  - high-frequency pages do not expose English seed values or raw enum values'
 Write-Host '  - publishedAt, task status, and risk status remain consistent'

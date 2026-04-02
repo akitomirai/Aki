@@ -67,6 +67,14 @@ powershell -ExecutionPolicy Bypass -File .\scripts\stop-local.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\check-local.ps1
 ```
 
+认证感知预检查：
+
+- [demo-precheck.ps1](D:/Users/Lenovo/Desktop/traceability-system/scripts/demo-precheck.ps1)
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\demo-precheck.ps1
+```
+
 统一入口：
 
 - [dev-cycle.ps1](D:/Users/Lenovo/Desktop/traceability-system/scripts/dev-cycle.ps1)
@@ -88,6 +96,9 @@ powershell -ExecutionPolicy Bypass -File .\scripts\dev-cycle.ps1 -Mode stop
 - 启动后会记录 PID 到 `output/runtime/local-run-state.json`
 - `stop-local.ps1` 优先按这个状态文件停止进程，避免误杀无关系统进程
 - 如果端口已被占用，启动脚本会直接报出 PID、进程名和命令行摘要
+- `check-local.ps1` 只检查匿名可访问的健康端点、后台登录页和公开追溯页
+- `demo-precheck.ps1` 会额外做一次真实平台管理员登录，再检查需要登录态的后台基线接口
+- 当前 `GET /api/batches` 不再按匿名接口使用，后台批次基线检查统一放在 `demo-precheck.ps1`
 
 ## 一键主回归入口
 
@@ -125,6 +136,17 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run-baseline-regression.ps1
   - `operator` 直输 `/logs` 被拦截
   - 后端拒绝请求会写入 `LOG_ACCESS_DENIED`，并能被平台管理员在日志页筛出
 
+入口关系：
+
+- `scripts/check-local.ps1`
+  - 轻量本地健康检查，只看匿名安全入口
+- `scripts/demo-precheck.ps1`
+  - demo 基线预检查，会带真实登录态检查后台批次基线
+- `scripts/backend-test.ps1 -Task test`
+  - 后端完整测试入口，包含日志权限链的 `OperationLogControllerIntegrationTest`
+- `scripts/run-baseline-regression.ps1`
+  - 主浏览器回归入口，会先跑原有主链路，再追加日志权限 smoke
+
 ## 主要验收入口
 
 - `/batches`
@@ -161,6 +183,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run-baseline-regression.ps1
 
 - 定向 smoke 只验证日志页权限、企业管理员范围限制、拒绝提示和拒绝留痕可见
 - 主回归会先跑原有基线流程，再追加这条日志权限 smoke
+- 如果只是确认本地服务是否起来，先跑 `check-local.ps1`
+- 如果要确认 demo 数据和需要登录态的后台接口没偏离，再跑 `demo-precheck.ps1`
 
 ## 推荐顺序
 

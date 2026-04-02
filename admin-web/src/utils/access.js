@@ -87,7 +87,7 @@ export function getDefaultRouteByRole(roleCode = '') {
     return '/field-entry'
   }
   if (normalizedRole === ROLE_CODES.REGULATOR) {
-    return '/batches'
+    return '/risk'
   }
   return '/login'
 }

@@ -1923,6 +1923,7 @@ public class BatchServiceImpl implements BatchService {
         if (isEnterpriseAdmin(currentUser) && Objects.equals(currentUser.companyId(), batchPO.getCompanyId())) {
             return;
         }
+        denyQrPublish(currentUser, batchPO, "当前账号不能执行“" + statusActionLabel(targetStatus) + "”操作。");
         denyQrPublish(currentUser, batchPO, "当前账号不能执行“" + (targetStatus == null ? "状态变更" : targetStatus.name()) + "”操作。");
     }
 
@@ -1957,6 +1958,7 @@ public class BatchServiceImpl implements BatchService {
         if (canManageCompanyBatch(currentUser, batchPO)) {
             return;
         }
+        denyQrPublish(currentUser, batchPO, "当前账号不能执行“" + actionLabel + "”操作。");
         denyQrPublish(currentUser, batchPO, "当前账号不能执行“" + actionLabel + "”操作。");
     }
 
@@ -2061,6 +2063,18 @@ public class BatchServiceImpl implements BatchService {
 
     private boolean isEnterpriseAdmin(AuthUserSession currentUser) {
         return currentUser != null && "ENTERPRISE_ADMIN".equalsIgnoreCase(currentUser.roleCode());
+    }
+
+    private String statusActionLabel(BatchStatus targetStatus) {
+        if (targetStatus == null) {
+            return "状态变更";
+        }
+        return switch (targetStatus) {
+            case PUBLISHED -> "发布批次";
+            case FROZEN -> "冻结批次";
+            case RECALLED -> "召回批次";
+            case DRAFT -> "调整为草稿";
+        };
     }
 
     private void ensureBatchCodeUnique(String batchCode, Long ignoredBatchId) {

@@ -22,6 +22,15 @@ const resumeDialog = ref(createResumeDialogState())
 const roleCode = computed(() => authStore.user?.roleCode || '')
 const canManageRisk = computed(() => canManageAdminBatch(roleCode.value))
 const readOnlyRiskView = computed(() => isRegulator(roleCode.value))
+const pageTitle = computed(() => readOnlyRiskView.value ? '风险查看' : '风险处理')
+const pageSubtitle = computed(() => {
+  if (readOnlyRiskView.value) {
+    return '监管账号可统一查看风险状态、最近动作、整改结果和恢复发布条件，不提供补说明、整改或恢复发布入口。'
+  }
+  return '集中处理已冻结、处理中、已整改和已召回批次，直接在列表里补动作，再回工作台核对状态。'
+})
+const readOnlyBannerText = computed(() => '当前为监管查看模式，页面保留批次、企业、风险状态、最近动作、整改结果和最近更新时间，便于快速判断风险处置进展。')
+const openWorkbenchText = computed(() => readOnlyRiskView.value ? '查看批次详情' : '进入工作台')
 
 const riskTabs = [
   { value: 'FROZEN', label: '已冻结' },
@@ -289,12 +298,17 @@ async function openWorkbenchAfterRefresh(item) {
   <div class="page-shell" data-testid="risk-page">
     <section class="manage-page-header">
       <div>
-        <h1 class="manage-page-title">风险处理</h1>
-        <p class="manage-page-subtitle">集中处理已冻结、处理中、已整改和已召回批次，直接在列表里补动作，再回工作台核对状态。</p>
+        <h1 class="manage-page-title">{{ pageTitle }}</h1>
+        <p class="manage-page-subtitle">{{ pageSubtitle }}</p>
       </div>
       <div class="manage-page-actions">
         <button class="ghost" data-testid="risk-refresh-button" :disabled="loading" @click="fetchRows">刷新</button>
       </div>
+    </section>
+
+    <section v-if="readOnlyRiskView" class="panel readonly-banner" data-testid="risk-readonly-banner">
+      <strong>监管查看模式</strong>
+      <span>{{ readOnlyBannerText }}</span>
     </section>
 
     <section class="panel todo-tabs-panel">
@@ -423,7 +437,7 @@ async function openWorkbenchAfterRefresh(item) {
           </div>
 
           <div class="row-actions action-stack">
-            <button class="text-button primary-text" :data-testid="`risk-open-workbench-${item.id}`" @click="openWorkbenchAfterRefresh(item)">进入工作台</button>
+            <button class="text-button primary-text" :data-testid="`risk-open-workbench-${item.id}`" @click="openWorkbenchAfterRefresh(item)">{{ openWorkbenchText }}</button>
             <button
               v-if="canManageRisk"
               class="text-button"
@@ -639,6 +653,21 @@ async function openWorkbenchAfterRefresh(item) {
 
 .primary-text {
   font-weight: 700;
+}
+
+.readonly-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.readonly-banner strong {
+  color: var(--admin-text);
+}
+
+.readonly-banner span {
+  color: var(--admin-text-soft);
+  line-height: 1.7;
 }
 
 @media (max-width: 760px) {

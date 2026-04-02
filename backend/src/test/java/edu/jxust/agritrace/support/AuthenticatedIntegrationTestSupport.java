@@ -36,6 +36,14 @@ public abstract class AuthenticatedIntegrationTestSupport {
             1L
     );
 
+    protected static final AuthUserSession REGULATOR_SESSION = new AuthUserSession(
+            4L,
+            "regulator",
+            "Regulator",
+            "REGULATOR",
+            null
+    );
+
     @BeforeEach
     void setUpSecurityContext() {
         authenticateAs(PLATFORM_ADMIN_SESSION);

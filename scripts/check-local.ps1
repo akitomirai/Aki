@@ -61,6 +61,9 @@ foreach ($check in $checks) {
 
 Write-Host 'Local health check:' -ForegroundColor Cyan
 $results | Format-Table -AutoSize
+Write-Host ''
+Write-Host 'This check only verifies anonymous-safe routes and service health.' -ForegroundColor DarkCyan
+Write-Host 'For authenticated admin API baseline checks, run scripts\demo-precheck.ps1.' -ForegroundColor DarkCyan
 
 if (($results | Where-Object { $_.Status -eq 'failed' }).Count -gt 0) {
     exit 1
