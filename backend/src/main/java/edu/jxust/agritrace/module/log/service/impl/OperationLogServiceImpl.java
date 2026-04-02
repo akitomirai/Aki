@@ -1,6 +1,7 @@
 package edu.jxust.agritrace.module.log.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import edu.jxust.agritrace.common.exception.ForbiddenException;
 import edu.jxust.agritrace.common.exception.UnauthorizedException;
 import edu.jxust.agritrace.module.auth.model.AuthUserSession;
 import edu.jxust.agritrace.module.batch.mapper.OrgCompanyMapper;
@@ -13,9 +14,11 @@ import edu.jxust.agritrace.module.log.service.OperationLogService;
 import edu.jxust.agritrace.module.log.service.support.OperationLogLabels;
 import edu.jxust.agritrace.module.log.vo.OperationLogPageVO;
 import edu.jxust.agritrace.module.log.vo.OperationLogVO;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
@@ -40,17 +43,20 @@ public class OperationLogServiceImpl implements OperationLogService {
 
     private final OperationAuditLogMapper operationAuditLogMapper;
     private final OrgCompanyMapper orgCompanyMapper;
+    private final ObjectProvider<OperationLogService> operationLogServiceProvider;
 
     public OperationLogServiceImpl(
             OperationAuditLogMapper operationAuditLogMapper,
-            OrgCompanyMapper orgCompanyMapper
+            OrgCompanyMapper orgCompanyMapper,
+            ObjectProvider<OperationLogService> operationLogServiceProvider
     ) {
         this.operationAuditLogMapper = operationAuditLogMapper;
         this.orgCompanyMapper = orgCompanyMapper;
+        this.operationLogServiceProvider = operationLogServiceProvider;
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
+    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public void record(OperationLogRecord record) {
         if (record == null || !notBlank(record.actionType()) || !notBlank(record.result())) {
             return;
@@ -96,8 +102,7 @@ public class OperationLogServiceImpl implements OperationLogService {
                 .orderByDesc(OperationAuditLogPO::getId);
 
         if (notBlank(request == null ? null : request.getOperatorKeyword())) {
-            String keyword = request.getOperatorKeyword().trim();
-            queryWrapper.like(OperationAuditLogPO::getOperatorName, keyword);
+            queryWrapper.like(OperationAuditLogPO::getOperatorName, request.getOperatorKeyword().trim());
         }
 
         List<OperationAuditLogPO> allLogs = operationAuditLogMapper.selectList(queryWrapper);
@@ -128,7 +133,7 @@ public class OperationLogServiceImpl implements OperationLogService {
                 defaultValue(logPO.getRoleCode(), ""),
                 OperationLogLabels.roleName(logPO.getRoleCode()),
                 logPO.getCompanyId(),
-                companyNameMap.getOrDefault(logPO.getCompanyId(), logPO.getCompanyId() == null ? "平台直属" : ""),
+                companyNameMap.getOrDefault(logPO.getCompanyId(), logPO.getCompanyId() == null ? "平台主管范围" : ""),
                 defaultValue(logPO.getActionType(), ""),
                 OperationLogLabels.actionLabel(logPO.getActionType()),
                 defaultValue(logPO.getTargetType(), ""),
@@ -180,7 +185,7 @@ public class OperationLogServiceImpl implements OperationLogService {
         if (isPlatformAdmin(currentUser) || isEnterpriseAdmin(currentUser)) {
             return;
         }
-        throw new UnauthorizedException("你没有查看操作日志的权限。");
+        denyLogAccess(currentUser, "你没有查看操作日志的权限。");
     }
 
     private Long normalizeCompanyFilter(AuthUserSession currentUser, Long companyId) {
@@ -188,9 +193,30 @@ public class OperationLogServiceImpl implements OperationLogService {
             return companyId;
         }
         if (companyId != null && !Objects.equals(companyId, currentUser.companyId())) {
-            throw new UnauthorizedException("你只能查看本企业日志。");
+            denyLogAccess(currentUser, "你只能查看本企业日志。");
         }
         return currentUser.companyId();
+    }
+
+    private void denyLogAccess(AuthUserSession currentUser, String message) {
+        if (currentUser != null) {
+            OperationLogService operationLogService = operationLogServiceProvider.getIfAvailable();
+            if (operationLogService != null) {
+                operationLogService.record(new OperationLogRecord(
+                        currentUser.userId(),
+                        defaultValue(currentUser.realName(), defaultValue(currentUser.username(), "系统用户")),
+                        currentUser.roleCode(),
+                        currentUser.companyId(),
+                        "LOG_ACCESS_DENIED",
+                        "LOG",
+                        null,
+                        null,
+                        "FAILED",
+                        message
+                ));
+            }
+        }
+        throw new ForbiddenException(message);
     }
 
     private LocalDateTime parseDateStart(String value) {

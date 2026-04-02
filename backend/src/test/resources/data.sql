@@ -1,14 +1,20 @@
 INSERT INTO org_company (id, name, license_no, address, contact, phone, status, created_at) VALUES
 (1, 'Demo Orchard Company', 'LIC-DEMO-001', 'Jiangxi Ganzhou Xinfeng Orchard', 'Liu Jianguo', '13800000001', 'ENABLED', '2026-03-11 09:00:00');
 
+INSERT INTO sys_user (id, username, password, real_name, role_code, company_id, status, need_change_password, password_updated_at, created_at, updated_at) VALUES
+(1, 'platform', '{noop}123456', 'Platform Admin', 'PLATFORM_ADMIN', NULL, 1, 0, '2026-03-11 08:00:00', '2026-03-11 08:00:00', '2026-03-11 08:00:00'),
+(2, 'enterprise_admin', '{noop}123456', 'Enterprise Admin', 'ENTERPRISE_ADMIN', 1, 1, 0, '2026-03-11 08:10:00', '2026-03-11 08:10:00', '2026-03-11 08:10:00'),
+(3, 'operator', '{noop}123456', 'Field Operator', 'OPERATOR', 1, 1, 0, '2026-03-11 08:20:00', '2026-03-11 08:20:00', '2026-03-11 08:20:00');
+
 INSERT INTO base_product (id, company_id, product_code, name, category, origin_place, spec, unit, image_url, status, created_at) VALUES
 (1, 1, 'ORANGE-001', 'Navel Orange', 'Fruit', 'Jiangxi Ganzhou Xinfeng', '10kg/box', 'box', '/images/products/orange-batch.svg', 'ENABLED', '2026-03-11 10:00:00');
 
 INSERT INTO trace_batch (
-  id, batch_code, product_id, company_id, origin_place, start_date, status,
-  public_remark, internal_remark, status_reason, published_at, created_at, updated_at
+  id, batch_code, product_id, company_id, assignee_user_id, assigned_at, task_status, task_completed_at,
+  origin_place, start_date, status, public_remark, internal_remark, status_reason, published_at, created_at, updated_at
 ) VALUES
-(1, 'BATCH20260311001', 1, 1, 'Jiangxi Ganzhou Xinfeng Orchard', '2026-03-01', 'PUBLISHED',
+(1, 'BATCH20260311001', 1, 1, 3, '2026-03-02 09:00:00', 'COMPLETED', '2026-03-11 09:00:00',
+ 'Jiangxi Ganzhou Xinfeng Orchard', '2026-03-01', 'PUBLISHED',
  'This batch is ready for public scan demo.', 'Demo batch for automated tests.', NULL, '2026-03-11 10:30:00',
  '2026-03-11 10:20:00', '2026-03-11 10:30:00');
 

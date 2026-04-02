@@ -1,6 +1,9 @@
 package edu.jxust.agritrace.module.batch.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import edu.jxust.agritrace.common.exception.ForbiddenException;
+import edu.jxust.agritrace.common.exception.UnauthorizedException;
+import edu.jxust.agritrace.module.auth.model.AuthUserSession;
 import edu.jxust.agritrace.module.batch.dto.CompanyListQueryRequest;
 import edu.jxust.agritrace.module.batch.dto.CompanySaveRequest;
 import edu.jxust.agritrace.module.batch.dto.ProductListQueryRequest;
@@ -18,6 +21,10 @@ import edu.jxust.agritrace.module.batch.vo.CompanyAdminVO;
 import edu.jxust.agritrace.module.batch.vo.CompanyOptionVO;
 import edu.jxust.agritrace.module.batch.vo.ProductAdminVO;
 import edu.jxust.agritrace.module.batch.vo.ProductOptionVO;
+import edu.jxust.agritrace.module.log.dto.OperationLogRecord;
+import edu.jxust.agritrace.module.log.service.OperationLogService;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,22 +39,33 @@ public class MasterDataServiceImpl implements MasterDataService {
     private final OrgCompanyMapper orgCompanyMapper;
     private final BaseProductMapper baseProductMapper;
     private final TraceBatchMapper traceBatchMapper;
+    private final OperationLogService operationLogService;
 
     public MasterDataServiceImpl(
             OrgCompanyMapper orgCompanyMapper,
             BaseProductMapper baseProductMapper,
-            TraceBatchMapper traceBatchMapper
+            TraceBatchMapper traceBatchMapper,
+            OperationLogService operationLogService
     ) {
         this.orgCompanyMapper = orgCompanyMapper;
         this.baseProductMapper = baseProductMapper;
         this.traceBatchMapper = traceBatchMapper;
+        this.operationLogService = operationLogService;
     }
 
     @Override
     public List<CompanyAdminVO> listCompanies(CompanyListQueryRequest request) {
+        AuthUserSession currentUser = requireCurrentUser();
+        ensureCompanyReader(currentUser);
+
         LambdaQueryWrapper<OrgCompanyPO> wrapper = new LambdaQueryWrapper<OrgCompanyPO>()
                 .orderByAsc(OrgCompanyPO::getName)
                 .orderByAsc(OrgCompanyPO::getId);
+
+        if (isEnterpriseAdmin(currentUser)) {
+            wrapper.eq(OrgCompanyPO::getId, requireEnterpriseCompanyId(currentUser, "当前账号未绑定企业，不能查看企业资料。"));
+        }
+
         if (request != null) {
             if (notBlank(request.getKeyword())) {
                 String keyword = request.getKeyword().trim();
@@ -64,6 +82,7 @@ public class MasterDataServiceImpl implements MasterDataService {
                 wrapper.eq(OrgCompanyPO::getStatus, normalizeStatus(request.getStatus()).name());
             }
         }
+
         return orgCompanyMapper.selectList(wrapper).stream()
                 .map(this::toCompanyAdminVO)
                 .toList();
@@ -71,12 +90,20 @@ public class MasterDataServiceImpl implements MasterDataService {
 
     @Override
     public CompanyAdminVO getCompany(Long companyId) {
-        return toCompanyAdminVO(findCompanyRequired(companyId));
+        AuthUserSession currentUser = requireCurrentUser();
+        ensureCompanyReader(currentUser);
+
+        OrgCompanyPO companyPO = findCompanyRequired(companyId);
+        ensureCompanyScope(currentUser, companyPO, "你只能查看和维护本企业资料。");
+        return toCompanyAdminVO(companyPO);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public CompanyAdminVO createCompany(CompanySaveRequest request) {
+        AuthUserSession currentUser = requireCurrentUser();
+        ensurePlatformCompanyWriter(currentUser, "企业管理员不能新建企业资料。");
+
         ensureCompanyNameUnique(request.name(), null);
         ensureLicenseUnique(request.licenseNo(), null);
 
@@ -94,7 +121,18 @@ public class MasterDataServiceImpl implements MasterDataService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public CompanyAdminVO updateCompany(Long companyId, CompanySaveRequest request) {
+        AuthUserSession currentUser = requireCurrentUser();
         OrgCompanyPO companyPO = findCompanyRequired(companyId);
+        ensureCompanyEditor(currentUser, companyPO);
+
+        MasterDataStatus currentStatus = normalizeStatus(companyPO.getStatus());
+        MasterDataStatus nextStatus = currentStatus;
+        if (isPlatformAdmin(currentUser)) {
+            nextStatus = normalizeStatus(request.status());
+        } else if (notBlank(request.status()) && normalizeStatus(request.status()) != currentStatus) {
+            denyCompanyAccess(currentUser, companyPO, "企业管理员不能修改企业状态。");
+        }
+
         ensureCompanyNameUnique(request.name(), companyId);
         ensureLicenseUnique(request.licenseNo(), companyId);
 
@@ -103,7 +141,7 @@ public class MasterDataServiceImpl implements MasterDataService {
         companyPO.setContact(request.contactPerson().trim());
         companyPO.setPhone(request.contactPhone().trim());
         companyPO.setAddress(request.address().trim());
-        companyPO.setStatus(normalizeStatus(request.status()).name());
+        companyPO.setStatus(nextStatus.name());
         orgCompanyMapper.updateById(companyPO);
         return toCompanyAdminVO(findCompanyRequired(companyId));
     }
@@ -111,7 +149,10 @@ public class MasterDataServiceImpl implements MasterDataService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public CompanyAdminVO updateCompanyStatus(Long companyId, StatusUpdateRequest request) {
+        AuthUserSession currentUser = requireCurrentUser();
         OrgCompanyPO companyPO = findCompanyRequired(companyId);
+        ensurePlatformCompanyWriter(currentUser, "企业管理员不能修改企业状态。");
+
         companyPO.setStatus(normalizeStatus(request.status()).name());
         orgCompanyMapper.updateById(companyPO);
         return toCompanyAdminVO(findCompanyRequired(companyId));
@@ -120,24 +161,32 @@ public class MasterDataServiceImpl implements MasterDataService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteCompany(Long companyId) {
+        AuthUserSession currentUser = requireCurrentUser();
         OrgCompanyPO companyPO = findCompanyRequired(companyId);
+        ensurePlatformCompanyWriter(currentUser, "企业管理员不能删除企业资料。");
+
         long productCount = countProductsByCompany(companyId);
         long batchCount = countBatchesByCompany(companyId);
         if (productCount > 0 || batchCount > 0) {
-            throw new IllegalArgumentException(
-                    "company cannot be deleted because it is still referenced by "
-                            + productCount + " products and " + batchCount + " batches"
-            );
+            throw new IllegalArgumentException("该企业已关联产品或批次，暂不能删除。");
         }
         orgCompanyMapper.deleteById(companyPO.getId());
     }
 
     @Override
     public List<CompanyOptionVO> listCompanyOptions(String keyword) {
+        AuthUserSession currentUser = requireCurrentUser();
+        ensureCompanyReader(currentUser);
+
         LambdaQueryWrapper<OrgCompanyPO> wrapper = new LambdaQueryWrapper<OrgCompanyPO>()
                 .eq(OrgCompanyPO::getStatus, MasterDataStatus.ENABLED.name())
                 .orderByAsc(OrgCompanyPO::getName)
                 .orderByAsc(OrgCompanyPO::getId);
+
+        if (isEnterpriseAdmin(currentUser)) {
+            wrapper.eq(OrgCompanyPO::getId, requireEnterpriseCompanyId(currentUser, "当前账号未绑定企业，不能查看企业资料。"));
+        }
+
         if (notBlank(keyword)) {
             String value = keyword.trim();
             wrapper.and(item -> item
@@ -145,6 +194,7 @@ public class MasterDataServiceImpl implements MasterDataService {
                     .or()
                     .like(OrgCompanyPO::getLicenseNo, value));
         }
+
         return orgCompanyMapper.selectList(wrapper).stream()
                 .map(company -> new CompanyOptionVO(
                         company.getId(),
@@ -157,13 +207,17 @@ public class MasterDataServiceImpl implements MasterDataService {
 
     @Override
     public List<ProductAdminVO> listProducts(ProductListQueryRequest request) {
+        AuthUserSession currentUser = requireCurrentUser();
+        ensureProductReader(currentUser);
+
+        Long effectiveCompanyId = normalizeProductCompanyFilter(currentUser, request == null ? null : request.getCompanyId());
+
         LambdaQueryWrapper<BaseProductPO> wrapper = new LambdaQueryWrapper<BaseProductPO>()
+                .eq(effectiveCompanyId != null, BaseProductPO::getCompanyId, effectiveCompanyId)
                 .orderByAsc(BaseProductPO::getName)
                 .orderByAsc(BaseProductPO::getId);
+
         if (request != null) {
-            if (request.getCompanyId() != null) {
-                wrapper.eq(BaseProductPO::getCompanyId, request.getCompanyId());
-            }
             if (notBlank(request.getKeyword())) {
                 String keyword = request.getKeyword().trim();
                 wrapper.and(item -> item
@@ -179,6 +233,7 @@ public class MasterDataServiceImpl implements MasterDataService {
                 wrapper.eq(BaseProductPO::getStatus, normalizeStatus(request.getStatus()).name());
             }
         }
+
         return baseProductMapper.selectList(wrapper).stream()
                 .map(this::toProductAdminVO)
                 .toList();
@@ -186,20 +241,30 @@ public class MasterDataServiceImpl implements MasterDataService {
 
     @Override
     public ProductAdminVO getProduct(Long productId) {
-        return toProductAdminVO(findProductRequired(productId));
+        AuthUserSession currentUser = requireCurrentUser();
+        ensureProductReader(currentUser);
+
+        BaseProductPO productPO = findProductRequired(productId);
+        ensureProductScope(currentUser, productPO, "你只能查看本企业产品。");
+        return toProductAdminVO(productPO);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ProductAdminVO createProduct(ProductSaveRequest request) {
-        OrgCompanyPO company = findCompanyRequired(request.companyId());
-        if (!normalizeStatus(company.getStatus()).selectable()) {
-            throw new IllegalArgumentException("selected company is not available");
+        AuthUserSession currentUser = requireCurrentUser();
+        ensureProductWriter(currentUser);
+
+        Long targetCompanyId = normalizeWritableProductCompanyId(currentUser, request.companyId(), "你只能创建本企业产品，不能挂到其他企业。");
+        OrgCompanyPO companyPO = findCompanyRequired(targetCompanyId);
+        if (!normalizeStatus(companyPO.getStatus()).selectable()) {
+            throw new IllegalArgumentException("当前企业状态不可用，暂不能挂载产品。");
         }
-        ensureProductUnique(request.companyId(), request.productName(), request.productCode(), null);
+
+        ensureProductUnique(targetCompanyId, request.productName(), request.productCode(), null);
 
         BaseProductPO productPO = new BaseProductPO();
-        productPO.setCompanyId(request.companyId());
+        productPO.setCompanyId(targetCompanyId);
         productPO.setProductCode(trimToNull(request.productCode()));
         productPO.setName(request.productName().trim());
         productPO.setCategory(request.category().trim());
@@ -215,14 +280,25 @@ public class MasterDataServiceImpl implements MasterDataService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ProductAdminVO updateProduct(Long productId, ProductSaveRequest request) {
-        BaseProductPO productPO = findProductRequired(productId);
-        OrgCompanyPO company = findCompanyRequired(request.companyId());
-        if (!normalizeStatus(company.getStatus()).selectable()) {
-            throw new IllegalArgumentException("selected company is not available");
-        }
-        ensureProductUnique(request.companyId(), request.productName(), request.productCode(), productId);
+        AuthUserSession currentUser = requireCurrentUser();
+        ensureProductWriter(currentUser);
 
-        productPO.setCompanyId(request.companyId());
+        BaseProductPO productPO = findProductRequired(productId);
+        ensureProductScope(currentUser, productPO, "你只能维护本企业产品。");
+
+        Long targetCompanyId = normalizeWritableProductCompanyId(currentUser, request.companyId(), "你只能维护本企业产品，不能改挂到其他企业。");
+        if (isEnterpriseAdmin(currentUser) && !Objects.equals(targetCompanyId, productPO.getCompanyId())) {
+            denyProductAccess(currentUser, productPO, "你只能维护本企业产品，不能改挂到其他企业。");
+        }
+
+        OrgCompanyPO companyPO = findCompanyRequired(targetCompanyId);
+        if (!normalizeStatus(companyPO.getStatus()).selectable()) {
+            throw new IllegalArgumentException("当前企业状态不可用，暂不能挂载产品。");
+        }
+
+        ensureProductUnique(targetCompanyId, request.productName(), request.productCode(), productId);
+
+        productPO.setCompanyId(targetCompanyId);
         productPO.setProductCode(trimToNull(request.productCode()));
         productPO.setName(request.productName().trim());
         productPO.setCategory(request.category().trim());
@@ -238,7 +314,12 @@ public class MasterDataServiceImpl implements MasterDataService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ProductAdminVO updateProductStatus(Long productId, StatusUpdateRequest request) {
+        AuthUserSession currentUser = requireCurrentUser();
+        ensureProductWriter(currentUser);
+
         BaseProductPO productPO = findProductRequired(productId);
+        ensureProductScope(currentUser, productPO, "你只能维护本企业产品。");
+
         productPO.setStatus(normalizeStatus(request.status()).name());
         baseProductMapper.updateById(productPO);
         return toProductAdminVO(findProductRequired(productId));
@@ -247,25 +328,32 @@ public class MasterDataServiceImpl implements MasterDataService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteProduct(Long productId) {
+        AuthUserSession currentUser = requireCurrentUser();
+        ensureProductWriter(currentUser);
+
         BaseProductPO productPO = findProductRequired(productId);
+        ensureProductScope(currentUser, productPO, "你只能维护本企业产品。");
+
         long batchCount = countBatchesByProduct(productId);
         if (batchCount > 0) {
-            throw new IllegalArgumentException(
-                    "product cannot be deleted because it is still referenced by " + batchCount + " batches"
-            );
+            throw new IllegalArgumentException("该产品已关联批次，暂不能删除。");
         }
         baseProductMapper.deleteById(productPO.getId());
     }
 
     @Override
     public List<ProductOptionVO> listProductOptions(Long companyId, String keyword) {
+        AuthUserSession currentUser = requireCurrentUser();
+        ensureProductReader(currentUser);
+
+        Long effectiveCompanyId = normalizeProductCompanyFilter(currentUser, companyId);
+
         LambdaQueryWrapper<BaseProductPO> wrapper = new LambdaQueryWrapper<BaseProductPO>()
                 .eq(BaseProductPO::getStatus, MasterDataStatus.ENABLED.name())
+                .eq(effectiveCompanyId != null, BaseProductPO::getCompanyId, effectiveCompanyId)
                 .orderByAsc(BaseProductPO::getName)
                 .orderByAsc(BaseProductPO::getId);
-        if (companyId != null) {
-            wrapper.eq(BaseProductPO::getCompanyId, companyId);
-        }
+
         if (notBlank(keyword)) {
             String value = keyword.trim();
             wrapper.and(item -> item
@@ -275,6 +363,7 @@ public class MasterDataServiceImpl implements MasterDataService {
                     .or()
                     .like(BaseProductPO::getProductCode, value));
         }
+
         return baseProductMapper.selectList(wrapper).stream()
                 .map(product -> new ProductOptionVO(
                         product.getId(),
@@ -330,10 +419,107 @@ public class MasterDataServiceImpl implements MasterDataService {
         );
     }
 
+    private AuthUserSession requireCurrentUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof AuthUserSession userSession) {
+            return userSession;
+        }
+        throw new UnauthorizedException("当前登录状态已失效，请重新登录后再试。");
+    }
+
+    private void ensureCompanyReader(AuthUserSession currentUser) {
+        if (isPlatformAdmin(currentUser) || isEnterpriseAdmin(currentUser)) {
+            return;
+        }
+        denyCompanyAccess(currentUser, null, "你没有查看企业资料的权限。");
+    }
+
+    private void ensureCompanyEditor(AuthUserSession currentUser, OrgCompanyPO companyPO) {
+        if (isPlatformAdmin(currentUser)) {
+            return;
+        }
+        if (isEnterpriseAdmin(currentUser)) {
+            ensureCompanyScope(currentUser, companyPO, "你只能查看和维护本企业资料。");
+            return;
+        }
+        denyCompanyAccess(currentUser, companyPO, "你没有维护企业资料的权限。");
+    }
+
+    private void ensurePlatformCompanyWriter(AuthUserSession currentUser, String message) {
+        if (isPlatformAdmin(currentUser)) {
+            return;
+        }
+        denyCompanyAccess(currentUser, null, message);
+    }
+
+    private void ensureCompanyScope(AuthUserSession currentUser, OrgCompanyPO companyPO, String message) {
+        if (!isEnterpriseAdmin(currentUser)) {
+            return;
+        }
+        Long currentCompanyId = requireEnterpriseCompanyId(currentUser, "当前账号未绑定企业，不能查看企业资料。");
+        if (!Objects.equals(currentCompanyId, companyPO.getId())) {
+            denyCompanyAccess(currentUser, companyPO, message);
+        }
+    }
+
+    private void ensureProductReader(AuthUserSession currentUser) {
+        if (isPlatformAdmin(currentUser) || isEnterpriseAdmin(currentUser)) {
+            return;
+        }
+        denyProductAccess(currentUser, null, "你没有查看产品资料的权限。");
+    }
+
+    private void ensureProductWriter(AuthUserSession currentUser) {
+        if (isPlatformAdmin(currentUser) || isEnterpriseAdmin(currentUser)) {
+            return;
+        }
+        denyProductAccess(currentUser, null, "你没有维护产品资料的权限。");
+    }
+
+    private void ensureProductScope(AuthUserSession currentUser, BaseProductPO productPO, String message) {
+        if (!isEnterpriseAdmin(currentUser)) {
+            return;
+        }
+        Long currentCompanyId = requireEnterpriseCompanyId(currentUser, "当前账号未绑定企业，不能维护产品资料。");
+        if (!Objects.equals(currentCompanyId, productPO.getCompanyId())) {
+            denyProductAccess(currentUser, productPO, message);
+        }
+    }
+
+    private Long normalizeProductCompanyFilter(AuthUserSession currentUser, Long requestedCompanyId) {
+        if (!isEnterpriseAdmin(currentUser)) {
+            return requestedCompanyId;
+        }
+        Long currentCompanyId = requireEnterpriseCompanyId(currentUser, "当前账号未绑定企业，不能查看产品资料。");
+        if (requestedCompanyId != null && !Objects.equals(requestedCompanyId, currentCompanyId)) {
+            denyProductAccess(currentUser, null, "你只能查看本企业产品。");
+        }
+        return currentCompanyId;
+    }
+
+    private Long normalizeWritableProductCompanyId(AuthUserSession currentUser, Long requestedCompanyId, String message) {
+        if (!isEnterpriseAdmin(currentUser)) {
+            return requestedCompanyId;
+        }
+        Long currentCompanyId = requireEnterpriseCompanyId(currentUser, "当前账号未绑定企业，不能维护产品资料。");
+        if (requestedCompanyId == null || !Objects.equals(requestedCompanyId, currentCompanyId)) {
+            denyProductAccess(currentUser, null, message);
+        }
+        return currentCompanyId;
+    }
+
+    private Long requireEnterpriseCompanyId(AuthUserSession currentUser, String message) {
+        if (currentUser.companyId() != null) {
+            return currentUser.companyId();
+        }
+        denyCompanyAccess(currentUser, null, message);
+        return null;
+    }
+
     private OrgCompanyPO findCompanyRequired(Long companyId) {
         OrgCompanyPO companyPO = orgCompanyMapper.selectById(companyId);
         if (companyPO == null) {
-            throw new IllegalArgumentException("companyId does not exist");
+            throw new IllegalArgumentException("企业资料不存在或已被删除。");
         }
         return companyPO;
     }
@@ -341,7 +527,7 @@ public class MasterDataServiceImpl implements MasterDataService {
     private BaseProductPO findProductRequired(Long productId) {
         BaseProductPO productPO = baseProductMapper.selectById(productId);
         if (productPO == null) {
-            throw new IllegalArgumentException("productId does not exist");
+            throw new IllegalArgumentException("产品资料不存在或已被删除。");
         }
         return productPO;
     }
@@ -352,7 +538,7 @@ public class MasterDataServiceImpl implements MasterDataService {
                 .orderByAsc(OrgCompanyPO::getId)
                 .last("limit 1"));
         if (existing != null && !Objects.equals(existing.getId(), ignoredId)) {
-            throw new IllegalArgumentException("company name already exists");
+            throw new IllegalArgumentException("企业名称已存在，请检查后重试。");
         }
     }
 
@@ -365,7 +551,7 @@ public class MasterDataServiceImpl implements MasterDataService {
                 .orderByAsc(OrgCompanyPO::getId)
                 .last("limit 1"));
         if (existing != null && !Objects.equals(existing.getId(), ignoredId)) {
-            throw new IllegalArgumentException("licenseNo already exists");
+            throw new IllegalArgumentException("许可证号已存在，请检查后重试。");
         }
     }
 
@@ -376,7 +562,7 @@ public class MasterDataServiceImpl implements MasterDataService {
                 .orderByAsc(BaseProductPO::getId)
                 .last("limit 1"));
         if (sameName != null && !Objects.equals(sameName.getId(), ignoredId)) {
-            throw new IllegalArgumentException("product name already exists in the selected company");
+            throw new IllegalArgumentException("本企业下已存在同名产品。");
         }
         if (notBlank(productCode)) {
             BaseProductPO sameCode = baseProductMapper.selectOne(new LambdaQueryWrapper<BaseProductPO>()
@@ -385,7 +571,7 @@ public class MasterDataServiceImpl implements MasterDataService {
                     .orderByAsc(BaseProductPO::getId)
                     .last("limit 1"));
             if (sameCode != null && !Objects.equals(sameCode.getId(), ignoredId)) {
-                throw new IllegalArgumentException("productCode already exists in the selected company");
+                throw new IllegalArgumentException("本企业下已存在相同产品编码。");
             }
         }
     }
@@ -418,6 +604,63 @@ public class MasterDataServiceImpl implements MasterDataService {
             return "/images/products/green-tea-batch.svg";
         }
         return "/images/products/rice-batch.svg";
+    }
+
+    private void denyCompanyAccess(AuthUserSession currentUser, OrgCompanyPO companyPO, String message) {
+        recordDeniedOperation(
+                currentUser,
+                "COMPANY_ACCESS_DENIED",
+                "COMPANY",
+                companyPO == null ? null : companyPO.getId(),
+                companyPO == null ? null : companyPO.getName(),
+                message
+        );
+        throw new ForbiddenException(message);
+    }
+
+    private void denyProductAccess(AuthUserSession currentUser, BaseProductPO productPO, String message) {
+        recordDeniedOperation(
+                currentUser,
+                "PRODUCT_ACCESS_DENIED",
+                "PRODUCT",
+                productPO == null ? null : productPO.getId(),
+                productPO == null ? null : productPO.getName(),
+                message
+        );
+        throw new ForbiddenException(message);
+    }
+
+    private void recordDeniedOperation(
+            AuthUserSession currentUser,
+            String actionType,
+            String targetType,
+            Long targetId,
+            String targetName,
+            String summary
+    ) {
+        if (currentUser == null) {
+            return;
+        }
+        operationLogService.record(new OperationLogRecord(
+                currentUser.userId(),
+                defaultValue(currentUser.realName(), defaultValue(currentUser.username(), "系统用户")),
+                currentUser.roleCode(),
+                currentUser.companyId(),
+                actionType,
+                targetType,
+                targetId,
+                targetName,
+                "FAILED",
+                summary
+        ));
+    }
+
+    private boolean isPlatformAdmin(AuthUserSession currentUser) {
+        return currentUser != null && "PLATFORM_ADMIN".equalsIgnoreCase(currentUser.roleCode());
+    }
+
+    private boolean isEnterpriseAdmin(AuthUserSession currentUser) {
+        return currentUser != null && "ENTERPRISE_ADMIN".equalsIgnoreCase(currentUser.roleCode());
     }
 
     private String defaultValue(String value, String fallback) {

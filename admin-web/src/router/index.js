@@ -1,8 +1,17 @@
-﻿import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHistory } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../stores/auth'
-import { ALL_ADMIN_ROLES, getDefaultRouteByRole, hasRoleAccess } from '../utils/access'
+import {
+  ALL_ADMIN_ROLES,
+  getDefaultRouteByRole,
+  getRoleName,
+  hasRoleAccess
+} from '../utils/access'
 
-const qualityRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN', 'REGULATOR']
+const batchReadRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN', 'REGULATOR']
+const dashboardRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN']
+const qualityRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN']
+const riskRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN', 'REGULATOR']
 const fieldRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN', 'OPERATOR']
 const userManageRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN']
 
@@ -44,7 +53,7 @@ const routes = [
         meta: {
           requiresAuth: true,
           title: '首页总览',
-          roles: ALL_ADMIN_ROLES
+          roles: dashboardRoles
         }
       },
       {
@@ -64,7 +73,7 @@ const routes = [
         meta: {
           requiresAuth: true,
           title: '企业管理',
-          roles: ['PLATFORM_ADMIN']
+          roles: ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN']
         }
       },
       {
@@ -94,7 +103,7 @@ const routes = [
         meta: {
           requiresAuth: true,
           title: '批次管理',
-          roles: ALL_ADMIN_ROLES
+          roles: batchReadRoles
         }
       },
       {
@@ -124,7 +133,7 @@ const routes = [
         meta: {
           requiresAuth: true,
           title: '风险处理',
-          roles: qualityRoles
+          roles: riskRoles
         }
       },
       {
@@ -134,7 +143,7 @@ const routes = [
         meta: {
           requiresAuth: true,
           title: '批次工作台',
-          roles: ALL_ADMIN_ROLES
+          roles: batchReadRoles
         }
       }
     ]
@@ -156,11 +165,24 @@ function resolveRouteRoles(to) {
     .find((record) => Array.isArray(record.meta?.roles))
     ?.meta?.roles
 
-  if (to.path === '/batches' && ['READY', 'RISK'].includes(String(to.query.mode || '').toUpperCase())) {
+  if (to.path === '/batches' && ['READY'].includes(String(to.query.mode || '').toUpperCase())) {
     return qualityRoles
+  }
+  if (to.path === '/batches' && ['RISK'].includes(String(to.query.mode || '').toUpperCase())) {
+    return riskRoles
   }
 
   return matchedRoles ?? []
+}
+
+function resolveRouteTitle(to) {
+  if (to.path === '/batches' && String(to.query.mode || '').toUpperCase() === 'READY') {
+    return '质检待办'
+  }
+  if (to.path === '/batches' && String(to.query.mode || '').toUpperCase() === 'RISK') {
+    return '风险处理'
+  }
+  return [...to.matched].reverse().find((record) => record.meta?.title)?.meta?.title || '当前页面'
 }
 
 router.beforeEach((to) => {
@@ -187,6 +209,7 @@ router.beforeEach((to) => {
 
   const allowedRoles = resolveRouteRoles(to)
   if (isAuthenticated && allowedRoles.length && !hasRoleAccess(roleCode, allowedRoles)) {
+    ElMessage.warning(`当前账号为${getRoleName(roleCode)}，不能访问“${resolveRouteTitle(to)}”，已为你切换到可用页面。`)
     return getDefaultRouteByRole(roleCode)
   }
 

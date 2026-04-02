@@ -107,6 +107,11 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run-baseline-regression.ps1
 - JSON：`output/playwright/full-regression-baseline.json`
 - 截图：`output/playwright/`
 
+日志权限附加冒烟：
+
+- `tests/e2e/specs/log-permission-smoke.spec.mjs`
+- `scripts/run-baseline-regression.ps1` 现在会在主回归末尾追加执行这条 smoke
+
 主回归覆盖：
 
 - 管理员批次列表与工作台
@@ -114,6 +119,11 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run-baseline-regression.ps1
 - 分配链：分配、改派、清空、草稿阻断
 - 风险链：冻结、处理中、已整改、恢复发布
 - 公开页联动与状态巡检
+- 日志权限链：
+  - `platform` 可进入 `/logs`
+  - `enterprise_admin` 进入 `/logs` 时显示“本企业日志模式”并保持本企业范围
+  - `operator` 直输 `/logs` 被拦截
+  - 后端拒绝请求会写入 `LOG_ACCESS_DENIED`，并能被平台管理员在日志页筛出
 
 ## 主要验收入口
 
@@ -131,6 +141,26 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run-baseline-regression.ps1
 - 是否出现 `publishedAt / 已发布` 冲突
 - 是否出现任务状态不一致
 - 是否出现风险状态不一致
+
+## 什么时候跑哪类测试
+
+定向验证日志权限链时：
+
+```powershell
+cd tests\e2e
+npm run test -- specs/log-permission-smoke.spec.mjs
+```
+
+需要确认整套 demo 基线没有退化时：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\run-baseline-regression.ps1
+```
+
+说明：
+
+- 定向 smoke 只验证日志页权限、企业管理员范围限制、拒绝提示和拒绝留痕可见
+- 主回归会先跑原有基线流程，再追加这条日志权限 smoke
 
 ## 推荐顺序
 

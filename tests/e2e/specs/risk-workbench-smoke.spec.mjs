@@ -4,7 +4,7 @@ import { adminBaseUrl, saveNamedScreenshot } from '../helpers/paths.mjs'
 
 test('risk workbench shows current status, recent actions and checklist', async ({ page, request }) => {
   await seedAdminSession(page, request)
-  await page.goto(`${adminBaseUrl}/batches/4`)
+  await page.goto(`${adminBaseUrl}/batches/3`)
 
   await expect(page.getByTestId('batch-workbench-page')).toBeVisible()
   await expect(page.getByTestId('workbench-risk-panel')).toBeVisible()

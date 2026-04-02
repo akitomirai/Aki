@@ -7,6 +7,7 @@ import edu.jxust.agritrace.module.batch.dto.QualityReportCreateRequest;
 import edu.jxust.agritrace.module.batch.entity.BatchStatus;
 import edu.jxust.agritrace.module.batch.entity.RiskActionType;
 import edu.jxust.agritrace.module.batch.service.BatchService;
+import edu.jxust.agritrace.support.AuthenticatedIntegrationTestSupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -22,8 +23,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
-@AutoConfigureMockMvc
-class PublicTraceControllerIntegrationTest {
+@AutoConfigureMockMvc(addFilters = false)
+class PublicTraceControllerIntegrationTest extends AuthenticatedIntegrationTestSupport {
 
     @Autowired
     private MockMvc mockMvc;
@@ -153,6 +154,6 @@ class PublicTraceControllerIntegrationTest {
                         .header("Referer", "http://127.0.0.1:5173"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.risk.status").value("NORMAL"))
-                .andExpect(jsonPath("$.data.summary.statusLabel").value("Published"));
+                .andExpect(jsonPath("$.data.summary.statusLabel").value("已发布"));
     }
 }

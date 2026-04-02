@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import edu.jxust.agritrace.common.exception.ForbiddenException;
 import edu.jxust.agritrace.common.exception.UnauthorizedException;
 import edu.jxust.agritrace.module.auth.mapper.SysUserMapper;
 import edu.jxust.agritrace.module.auth.mapper.po.SysUserPO;
@@ -189,20 +190,11 @@ public class BatchServiceImpl implements BatchService {
 
     @Override
     public List<BatchListItemVO> listBatches(BatchListQueryRequest request) {
+        AuthUserSession currentUser = currentUser();
         LambdaQueryWrapper<TraceBatchPO> wrapper = new LambdaQueryWrapper<TraceBatchPO>()
                 .orderByDesc(TraceBatchPO::getId);
+        applyBatchReadScope(wrapper, currentUser, Boolean.TRUE.equals(request == null ? null : request.getMineOnly()));
         if (request != null) {
-            AuthUserSession currentUser = currentUser();
-            if (Boolean.TRUE.equals(request.getMineOnly()) && currentUser != null) {
-                if (isOperator(currentUser)) {
-                    wrapper.eq(TraceBatchPO::getAssigneeUserId, currentUser.userId());
-                    if (currentUser.companyId() != null) {
-                        wrapper.eq(TraceBatchPO::getCompanyId, currentUser.companyId());
-                    }
-                } else if (currentUser.companyId() != null) {
-                    wrapper.eq(TraceBatchPO::getCompanyId, currentUser.companyId());
-                }
-            }
             if (notBlank(request.getBatchCode())) {
                 wrapper.like(TraceBatchPO::getBatchCode, request.getBatchCode().trim());
             }
@@ -326,6 +318,8 @@ public class BatchServiceImpl implements BatchService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public BatchWorkbenchVO createBatch(BatchCreateRequest request) {
+        AuthUserSession currentUser = requireCurrentUser();
+        ensureBatchEditor(currentUser, request.companyId(), null, "创建批次");
         ensureBatchCodeUnique(request.batchCode(), null);
         OrgCompanyPO company = findCompanyRequired(request.companyId());
         BaseProductPO product = findProductRequired(request.productId());
@@ -351,6 +345,8 @@ public class BatchServiceImpl implements BatchService {
     @Transactional(rollbackFor = Exception.class)
     public BatchWorkbenchVO updateBatch(Long batchId, BatchUpdateRequest request) {
         TraceBatchPO batchPO = findBatchPO(batchId);
+        AuthUserSession currentUser = requireCurrentUser();
+        ensureBatchEditor(currentUser, request.companyId(), batchPO, "编辑批次");
         OrgCompanyPO company = findCompanyRequired(request.companyId());
         BaseProductPO product = findProductRequired(request.productId());
         validateProductCompany(product, company.getId());
@@ -371,6 +367,7 @@ public class BatchServiceImpl implements BatchService {
     public BatchWorkbenchVO changeStatus(Long batchId, BatchStatusActionRequest request) {
         TraceBatchPO batchPO = findBatchPO(batchId);
         AuthUserSession currentUser = requireCurrentUser();
+        ensureStatusManager(currentUser, batchPO, request.targetStatus());
         BatchEntity batch = loadBatchEntity(batchPO);
         BatchStatus currentStatus = batch.getStatus();
         BatchStatus targetStatus = request.targetStatus();
@@ -423,7 +420,8 @@ public class BatchServiceImpl implements BatchService {
     @Transactional(rollbackFor = Exception.class)
     public BatchWorkbenchVO addTraceRecord(Long batchId, TraceRecordCreateRequest request) {
         TraceBatchPO batchPO = findBatchPO(batchId);
-        AuthUserSession currentUser = currentUser();
+        AuthUserSession currentUser = requireCurrentUser();
+        ensureTraceWriter(currentUser, batchPO);
         LocalDateTime eventTime = parseFlexibleDateTime(request.eventTime(), LocalDateTime.now());
         TraceStage stage = request.stage() == null ? TraceStage.PRODUCE : request.stage();
         List<BizAttachmentPO> attachments = claimAttachments(request.attachmentIds(), AttachmentBusinessType.TRACE_IMAGE, null);
@@ -574,6 +572,7 @@ public class BatchServiceImpl implements BatchService {
     public BatchWorkbenchVO addQualityReport(Long batchId, QualityReportCreateRequest request) {
         TraceBatchPO batchPO = findBatchPO(batchId);
         AuthUserSession currentUser = requireCurrentUser();
+        ensureQualityWriter(currentUser, batchPO);
         LocalDateTime reportTime = parseFlexibleDateTime(request.reportTime(), LocalDateTime.now());
         List<BizAttachmentPO> attachments = claimAttachments(request.attachmentIds(), AttachmentBusinessType.QUALITY_ATTACHMENT, null);
 
@@ -605,6 +604,7 @@ public class BatchServiceImpl implements BatchService {
     public BatchWorkbenchVO addRiskAction(Long batchId, BatchRiskActionCreateRequest request) {
         TraceBatchPO batchPO = findBatchPO(batchId);
         AuthUserSession currentUser = requireCurrentUser();
+        ensureRiskWriter(currentUser, batchPO);
         BatchEntity batch = loadBatchEntity(batchPO);
         if (batch.getStatus() != BatchStatus.FROZEN && batch.getStatus() != BatchStatus.RECALLED) {
             throw new IllegalArgumentException("risk handling can only be added when the batch is frozen or recalled");
@@ -642,6 +642,7 @@ public class BatchServiceImpl implements BatchService {
     public BatchWorkbenchVO generateQr(Long batchId) {
         TraceBatchPO batchPO = findBatchPO(batchId);
         AuthUserSession currentUser = requireCurrentUser();
+        ensureQrPublisher(currentUser, batchPO, "生成二维码");
         QrCodePO existing = findQrByBatchId(batchId);
         QrCodePO effectiveQrCode;
         if (existing == null) {
@@ -1279,17 +1280,30 @@ public class BatchServiceImpl implements BatchService {
     }
 
     private List<BatchActionVO> buildActions(BatchEntity batch) {
+        if (batch != null) {
+            return buildRoleAwareActions(batch);
+        }
+        AuthUserSession currentUser = currentUser();
         QualityReportEntity latestQuality = latestQuality(batch);
         boolean hasQualifiedReport = latestQuality != null && !"FAIL".equalsIgnoreCase(latestQuality.result());
         boolean hasQr = batch.getQrCode() != null;
-        boolean canPublish = batch.getStatus() == BatchStatus.DRAFT && hasQualifiedReport && hasQr;
-        boolean canResume = batch.getStatus() == BatchStatus.FROZEN
+        boolean canEdit = canEditBatch(currentUser, batch);
+        boolean canTrace = canWriteTrace(currentUser, batch);
+        boolean canQuality = canManageCompanyBatch(currentUser, batch);
+        boolean canQr = canManageCompanyBatch(currentUser, batch);
+        boolean canRisk = canManageCompanyBatch(currentUser, batch);
+        boolean canPublish = canManageCompanyBatch(currentUser, batch)
+                && batch.getStatus() == BatchStatus.DRAFT
+                && hasQualifiedReport
+                && hasQr;
+        boolean canResume = canManageCompanyBatch(currentUser, batch)
+                && batch.getStatus() == BatchStatus.FROZEN
                 && hasQualifiedReport
                 && hasQr
                 && batchRiskResolver.canResume(batch);
-        boolean canFreeze = batch.getStatus() == BatchStatus.PUBLISHED;
-        boolean canRecall = batch.getStatus() == BatchStatus.PUBLISHED || batch.getStatus() == BatchStatus.FROZEN;
-        boolean canGenerateQr = !hasQr;
+        boolean canFreeze = canRisk && batch.getStatus() == BatchStatus.PUBLISHED;
+        boolean canRecall = canRisk && (batch.getStatus() == BatchStatus.PUBLISHED || batch.getStatus() == BatchStatus.FROZEN);
+        boolean canGenerateQr = canQr && !hasQr;
 
         return List.of(
                 new BatchActionVO("EDIT", "编辑批次", true, "仅保留高频字段，避免长表单。", "neutral"),
@@ -1301,6 +1315,42 @@ public class BatchServiceImpl implements BatchService {
                 new BatchActionVO("RESUME", "恢复发布", canResume, canResume ? "整改已完成，满足恢复发布条件。" : "先补充处理意见并标记整改完成。", "success"),
                 new BatchActionVO("FREEZE", "冻结批次", canFreeze, "发现异常时应快速冻结，并写明原因。", "warning"),
                 new BatchActionVO("RECALL", "召回批次", canRecall, "召回后公开页首屏需展示风险提示。", "danger")
+        );
+    }
+
+    private List<BatchActionVO> buildRoleAwareActions(BatchEntity batch) {
+        AuthUserSession currentUser = currentUser();
+        QualityReportEntity latestQuality = latestQuality(batch);
+        boolean hasQualifiedReport = latestQuality != null && !"FAIL".equalsIgnoreCase(latestQuality.result());
+        boolean hasQr = batch.getQrCode() != null;
+        boolean canEdit = canEditBatch(currentUser, batch);
+        boolean canTrace = canWriteTrace(currentUser, batch);
+        boolean canQuality = canManageCompanyBatch(currentUser, batch);
+        boolean canQr = canManageCompanyBatch(currentUser, batch);
+        boolean canRisk = canManageCompanyBatch(currentUser, batch);
+        boolean canPublish = canManageCompanyBatch(currentUser, batch)
+                && batch.getStatus() == BatchStatus.DRAFT
+                && hasQualifiedReport
+                && hasQr;
+        boolean canResume = canManageCompanyBatch(currentUser, batch)
+                && batch.getStatus() == BatchStatus.FROZEN
+                && hasQualifiedReport
+                && hasQr
+                && batchRiskResolver.canResume(batch);
+        boolean canFreeze = canRisk && batch.getStatus() == BatchStatus.PUBLISHED;
+        boolean canRecall = canRisk && (batch.getStatus() == BatchStatus.PUBLISHED || batch.getStatus() == BatchStatus.FROZEN);
+        boolean canGenerateQr = canQr && !hasQr;
+
+        return List.of(
+                new BatchActionVO("EDIT", "编辑批次", canEdit, canEdit ? "可维护批次基础资料。" : "当前账号只能查看该批次资料。", "neutral"),
+                new BatchActionVO("ADD_TRACE", "新增追溯记录", canTrace && batch.getStatus() != BatchStatus.RECALLED, canTrace ? "使用快速录入补齐关键节点。" : "当前账号不能补录追溯。", "primary"),
+                new BatchActionVO("UPLOAD_QUALITY", "上传质检", canQuality && batch.getStatus() != BatchStatus.RECALLED, canQuality ? "发布前优先补齐质检摘要。" : "当前账号不能上传质检。", "success"),
+                new BatchActionVO("GENERATE_QR", hasQr ? "查看二维码" : "生成二维码", canGenerateQr, hasQr ? "二维码已存在，可继续核对公开页。" : (canQr ? "同一批次默认只生成一次二维码。" : "当前账号不能生成二维码。"), "primary"),
+                new BatchActionVO("VIEW_PUBLIC", "公开页预览", hasQr, hasQr ? "可直接打开公开追溯页。" : "需先生成二维码。", "neutral"),
+                new BatchActionVO("PUBLISH", "发布批次", canPublish, canManageCompanyBatch(currentUser, batch) ? (hasQualifiedReport && hasQr ? "已满足发布条件。" : "需先补齐合格质检和二维码。") : "当前账号不能发布批次。", "success"),
+                new BatchActionVO("RESUME", "恢复发布", canResume, canResume ? "整改已完成，满足恢复发布条件。" : (canManageCompanyBatch(currentUser, batch) ? "先补充处理意见并标记整改完成。" : "当前账号不能恢复发布。"), "success"),
+                new BatchActionVO("FREEZE", "冻结批次", canFreeze, canRisk ? "发现异常时应快速冻结，并写明原因。" : "当前账号不能处理风险状态。", "warning"),
+                new BatchActionVO("RECALL", "召回批次", canRecall, canRisk ? "召回后公开页首页会展示风险提示。" : "当前账号不能发起召回。", "danger")
         );
     }
 
@@ -1770,12 +1820,39 @@ public class BatchServiceImpl implements BatchService {
         return currentUser;
     }
 
+    private void applyBatchReadScope(LambdaQueryWrapper<TraceBatchPO> wrapper, AuthUserSession currentUser, boolean mineOnly) {
+        if (wrapper == null || currentUser == null || isPlatformAdmin(currentUser) || isRegulator(currentUser)) {
+            return;
+        }
+        if (isEnterpriseAdmin(currentUser)) {
+            wrapper.eq(TraceBatchPO::getCompanyId, currentUser.companyId());
+            return;
+        }
+        if (isOperator(currentUser)) {
+            wrapper.eq(TraceBatchPO::getAssigneeUserId, currentUser.userId());
+            if (currentUser.companyId() != null) {
+                wrapper.eq(TraceBatchPO::getCompanyId, currentUser.companyId());
+            }
+            return;
+        }
+        if (mineOnly && currentUser.companyId() != null) {
+            wrapper.eq(TraceBatchPO::getCompanyId, currentUser.companyId());
+        }
+    }
+
     private void ensureBatchAccessible(TraceBatchPO batchPO) {
         AuthUserSession currentUser = currentUser();
-        if (!isOperator(currentUser)) {
+        if (currentUser == null || isPlatformAdmin(currentUser) || isRegulator(currentUser)) {
+            return;
+        }
+        if (isEnterpriseAdmin(currentUser)) {
+            if (!Objects.equals(batchPO.getCompanyId(), currentUser.companyId())) {
+                denyBatchAccess(currentUser, batchPO, "你只能查看本企业批次。");
+            }
             return;
         }
         if (!Objects.equals(batchPO.getAssigneeUserId(), currentUser.userId())) {
+            denyTraceAction(currentUser, batchPO, "当前批次未分配给你，不能查看或提交现场记录。");
             throw new UnauthorizedException("当前批次未分配给你，无法查看或提交。");
         }
     }
@@ -1784,12 +1861,14 @@ public class BatchServiceImpl implements BatchService {
         if (isPlatformAdmin(currentUser) || isEnterpriseAdmin(currentUser)) {
             return;
         }
+        denyBatchAssignment(currentUser, null, "你没有批次任务分配权限。");
         throw new UnauthorizedException("你没有批次任务分配权限。");
     }
 
     private void ensureAssignmentManagerForBatch(AuthUserSession currentUser, TraceBatchPO batchPO) {
         ensureAssignmentManager(currentUser);
         if (isEnterpriseAdmin(currentUser) && !Objects.equals(currentUser.companyId(), batchPO.getCompanyId())) {
+            denyBatchAssignment(currentUser, batchPO, "你无权改派该批次，只能管理本企业批次的任务分配。");
             throw new UnauthorizedException("你无权改派该批次，只能管理本企业批次的任务分配。");
         }
     }
@@ -1797,6 +1876,7 @@ public class BatchServiceImpl implements BatchService {
     private Long normalizeOperatorLookupCompanyId(AuthUserSession currentUser, Long requestedCompanyId) {
         if (isEnterpriseAdmin(currentUser)) {
             if (requestedCompanyId != null && !Objects.equals(requestedCompanyId, currentUser.companyId())) {
+                denyBatchAssignment(currentUser, null, "你无权查看其他企业的操作员列表。");
                 throw new UnauthorizedException("你无权查看其他企业的操作员列表。");
             }
             return currentUser.companyId();
@@ -1813,6 +1893,7 @@ public class BatchServiceImpl implements BatchService {
             throw new IllegalArgumentException("所选用户不是可分配的操作员。");
         }
         if (isEnterpriseAdmin(currentUser) && !Objects.equals(operatorPO.getCompanyId(), currentUser.companyId())) {
+            denyBatchAssignment(currentUser, batchPO, "你只能分配本企业的操作员。");
             throw new UnauthorizedException("你只能分配本企业的操作员。");
         }
         if (!Objects.equals(operatorPO.getCompanyId(), batchPO.getCompanyId())) {
@@ -1821,8 +1902,157 @@ public class BatchServiceImpl implements BatchService {
         return operatorPO;
     }
 
+    private void ensureBatchEditor(AuthUserSession currentUser, Long targetCompanyId, TraceBatchPO batchPO, String actionLabel) {
+        if (isPlatformAdmin(currentUser)) {
+            return;
+        }
+        if (isEnterpriseAdmin(currentUser)) {
+            Long effectiveCompanyId = targetCompanyId != null ? targetCompanyId : (batchPO == null ? null : batchPO.getCompanyId());
+            if (effectiveCompanyId == null || !Objects.equals(effectiveCompanyId, currentUser.companyId())) {
+                denyBatchEdit(currentUser, batchPO, "你只能" + actionLabel + "本企业批次。");
+            }
+            return;
+        }
+        denyBatchEdit(currentUser, batchPO, "当前账号没有" + actionLabel + "权限。");
+    }
+
+    private void ensureStatusManager(AuthUserSession currentUser, TraceBatchPO batchPO, BatchStatus targetStatus) {
+        if (isPlatformAdmin(currentUser)) {
+            return;
+        }
+        if (isEnterpriseAdmin(currentUser) && Objects.equals(currentUser.companyId(), batchPO.getCompanyId())) {
+            return;
+        }
+        denyQrPublish(currentUser, batchPO, "当前账号不能执行“" + (targetStatus == null ? "状态变更" : targetStatus.name()) + "”操作。");
+    }
+
+    private void ensureTraceWriter(AuthUserSession currentUser, TraceBatchPO batchPO) {
+        if (isPlatformAdmin(currentUser)) {
+            return;
+        }
+        if (isEnterpriseAdmin(currentUser) && Objects.equals(currentUser.companyId(), batchPO.getCompanyId())) {
+            return;
+        }
+        if (isOperator(currentUser) && Objects.equals(currentUser.userId(), batchPO.getAssigneeUserId())) {
+            return;
+        }
+        denyTraceAction(currentUser, batchPO, "当前账号不能为该批次补录追溯。");
+    }
+
+    private void ensureQualityWriter(AuthUserSession currentUser, TraceBatchPO batchPO) {
+        if (canManageCompanyBatch(currentUser, batchPO)) {
+            return;
+        }
+        denyQualityUpload(currentUser, batchPO, "当前账号不能上传质检。");
+    }
+
+    private void ensureRiskWriter(AuthUserSession currentUser, TraceBatchPO batchPO) {
+        if (canManageCompanyBatch(currentUser, batchPO)) {
+            return;
+        }
+        denyRiskAction(currentUser, batchPO, "当前账号不能处理风险动作。");
+    }
+
+    private void ensureQrPublisher(AuthUserSession currentUser, TraceBatchPO batchPO, String actionLabel) {
+        if (canManageCompanyBatch(currentUser, batchPO)) {
+            return;
+        }
+        denyQrPublish(currentUser, batchPO, "当前账号不能执行“" + actionLabel + "”操作。");
+    }
+
+    private boolean canManageCompanyBatch(AuthUserSession currentUser, TraceBatchPO batchPO) {
+        if (currentUser == null || batchPO == null) {
+            return false;
+        }
+        if (isPlatformAdmin(currentUser)) {
+            return true;
+        }
+        return isEnterpriseAdmin(currentUser) && Objects.equals(currentUser.companyId(), batchPO.getCompanyId());
+    }
+
+    private boolean canManageCompanyBatch(AuthUserSession currentUser, BatchEntity batch) {
+        if (currentUser == null || batch == null || batch.getCompany() == null) {
+            return false;
+        }
+        if (isPlatformAdmin(currentUser)) {
+            return true;
+        }
+        return isEnterpriseAdmin(currentUser) && Objects.equals(currentUser.companyId(), batch.getCompany().id());
+    }
+
+    private boolean canEditBatch(AuthUserSession currentUser, BatchEntity batch) {
+        return canManageCompanyBatch(currentUser, batch);
+    }
+
+    private boolean canWriteTrace(AuthUserSession currentUser, BatchEntity batch) {
+        if (batch == null || currentUser == null) {
+            return false;
+        }
+        if (canManageCompanyBatch(currentUser, batch)) {
+            return true;
+        }
+        return isOperator(currentUser) && Objects.equals(currentUser.userId(), batch.getAssigneeUserId());
+    }
+
+    private void denyBatchAccess(AuthUserSession currentUser, TraceBatchPO batchPO, String message) {
+        recordDeniedOperation(currentUser, "BATCH_ACCESS_DENIED", "BATCH", batchPO, message);
+        throw new ForbiddenException(message);
+    }
+
+    private void denyBatchEdit(AuthUserSession currentUser, TraceBatchPO batchPO, String message) {
+        recordDeniedOperation(currentUser, "BATCH_EDIT_DENIED", "BATCH", batchPO, message);
+        throw new ForbiddenException(message);
+    }
+
+    private void denyBatchAssignment(AuthUserSession currentUser, TraceBatchPO batchPO, String message) {
+        recordDeniedOperation(currentUser, "BATCH_ASSIGN_DENIED", "BATCH", batchPO, message);
+        throw new ForbiddenException(message);
+    }
+
+    private void denyTraceAction(AuthUserSession currentUser, TraceBatchPO batchPO, String message) {
+        recordDeniedOperation(currentUser, "TRACE_RECORD_DENIED", "BATCH", batchPO, message);
+        throw new ForbiddenException(message);
+    }
+
+    private void denyQualityUpload(AuthUserSession currentUser, TraceBatchPO batchPO, String message) {
+        recordDeniedOperation(currentUser, "QUALITY_UPLOAD_DENIED", "QUALITY", batchPO, message);
+        throw new ForbiddenException(message);
+    }
+
+    private void denyRiskAction(AuthUserSession currentUser, TraceBatchPO batchPO, String message) {
+        recordDeniedOperation(currentUser, "RISK_ACTION_DENIED", "BATCH", batchPO, message);
+        throw new ForbiddenException(message);
+    }
+
+    private void denyQrPublish(AuthUserSession currentUser, TraceBatchPO batchPO, String message) {
+        recordDeniedOperation(currentUser, "QR_PUBLISH_DENIED", "QR", batchPO, message);
+        throw new ForbiddenException(message);
+    }
+
+    private void recordDeniedOperation(AuthUserSession currentUser, String actionType, String targetType, TraceBatchPO batchPO, String summary) {
+        if (currentUser == null) {
+            return;
+        }
+        operationLogService.record(new OperationLogRecord(
+                currentUser.userId(),
+                defaultValue(currentUser.realName(), defaultValue(currentUser.username(), "系统用户")),
+                currentUser.roleCode(),
+                currentUser.companyId(),
+                actionType,
+                targetType,
+                batchPO == null ? null : batchPO.getId(),
+                batchPO == null ? null : batchPO.getBatchCode(),
+                "FAILED",
+                summary
+        ));
+    }
+
     private boolean isOperator(AuthUserSession currentUser) {
         return currentUser != null && "OPERATOR".equalsIgnoreCase(currentUser.roleCode());
+    }
+
+    private boolean isRegulator(AuthUserSession currentUser) {
+        return currentUser != null && "REGULATOR".equalsIgnoreCase(currentUser.roleCode());
     }
 
     private boolean isPlatformAdmin(AuthUserSession currentUser) {

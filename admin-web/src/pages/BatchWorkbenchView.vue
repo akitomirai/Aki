@@ -23,6 +23,7 @@ import {
   stageOptions
 } from '../utils/traceWorkflow'
 import { resolveQrStatusText, resolveRiskStatusText, resolveTaskStatusText, resolveTodayStatusText } from '../utils/statusPresentation'
+import { canManageAdminBatch, isRegulator } from '../utils/access'
 
 const route = useRoute()
 const router = useRouter()
@@ -58,6 +59,9 @@ const canHandleRisk = computed(() => ['FROZEN', 'RECALLED'].includes(detail.valu
 const canPreviewPublic = computed(() => Boolean(detail.value?.qr?.publicUrl))
 const isFreshCreated = computed(() => String(route.query.created || '') === '1')
 const copiedFromCode = computed(() => String(route.query.copiedFrom || '').trim())
+const roleCode = computed(() => authStore.user?.roleCode || '')
+const canManageBatch = computed(() => canManageAdminBatch(roleCode.value))
+const readOnlyBatchView = computed(() => isRegulator(roleCode.value))
 const canManageAssignment = computed(() => ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN'].includes(authStore.user?.roleCode))
 const currentAssigneeId = computed(() => detail.value?.task?.assigneeUserId ? String(detail.value.task.assigneeUserId) : '')
 const selectedAssigneeId = computed(() => assignmentForm.value.assigneeUserId ? String(assignmentForm.value.assigneeUserId) : '')
@@ -197,6 +201,9 @@ const todoItems = computed(() => {
 })
 
 const quickActions = computed(() => {
+  if (readOnlyBatchView.value) {
+    return []
+  }
   return [
     {
       key: 'trace',
@@ -720,8 +727,8 @@ onMounted(async () => {
         </div>
         <div class="manage-page-actions">
           <button class="ghost" @click="router.push('/batches')">返回批次列表</button>
-          <button class="ghost" data-testid="workbench-copy-batch-button" @click="openCopyBatch">复制为新批次</button>
-          <button class="ghost" data-testid="workbench-field-entry-button" @click="openFieldEntry">现场作业页</button>
+          <button v-if="canManageBatch" class="ghost" data-testid="workbench-copy-batch-button" @click="openCopyBatch">复制为新批次</button>
+          <button v-if="canManageBatch" class="ghost" data-testid="workbench-field-entry-button" @click="openFieldEntry">现场作业页</button>
           <button class="ghost" :disabled="!canPreviewPublic" @click="openPublicPreview">公开页预览</button>
         </div>
       </section>
@@ -735,7 +742,7 @@ onMounted(async () => {
           <small v-if="copiedFromCode" class="fresh-copy-source" data-testid="fresh-batch-copy-source">复制来源：{{ copiedFromCode }}</small>
           <p>{{ freshBatchGuide }}</p>
         </div>
-        <div class="banner-actions">
+        <div v-if="canManageBatch" class="banner-actions">
           <button class="primary" data-testid="fresh-batch-trace-button" @click="openFreshBatchNextStep">去补第一条记录</button>
           <button class="ghost" @click="scrollToActionHub">查看待完成事项</button>
         </div>
@@ -820,7 +827,7 @@ onMounted(async () => {
         </article>
       </section>
 
-      <section class="action-panel" data-testid="workbench-action-groups">
+      <section v-if="!readOnlyBatchView" class="action-panel" data-testid="workbench-action-groups">
           <div class="section-head">
             <div>
               <h2>业务动作</h2>
@@ -873,7 +880,7 @@ onMounted(async () => {
                     <span class="card-label">质检</span>
                     <strong>{{ detail.quality.label }}</strong>
                   </div>
-                  <button class="ghost" @click="openQualityDialog">上传质检</button>
+                  <button v-if="canManageBatch" class="ghost" @click="openQualityDialog">上传质检</button>
                 </div>
                 <p class="panel-copy">{{ latestQualityReport ? `最近质检：${latestQualityReport.reportNo} · ${latestQualityReport.agency}` : '当前还没有质检摘要。' }}</p>
                 <div class="compact-grid">
@@ -894,7 +901,13 @@ onMounted(async () => {
                     <span class="card-label">二维码</span>
                     <strong data-testid="workbench-qr-status">{{ resolveQrStatusText(detail.qr) }}</strong>
                   </div>
-                  <button class="ghost" data-testid="workbench-qr-action-0" :disabled="detail.qr.generated || !qrAction.enabled" @click="handleGenerateQr">
+                  <button
+                    v-if="canManageBatch"
+                    class="ghost"
+                    data-testid="workbench-qr-action-0"
+                    :disabled="detail.qr.generated || !qrAction.enabled"
+                    @click="handleGenerateQr"
+                  >
                     {{ detail.qr.generated ? '二维码已生成' : '生成二维码' }}
                   </button>
                 </div>
@@ -920,7 +933,7 @@ onMounted(async () => {
               </article>
             </div>
 
-            <div class="release-actions">
+            <div v-if="canManageBatch" class="release-actions">
               <button class="success" :disabled="!publishReady" @click="openStatusDialog('PUBLISHED')">
                 {{ resumeAction.enabled ? '恢复发布' : '发布批次' }}
               </button>
@@ -940,7 +953,7 @@ onMounted(async () => {
               <p>先看最新一条，再回查更早记录，确认环节、提交人、提交时间和图片顺序。</p>
             </div>
             <div class="inline-actions">
-              <button class="primary" @click="openTraceDialog">补录追溯</button>
+              <button v-if="!readOnlyBatchView" class="primary" @click="openTraceDialog">补录追溯</button>
             </div>
           </div>
 
@@ -1068,7 +1081,7 @@ onMounted(async () => {
             <h2>风险处理</h2>
             <p>{{ riskPanelCalm ? '当前只保留风险结论和最近动作。' : '补说明、整改并更新风险状态。' }}</p>
           </div>
-          <div class="inline-actions" data-testid="workbench-group-status">
+          <div v-if="canManageBatch" class="inline-actions" data-testid="workbench-group-status">
             <button class="ghost" :disabled="!canHandleRisk" @click="openRiskDialog('COMMENT')">补处理说明</button>
             <button class="ghost" :disabled="!canHandleRisk" @click="openRiskDialog('RECTIFICATION')">补整改记录</button>
             <button class="warning" :disabled="!canHandleRisk" @click="openRiskDialog('PROCESSING')">标记处理中</button>
@@ -1239,8 +1252,8 @@ onMounted(async () => {
 
           <div class="dialog-actions">
             <button class="ghost" @click="closeDialog">取消</button>
-            <button v-if="dialog.type === 'trace'" class="ghost" @click="submitDialog({ keepOpen: true })">保存并继续</button>
-            <button class="primary" @click="submitDialog()">确认保存</button>
+            <button v-if="dialog.type === 'trace' && !readOnlyBatchView" class="ghost" @click="submitDialog({ keepOpen: true })">保存并继续</button>
+            <button v-if="!readOnlyBatchView" class="primary" @click="submitDialog()">确认保存</button>
           </div>
         </section>
       </div>

@@ -11,7 +11,7 @@ test('public trace page shows the first-screen summary and simplified timeline',
   await expect(page.getByTestId('public-quality')).not.toBeEmpty()
   await expect(page.getByTestId('public-company')).toContainText('赣南果业种植有限公司')
   await expect(page.getByTestId('public-batch-code')).toContainText('ORANGE-202603-A1')
-  await expect(page.getByTestId('public-origin')).toContainText('江西省赣州市信丰县脐橙种植基地')
+  await expect(page.getByTestId('public-origin')).toContainText('江西省赣州市信丰果园基地')
   await expect(page.getByTestId('public-timeline')).toBeVisible()
   await expect(page.getByTestId('public-timeline-item-0')).toBeVisible()
   await saveNamedScreenshot(page, 'round8-public-trace-normal')

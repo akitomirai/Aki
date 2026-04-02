@@ -11,6 +11,7 @@ import edu.jxust.agritrace.module.batch.entity.RiskActionType;
 import edu.jxust.agritrace.module.batch.service.BatchService;
 import edu.jxust.agritrace.module.batch.service.MasterDataService;
 import edu.jxust.agritrace.module.publictrace.dto.PublicTraceAccessContext;
+import edu.jxust.agritrace.support.AuthenticatedIntegrationTestSupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -23,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
-class BatchServicePersistenceIntegrationTest {
+class BatchServicePersistenceIntegrationTest extends AuthenticatedIntegrationTestSupport {
 
     @Autowired
     private BatchService batchService;

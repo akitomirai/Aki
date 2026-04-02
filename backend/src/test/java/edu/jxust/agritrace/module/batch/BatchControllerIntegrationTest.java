@@ -2,6 +2,7 @@ package edu.jxust.agritrace.module.batch;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import edu.jxust.agritrace.support.AuthenticatedIntegrationTestSupport;
 import edu.jxust.agritrace.module.batch.mapper.BizAttachmentMapper;
 import edu.jxust.agritrace.module.batch.mapper.po.BizAttachmentPO;
 import org.junit.jupiter.api.Test;
@@ -24,8 +25,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
-@AutoConfigureMockMvc
-class BatchControllerIntegrationTest {
+@AutoConfigureMockMvc(addFilters = false)
+class BatchControllerIntegrationTest extends AuthenticatedIntegrationTestSupport {
 
     @Autowired
     private MockMvc mockMvc;

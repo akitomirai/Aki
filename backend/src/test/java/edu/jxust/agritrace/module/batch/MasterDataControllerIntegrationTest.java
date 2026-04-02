@@ -2,6 +2,7 @@ package edu.jxust.agritrace.module.batch;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import edu.jxust.agritrace.support.AuthenticatedIntegrationTestSupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -19,8 +20,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
-@AutoConfigureMockMvc
-class MasterDataControllerIntegrationTest {
+@AutoConfigureMockMvc(addFilters = false)
+class MasterDataControllerIntegrationTest extends AuthenticatedIntegrationTestSupport {
 
     @Autowired
     private MockMvc mockMvc;
@@ -89,7 +90,7 @@ class MasterDataControllerIntegrationTest {
     void shouldRejectDeletingReferencedCompany() throws Exception {
         mockMvc.perform(delete("/api/companies/{companyId}", 1))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", containsString("referenced")));
+                .andExpect(jsonPath("$.message", containsString("已关联")));
     }
 
     @Test
@@ -176,7 +177,7 @@ class MasterDataControllerIntegrationTest {
     void shouldRejectDeletingReferencedProduct() throws Exception {
         mockMvc.perform(delete("/api/products/{productId}", 1))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", containsString("referenced")));
+                .andExpect(jsonPath("$.message", containsString("已关联")));
     }
 
     @Test
@@ -212,6 +213,6 @@ class MasterDataControllerIntegrationTest {
                                 }
                                 """.formatted(companyId)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", containsString("not available")));
+                .andExpect(jsonPath("$.message", containsString("不可用")));
     }
 }

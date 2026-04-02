@@ -1,7 +1,12 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
-import { getRoleName, hasRoleAccess } from '../utils/access'
+import {
+  getRoleName,
+  hasRoleAccess,
+  isEnterpriseAdmin,
+  isRegulator
+} from '../utils/access'
 
 export function useAdminLayout() {
   const route = useRoute()
@@ -36,21 +41,27 @@ export function useAdminLayout() {
 
   const menuSections = computed(() => {
     const role = roleCode.value
-    const sections = [
-      {
+    const enterpriseOnly = isEnterpriseAdmin(role)
+    const regulatorOnly = isRegulator(role)
+    const sections = []
+
+    if (!regulatorOnly) {
+      sections.push({
         title: '工作台',
         items: [
           { key: '/dashboard', label: '首页总览', to: '/dashboard' }
         ]
-      }
-    ]
+      })
+    }
 
     const baseDataItems = []
     if (hasRoleAccess(role, ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN'])) {
       baseDataItems.push({ key: '/products', label: '产品管理', to: '/products' })
-    }
-    if (hasRoleAccess(role, ['PLATFORM_ADMIN'])) {
-      baseDataItems.push({ key: '/companies', label: '企业管理', to: '/companies' })
+      baseDataItems.push({
+        key: '/companies',
+        label: enterpriseOnly ? '本企业资料' : '企业管理',
+        to: '/companies'
+      })
     }
     if (baseDataItems.length) {
       sections.push({
@@ -72,16 +83,18 @@ export function useAdminLayout() {
     }
 
     sections.push({
-      title: '业务管理',
+      title: regulatorOnly ? '监管查看' : '业务管理',
       items: [
-        { key: '/batches', label: '批次管理', to: '/batches' }
+        { key: '/batches', label: regulatorOnly ? '批次查看' : '批次管理', to: '/batches' }
       ]
     })
 
     const qualityItems = []
-    if (hasRoleAccess(role, ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN', 'REGULATOR'])) {
+    if (hasRoleAccess(role, ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN'])) {
       qualityItems.push({ key: '/qr', label: '二维码与发布', to: '/qr' })
       qualityItems.push({ key: '/quality', label: '质检待办', to: '/quality' })
+    }
+    if (hasRoleAccess(role, ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN', 'REGULATOR'])) {
       qualityItems.push({ key: '/risk', label: '风险处理', to: '/risk' })
     }
     if (qualityItems.length) {

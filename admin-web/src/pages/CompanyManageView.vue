@@ -1,17 +1,29 @@
 <template>
-  <div class="manage-page company-manage">
+  <div class="manage-page company-manage" data-testid="companies-page">
     <section class="manage-page-header">
       <div>
-        <h1 class="manage-page-title">企业管理</h1>
-        <p class="manage-page-desc">统一维护企业基础档案，支持后续产品归属、批次建档和追溯信息关联。</p>
+        <h1 class="manage-page-title">{{ pageTitle }}</h1>
+        <p class="manage-page-desc">{{ pageDesc }}</p>
       </div>
       <div class="manage-page-actions">
-        <el-button @click="loadCompanies" :loading="loading">刷新</el-button>
-        <el-button type="primary" @click="openCreateDialog">新增企业</el-button>
+        <el-button data-testid="companies-refresh-button" @click="loadCompanies" :loading="loading">刷新</el-button>
+        <el-button
+          v-if="canCreateCompany"
+          type="primary"
+          data-testid="companies-open-create"
+          @click="openCreateDialog"
+        >
+          新增企业
+        </el-button>
       </div>
     </section>
 
-    <el-card shadow="never" class="manage-filter-card">
+    <el-card v-if="isEnterpriseAdmin" shadow="never" class="profile-banner" data-testid="companies-self-mode">
+      <strong>当前为本企业资料模式</strong>
+      <span>这里只展示并维护你所在企业的基础资料，不涉及全平台企业管理、状态调整或企业删除。</span>
+    </el-card>
+
+    <el-card v-if="isPlatformAdmin" shadow="never" class="manage-filter-card">
       <div class="manage-filter-grid company-filter-grid">
         <el-input
           v-model.trim="searchForm.keyword"
@@ -45,17 +57,18 @@
     </el-card>
 
     <div class="manage-summary">
-      <div class="manage-summary-chip">启用中<strong>{{ summary.enabled }}</strong></div>
-      <div class="manage-summary-chip">已停用<strong>{{ summary.disabled }}</strong></div>
-      <div class="manage-summary-chip">已归档<strong>{{ summary.archived }}</strong></div>
+      <div class="manage-summary-chip">{{ summaryLabel }} <strong>{{ companies.length }}</strong></div>
+      <div v-if="isPlatformAdmin" class="manage-summary-chip">启用中 <strong>{{ summary.enabled }}</strong></div>
+      <div v-if="isPlatformAdmin" class="manage-summary-chip">已停用 <strong>{{ summary.disabled }}</strong></div>
+      <div v-if="isPlatformAdmin" class="manage-summary-chip">已归档 <strong>{{ summary.archived }}</strong></div>
     </div>
 
     <el-card shadow="never" class="manage-table-card">
       <template #header>
         <div class="manage-table-header">
           <div>
-            <p class="manage-table-title">企业档案</p>
-            <p class="manage-table-tip">优先按关键词和状态筛选，再执行编辑、停用、归档和删除操作。</p>
+            <p class="manage-table-title">{{ tableTitle }}</p>
+            <p class="manage-table-tip">{{ tableTip }}</p>
           </div>
         </div>
       </template>
@@ -65,7 +78,7 @@
           <template #default="{ row }">
             <div class="name-cell">
               <strong>{{ textOf(row.name, '未命名企业') }}</strong>
-              <span>{{ textOf(row.licenseNo, '未填写营业执照号') }}</span>
+              <span>{{ textOf(row.licenseNo, '未填写许可证号') }}</span>
             </div>
           </template>
         </el-table-column>
@@ -113,11 +126,19 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" min-width="280" fixed="right">
+        <el-table-column label="操作" min-width="220" fixed="right">
           <template #default="{ row }">
             <div class="action-cell">
-              <el-button type="primary" link class="table-action-link" @click="openEditDialog(row)">编辑</el-button>
-              <el-dropdown @command="(command) => handleMoreCommand(row, command)">
+              <el-button
+                type="primary"
+                link
+                class="table-action-link"
+                :data-testid="`company-edit-${row.id}`"
+                @click="openEditDialog(row)"
+              >
+                编辑
+              </el-button>
+              <el-dropdown v-if="canManageCompanyStatus" @command="(command) => handleMoreCommand(row, command)">
                 <el-button link class="table-action-link">
                   更多操作
                 </el-button>
@@ -138,29 +159,30 @@
 
     <el-dialog
       v-model="showDialog"
-      :title="dialogMode === 'create' ? '新增企业' : '编辑企业'"
+      :title="dialogTitle"
       width="680px"
       @closed="resetForm"
     >
       <div class="dialog-intro-card">
-        <strong>{{ dialogMode === 'create' ? '先补齐企业档案，再去创建产品和批次。' : '当前正在调整企业档案，保存后会同步回到企业台账。' }}</strong>
-        <span>带“必填”字段会直接用于产品归属、批次建档和后续联系人回查。</span>
+        <strong>{{ dialogIntroTitle }}</strong>
+        <span>{{ dialogIntroDesc }}</span>
       </div>
 
-      <el-form :model="form" label-width="118px" class="dialog-form dialog-form--grouped">
+      <el-form :model="form" label-width="118px" class="dialog-form dialog-form--grouped" data-testid="company-form-dialog">
         <div class="dialog-section-title">基础信息</div>
         <el-form-item label="企业名称（必填）" required>
           <el-input v-model.trim="form.name" maxlength="64" show-word-limit placeholder="请输入企业名称" />
         </el-form-item>
-        <el-form-item label="营业执照号（选填）">
-          <el-input v-model.trim="form.licenseNo" maxlength="64" show-word-limit placeholder="可选，便于备案和回查" />
+        <el-form-item label="许可证号（选填）">
+          <el-input v-model.trim="form.licenseNo" maxlength="64" show-word-limit placeholder="便于备案和回查" />
         </el-form-item>
+
         <div class="dialog-section-title">联系信息</div>
         <el-form-item label="联系人（必填）" required>
           <el-input v-model.trim="form.contactPerson" maxlength="32" show-word-limit placeholder="请输入联系人姓名" />
         </el-form-item>
         <el-form-item label="联系电话（必填）" required>
-          <el-input v-model.trim="form.contactPhone" maxlength="32" show-word-limit placeholder="请输入联系电话，至少保留一个可回拨号码" />
+          <el-input v-model.trim="form.contactPhone" maxlength="32" show-word-limit placeholder="至少保留一个可回拨号码" />
         </el-form-item>
         <el-form-item label="联系地址（必填）" required class="full-row">
           <el-input
@@ -169,29 +191,36 @@
             :rows="3"
             maxlength="200"
             show-word-limit
-            placeholder="请输入联系地址，至少写到园区、仓库或办公地点"
+            placeholder="请填写园区、仓库或办公地点"
           />
         </el-form-item>
-        <div class="dialog-section-title">状态设置</div>
-        <el-form-item label="当前状态">
-          <el-select v-model="form.status" placeholder="请选择状态">
-            <el-option
-              v-for="item in statusOptions"
-              :key="item.value"
-              :label="item.label"
-              :value="item.value"
-            />
-          </el-select>
-        </el-form-item>
-        <div class="full-row dialog-status-note">
-          <strong>{{ statusText(form.status) }}</strong>
-          <span>{{ companyStatusHint(form.status) }}</span>
+
+        <template v-if="canManageCompanyStatus">
+          <div class="dialog-section-title">状态设置</div>
+          <el-form-item label="当前状态">
+            <el-select v-model="form.status" placeholder="请选择状态">
+              <el-option
+                v-for="item in statusOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
+          </el-form-item>
+          <div class="full-row dialog-status-note">
+            <strong>{{ statusText(form.status) }}</strong>
+            <span>{{ companyStatusHint(form.status) }}</span>
+          </div>
+        </template>
+        <div v-else class="full-row dialog-status-note">
+          <strong>本轮仅维护基础资料</strong>
+          <span>企业状态仍由平台管理员统一维护，你在这里只能修改名称、联系人、电话和地址。</span>
         </div>
       </el-form>
 
       <template #footer>
         <el-button @click="showDialog = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="handleSubmit">
+        <el-button type="primary" :loading="submitting" data-testid="company-form-submit" @click="handleSubmit">
           {{ dialogMode === 'create' ? '确认新增' : '保存修改' }}
         </el-button>
       </template>
@@ -202,9 +231,17 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useAuthStore } from '../stores/auth'
 import { getCompanyList, createCompany, updateCompany, updateCompanyStatus, deleteCompany } from '../api/master-data'
 import { normalizeDisplayText } from '../utils/display'
 import { extractErrorMessage } from '../utils/feedback'
+
+const authStore = useAuthStore()
+const roleCode = computed(() => authStore.user?.roleCode || '')
+const isPlatformAdmin = computed(() => roleCode.value === 'PLATFORM_ADMIN')
+const isEnterpriseAdmin = computed(() => roleCode.value === 'ENTERPRISE_ADMIN')
+const canCreateCompany = computed(() => isPlatformAdmin.value)
+const canManageCompanyStatus = computed(() => isPlatformAdmin.value)
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -233,6 +270,40 @@ const statusOptions = [
   { value: 'DISABLED', label: '已停用' },
   { value: 'ARCHIVED', label: '已归档' }
 ]
+
+const pageTitle = computed(() => isEnterpriseAdmin.value ? '本企业资料' : '企业管理')
+const pageDesc = computed(() => {
+  if (isEnterpriseAdmin.value) {
+    return '这里只展示你所在企业的基础资料，你可以维护名称、联系人、联系电话和地址，但不能新建、删除或切换到其他企业。'
+  }
+  return '统一维护企业基础档案，支撑后续产品归属、批次建档和追溯信息关联。'
+})
+const tableTitle = computed(() => isEnterpriseAdmin.value ? '本企业资料卡片' : '企业档案')
+const tableTip = computed(() => {
+  if (isEnterpriseAdmin.value) {
+    return '当前仅展示并维护你所在企业这一条资料，保存后会同步影响产品归属、批次建档和回查信息。'
+  }
+  return '优先按关键字和状态筛选，再执行编辑、停用、归档和删除操作。'
+})
+const summaryLabel = computed(() => isEnterpriseAdmin.value ? '当前可维护企业' : '当前企业总数')
+const dialogTitle = computed(() => {
+  if (dialogMode.value === 'create') {
+    return '新增企业'
+  }
+  return isEnterpriseAdmin.value ? '编辑本企业资料' : '编辑企业'
+})
+const dialogIntroTitle = computed(() => {
+  if (dialogMode.value === 'create') {
+    return '先补齐企业档案，再继续到产品管理补产品。'
+  }
+  return isEnterpriseAdmin.value ? '当前正在维护本企业资料，保存后会同步影响本企业产品和批次归属。' : '当前正在调整企业档案，保存后会同步回到企业台账。'
+})
+const dialogIntroDesc = computed(() => {
+  if (isEnterpriseAdmin.value) {
+    return '本轮企业管理员只维护基础资料，不处理企业状态、企业删除或平台级企业台账。'
+  }
+  return '带“必填”字段会直接用于产品归属、批次建档和后续联系人回查。'
+})
 
 function isSuccessResponse(res) {
   return res?.success === true || res?.code === 0 || String(res?.code) === '0'
@@ -275,7 +346,7 @@ function companyStatusHint(status) {
     return '已停用的企业会保留历史台账，后续新建产品或批次前建议先确认是否继续使用。'
   }
   if (normalized === 'ARCHIVED') {
-    return '已归档的企业主要用于台账回查，不建议继续作为日常建档入口。'
+    return '已归档的企业主要用于历史回查，不建议继续作为日常建档入口。'
   }
   return '启用中的企业可继续关联产品、创建批次和执行日常维护。'
 }
@@ -302,10 +373,13 @@ function validateCompanyForm() {
 async function loadCompanies() {
   loading.value = true
   try {
-    const res = await getCompanyList({
-      keyword: searchForm.keyword || undefined,
-      status: searchForm.status || undefined
-    })
+    const params = isPlatformAdmin.value
+      ? {
+          keyword: searchForm.keyword || undefined,
+          status: searchForm.status || undefined
+        }
+      : {}
+    const res = await getCompanyList(params)
     if (isSuccessResponse(res)) {
       companies.value = res.data || []
     } else {
@@ -329,6 +403,9 @@ function resetForm() {
 }
 
 function openCreateDialog() {
+  if (!canCreateCompany.value) {
+    return
+  }
   dialogMode.value = 'create'
   resetForm()
   showDialog.value = true
@@ -471,6 +548,25 @@ onMounted(() => {
 <style scoped>
 .company-manage {
   padding: 20px;
+}
+
+.profile-banner {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(29, 111, 161, 0.16);
+  background: linear-gradient(135deg, rgba(246, 251, 255, 0.96), rgba(236, 245, 255, 0.92));
+}
+
+.profile-banner strong {
+  color: var(--admin-text);
+  font-size: 15px;
+}
+
+.profile-banner span {
+  color: var(--admin-text-soft);
+  line-height: 1.7;
 }
 
 .company-filter-grid {

@@ -20,8 +20,23 @@ const filters = ref(createFilters())
 const detailDialog = ref(createDetailDialogState())
 
 const isPlatformAdmin = computed(() => String(authStore.user?.roleCode || '').toUpperCase() === 'PLATFORM_ADMIN')
+const isEnterpriseAdmin = computed(() => String(authStore.user?.roleCode || '').toUpperCase() === 'ENTERPRISE_ADMIN')
 const companyFilterEnabled = computed(() => isPlatformAdmin.value)
 const currentCompanyName = computed(() => authStore.user?.companyName || '当前企业')
+const pageTitle = computed(() => isEnterpriseAdmin.value ? '本企业操作日志' : '操作日志')
+const pageDesc = computed(() => {
+  if (isEnterpriseAdmin.value) {
+    return `只查看 ${currentCompanyName.value} 的关键留痕，包含资料维护、批次流转和越权拒绝记录，方便企业管理员回查本企业内的后台动作。`
+  }
+  return '统一查看用户管理、批次分配、质检、二维码、发布、风险处理和现场作业提交的关键留痕，方便管理员快速回查谁在什么时间做了什么。'
+})
+const scopedModeHint = computed(() => `当前只展示 ${currentCompanyName.value} 的操作日志，所属企业已固定，不支持切换到其他企业。`)
+const companyFieldHint = computed(() => {
+  if (companyFilterEnabled.value) {
+    return '可按企业切换范围，排查跨企业后台动作。'
+  }
+  return '当前账号固定查看本企业日志，越权拒绝记录也会按本企业范围留痕。'
+})
 const pageCount = computed(() => Math.max(1, Math.ceil(Number(total.value || 0) / Number(pageSize.value || 20))))
 const pageSummary = computed(() => {
   if (!total.value) {
@@ -30,6 +45,12 @@ const pageSummary = computed(() => {
   const from = (page.value - 1) * pageSize.value + 1
   const to = Math.min(total.value, page.value * pageSize.value)
   return `共 ${total.value} 条操作日志，当前显示 ${from}-${to} 条。`
+})
+const emptyStateCopy = computed(() => {
+  if (companyFilterEnabled.value) {
+    return '可以调整操作类型、时间范围、企业或操作人后再查看。'
+  }
+  return '可以调整操作类型、时间范围或操作人后再查看。'
 })
 
 const roleOptions = [
@@ -54,11 +75,20 @@ const actionOptions = [
   { value: 'USER_ENABLE', label: '启用用户' },
   { value: 'USER_DISABLE', label: '停用用户' },
   { value: 'USER_RESET_PASSWORD', label: '重置密码' },
+  { value: 'USER_ACCESS_DENIED', label: '用户管理越权拒绝' },
+  { value: 'COMPANY_ACCESS_DENIED', label: '企业资料越权拒绝' },
+  { value: 'PRODUCT_ACCESS_DENIED', label: '产品资料越权拒绝' },
+  { value: 'LOG_ACCESS_DENIED', label: '日志访问越权拒绝' },
+  { value: 'BATCH_ACCESS_DENIED', label: '批次访问被拒绝' },
+  { value: 'BATCH_EDIT_DENIED', label: '批次编辑被拒绝' },
   { value: 'BATCH_ASSIGN', label: '分配操作员' },
   { value: 'BATCH_REASSIGN', label: '改派操作员' },
   { value: 'BATCH_UNASSIGN', label: '清空分配' },
+  { value: 'BATCH_ASSIGN_DENIED', label: '任务分配被拒绝' },
   { value: 'QUALITY_UPLOAD', label: '上传质检' },
+  { value: 'QUALITY_UPLOAD_DENIED', label: '质检上传被拒绝' },
   { value: 'QR_GENERATE', label: '生成二维码' },
+  { value: 'QR_PUBLISH_DENIED', label: '二维码/发布操作被拒绝' },
   { value: 'BATCH_PUBLISH', label: '发布批次' },
   { value: 'RISK_FREEZE', label: '冻结批次' },
   { value: 'RISK_COMMENT', label: '补处理说明' },
@@ -66,7 +96,9 @@ const actionOptions = [
   { value: 'RISK_PROCESSING', label: '标记处理中' },
   { value: 'RISK_RECTIFIED', label: '标记已整改' },
   { value: 'RISK_RESUME_PUBLISH', label: '恢复发布' },
+  { value: 'RISK_ACTION_DENIED', label: '风险处理被拒绝' },
   { value: 'TRACE_RECORD_SUBMIT', label: '提交现场记录' },
+  { value: 'TRACE_RECORD_DENIED', label: '现场记录提交被拒绝' },
   { value: 'TRACE_IMAGE_UPLOAD', label: '图片上传成功' }
 ]
 
@@ -194,6 +226,9 @@ function companyText(item) {
 
 function actionTone(actionType) {
   const code = String(actionType || '').toUpperCase()
+  if (code.endsWith('_DENIED')) {
+    return 'recalled'
+  }
   if (code.startsWith('RISK_')) {
     return 'frozen'
   }
@@ -229,14 +264,17 @@ function summaryPreview(item) {
   <div class="page-shell" data-testid="logs-page">
     <section class="manage-page-header">
       <div>
-        <h1 class="manage-page-title">操作日志</h1>
-        <p class="manage-page-subtitle">
-          统一查看用户管理、批次分配、质检、二维码、发布、风险处理和现场作业提交的关键留痕，方便管理员快速回查谁在什么时间做了什么。
-        </p>
+        <h1 class="manage-page-title">{{ pageTitle }}</h1>
+        <p class="manage-page-subtitle">{{ pageDesc }}</p>
       </div>
       <div class="manage-page-actions">
         <button class="ghost" data-testid="logs-refresh-button" :disabled="loading" @click="fetchRows(page)">刷新</button>
       </div>
+    </section>
+
+    <section v-if="isEnterpriseAdmin" class="panel profile-banner" data-testid="logs-self-mode">
+      <strong>当前为本企业日志模式</strong>
+      <span>{{ scopedModeHint }}</span>
     </section>
 
     <section class="panel">
@@ -271,10 +309,12 @@ function summaryPreview(item) {
             <option value="">全部企业</option>
             <option v-for="item in companyOptions" :key="item.id" :value="item.id">{{ item.name }}</option>
           </select>
+          <small class="filter-note">{{ companyFieldHint }}</small>
         </label>
         <label v-else>
           <span>所属企业</span>
-          <input :value="currentCompanyName" type="text" disabled>
+          <input :value="currentCompanyName" data-testid="logs-company-fixed" type="text" disabled>
+          <small class="filter-note" data-testid="logs-company-hint">{{ companyFieldHint }}</small>
         </label>
 
         <label>
@@ -321,7 +361,7 @@ function summaryPreview(item) {
     <section v-else-if="!rows.length" class="panel empty-state">
       <div>
         <h3>当前筛选下没有日志</h3>
-        <p class="empty-copy">可以调整操作类型、时间范围、企业或操作人后再查看。</p>
+        <p class="empty-copy">{{ emptyStateCopy }}</p>
       </div>
     </section>
 
@@ -452,8 +492,32 @@ function summaryPreview(item) {
 <style src="../../assets/styles/admin-task-pages.css" scoped></style>
 
 <style scoped>
+.profile-banner {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 18px;
+  border: 1px solid rgba(29, 111, 161, 0.16);
+  background: linear-gradient(135deg, rgba(246, 251, 255, 0.96), rgba(236, 245, 255, 0.92));
+}
+
+.profile-banner strong {
+  color: var(--admin-text);
+  font-size: 15px;
+}
+
+.profile-banner span {
+  color: var(--admin-text-soft);
+  line-height: 1.7;
+}
+
 .logs-filter-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.filter-note {
+  margin-top: 8px;
+  color: var(--admin-text-soft);
+  line-height: 1.6;
 }
 
 .logs-head,

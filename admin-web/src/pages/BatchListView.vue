@@ -32,6 +32,7 @@ import {
 } from '../utils/batchExperience'
 import { downloadCsvFile } from '../utils/exportTools'
 import { resolveQrStatusText, resolveTaskStatusText, resolveTodayStatusText } from '../utils/statusPresentation'
+import { canManageAdminBatch, isRegulator } from '../utils/access'
 
 const route = useRoute()
 const router = useRouter()
@@ -95,7 +96,16 @@ const selectedProductOption = computed(() => {
 const selectedCompanyOption = computed(() => {
   return formCompanyOptions.value.find((item) => String(item.id) === String(batchForm.value.companyId ?? '')) ?? null
 })
+const roleCode = computed(() => authStore.user?.roleCode || '')
+const canManageBatch = computed(() => canManageAdminBatch(roleCode.value))
 const canManageAssignment = computed(() => ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN'].includes(authStore.user?.roleCode))
+const readOnlyBatchView = computed(() => isRegulator(roleCode.value))
+const listModeOptions = computed(() => {
+  if (!readOnlyBatchView.value) {
+    return listModes
+  }
+  return listModes.filter((item) => item.value !== 'READY')
+})
 const currentAssignmentAssigneeId = computed(() => assignmentDialog.value.currentAssigneeUserId ? String(assignmentDialog.value.currentAssigneeUserId) : '')
 const selectedAssignmentAssigneeId = computed(() => assignmentDialog.value.assigneeUserId ? String(assignmentDialog.value.assigneeUserId) : '')
 const assignmentChanged = computed(() => selectedAssignmentAssigneeId.value !== currentAssignmentAssigneeId.value)
@@ -554,7 +564,7 @@ function resetFilters() {
 
 function syncListModeFromRoute() {
   const mode = String(route.query.mode || '').toUpperCase()
-  const exists = listModes.some((item) => item.value === mode)
+  const exists = listModeOptions.value.some((item) => item.value === mode)
   listMode.value = exists ? mode : 'ACTION'
 }
 
@@ -1041,6 +1051,10 @@ function buildBatchInsight(item) {
 }
 
 function runRecommendedAction(card) {
+  if (readOnlyBatchView.value) {
+    router.push(`/batches/${card.item.id}`)
+    return
+  }
   const { item, insight } = card
   switch (insight.nextActionCode) {
     case 'ADD_TRACE':
@@ -1064,6 +1078,9 @@ function runRecommendedAction(card) {
 }
 
 function handleRowCommand(card, command) {
+  if (readOnlyBatchView.value) {
+    return
+  }
   if (command === 'assignment') {
     openAssignmentDialog(card.item)
     return
@@ -1182,14 +1199,21 @@ function statusClass(status) {
       </div>
       <div class="manage-page-actions">
         <el-button :loading="loading" data-testid="batch-search-button" @click="fetchBatches">刷新</el-button>
-        <el-button type="primary" data-testid="batch-create-button" @click="openCreateDialog">新增批次</el-button>
+        <el-button
+          v-if="canManageBatch"
+          type="primary"
+          data-testid="batch-create-button"
+          @click="openCreateDialog"
+        >
+          新增批次
+        </el-button>
       </div>
     </section>
 
     <section class="panel batch-tabs-panel">
       <div class="batch-tabs">
         <button
-          v-for="item in listModes"
+          v-for="item in listModeOptions"
           :key="item.value"
           type="button"
           class="batch-tab"
@@ -1263,9 +1287,9 @@ function statusClass(status) {
     <section v-else-if="!visibleBatchCards.length" class="panel empty-state">
       <div>
         <h3>当前条件下没有批次数据</h3>
-        <p>请调整筛选条件，或直接新增批次。</p>
+        <p>{{ canManageBatch ? '请调整筛选条件，或直接新增批次。' : '请调整筛选条件后重新查看。' }}</p>
         <div class="toolbar-actions">
-          <button class="primary" @click="openCreateDialog">新增批次</button>
+          <button v-if="canManageBatch" class="primary" @click="openCreateDialog">新增批次</button>
           <button class="ghost" @click="switchListMode('ALL')">查看全部</button>
         </div>
       </div>
@@ -1354,6 +1378,7 @@ function statusClass(status) {
               工作台
             </button>
             <button
+              v-if="canManageBatch"
               class="text-button"
               :data-testid="`batch-copy-${card.item.id}`"
               @click="openCopyDialog(card.item)"
@@ -1361,13 +1386,14 @@ function statusClass(status) {
               复制批次
             </button>
             <button
+              v-if="!readOnlyBatchView"
               class="text-button"
               :data-testid="`batch-recommend-${card.item.id}`"
               @click="runRecommendedAction(card)"
             >
               {{ card.insight.nextLabel }}
             </button>
-            <el-dropdown @command="(command) => handleRowCommand(card, command)">
+            <el-dropdown v-if="!readOnlyBatchView" @command="(command) => handleRowCommand(card, command)">
               <button type="button" class="text-button">更多操作</button>
               <template #dropdown>
                 <el-dropdown-menu>

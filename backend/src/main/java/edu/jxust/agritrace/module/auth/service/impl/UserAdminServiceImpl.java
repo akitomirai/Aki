@@ -1,6 +1,7 @@
 package edu.jxust.agritrace.module.auth.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import edu.jxust.agritrace.common.exception.ForbiddenException;
 import edu.jxust.agritrace.common.exception.UnauthorizedException;
 import edu.jxust.agritrace.module.auth.dto.UserCreateRequest;
 import edu.jxust.agritrace.module.auth.dto.UserListQueryRequest;
@@ -70,22 +71,22 @@ public class UserAdminServiceImpl implements UserAdminService {
         AuthUserSession currentUser = requireCurrentUser();
         ensureUserManager(currentUser);
 
-        Long effectiveCompanyId = normalizeCompanyFilter(currentUser, request.getCompanyId());
-        String effectiveRoleCode = normalizeRoleCode(request.getRoleCode(), false);
+        Long effectiveCompanyId = normalizeCompanyFilter(currentUser, request == null ? null : request.getCompanyId());
+        String effectiveRoleCode = normalizeRoleCode(request == null ? null : request.getRoleCode(), false);
         if (isEnterpriseAdmin(currentUser) && effectiveRoleCode != null && !ENTERPRISE_MANAGEABLE_ROLES.contains(effectiveRoleCode)) {
-            throw new UnauthorizedException("你只能查看本企业管理员和操作员。");
+            denyUserAccess(currentUser, null, null, "你只能查看本企业管理员和操作员。");
         }
 
         LambdaQueryWrapper<SysUserPO> queryWrapper = new LambdaQueryWrapper<SysUserPO>()
                 .eq(effectiveRoleCode != null, SysUserPO::getRoleCode, effectiveRoleCode)
                 .eq(effectiveCompanyId != null, SysUserPO::getCompanyId, effectiveCompanyId)
-                .eq(request.getStatus() != null, SysUserPO::getStatus, normalizeStatus(request.getStatus()))
+                .eq(request != null && request.getStatus() != null, SysUserPO::getStatus, normalizeStatus(request.getStatus()))
                 .orderByAsc(SysUserPO::getCompanyId)
                 .orderByAsc(SysUserPO::getRoleCode)
                 .orderByDesc(SysUserPO::getUpdatedAt)
                 .orderByDesc(SysUserPO::getId);
 
-        if (notBlank(request.getKeyword())) {
+        if (notBlank(request == null ? null : request.getKeyword())) {
             String keyword = request.getKeyword().trim();
             queryWrapper.and(wrapper -> wrapper
                     .like(SysUserPO::getUsername, keyword)
@@ -253,7 +254,7 @@ public class UserAdminServiceImpl implements UserAdminService {
         if (isPlatformAdmin(currentUser) || isEnterpriseAdmin(currentUser)) {
             return;
         }
-        throw new UnauthorizedException("你没有用户管理权限。");
+        denyUserAccess(currentUser, null, null, "你没有用户管理权限。");
     }
 
     private void ensureManageableTarget(AuthUserSession currentUser, SysUserPO userPO) {
@@ -261,10 +262,10 @@ public class UserAdminServiceImpl implements UserAdminService {
             return;
         }
         if (!Objects.equals(currentUser.companyId(), userPO.getCompanyId())) {
-            throw new UnauthorizedException("你只能管理本企业用户。");
+            denyUserAccess(currentUser, userPO, "你只能管理本企业用户。");
         }
         if (!ENTERPRISE_MANAGEABLE_ROLES.contains(defaultValue(userPO.getRoleCode(), "").toUpperCase(Locale.ROOT))) {
-            throw new UnauthorizedException("你只能管理本企业管理员和操作员。");
+            denyUserAccess(currentUser, userPO, "你只能管理本企业管理员和操作员。");
         }
     }
 
@@ -273,7 +274,7 @@ public class UserAdminServiceImpl implements UserAdminService {
             return;
         }
         if (!ENTERPRISE_MANAGEABLE_ROLES.contains(roleCode)) {
-            throw new UnauthorizedException("企业管理员只能创建和管理本企业管理员、操作员。");
+            denyUserAccess(currentUser, null, null, "企业管理员只能创建和管理本企业管理员、操作员。");
         }
     }
 
@@ -282,7 +283,7 @@ public class UserAdminServiceImpl implements UserAdminService {
             return requestedCompanyId;
         }
         if (requestedCompanyId != null && !Objects.equals(requestedCompanyId, currentUser.companyId())) {
-            throw new UnauthorizedException("你只能查看本企业用户。");
+            denyUserAccess(currentUser, null, null, "你只能查看本企业用户。");
         }
         return currentUser.companyId();
     }
@@ -290,6 +291,11 @@ public class UserAdminServiceImpl implements UserAdminService {
     private Long normalizeCompanyForRole(AuthUserSession currentUser, String roleCode, Long requestedCompanyId) {
         if ("PLATFORM_ADMIN".equals(roleCode) || "REGULATOR".equals(roleCode)) {
             return null;
+        }
+        if (isEnterpriseAdmin(currentUser)
+                && requestedCompanyId != null
+                && !Objects.equals(requestedCompanyId, currentUser.companyId())) {
+            denyUserAccess(currentUser, null, null, "你只能管理本企业用户，不能改到其他企业。");
         }
         Long effectiveCompanyId = isEnterpriseAdmin(currentUser) ? currentUser.companyId() : requestedCompanyId;
         if (effectiveCompanyId == null) {
@@ -300,7 +306,7 @@ public class UserAdminServiceImpl implements UserAdminService {
             throw new IllegalArgumentException("所选企业不存在。");
         }
         if (isEnterpriseAdmin(currentUser) && !Objects.equals(effectiveCompanyId, currentUser.companyId())) {
-            throw new UnauthorizedException("你只能管理本企业用户。");
+            denyUserAccess(currentUser, null, null, "你只能管理本企业用户。");
         }
         return effectiveCompanyId;
     }
@@ -419,6 +425,33 @@ public class UserAdminServiceImpl implements UserAdminService {
                 "SUCCESS",
                 summary
         ));
+    }
+
+    private void denyUserAccess(AuthUserSession currentUser, SysUserPO targetUser, String message) {
+        denyUserAccess(
+                currentUser,
+                targetUser == null ? null : targetUser.getId(),
+                targetUser == null ? null : targetUser.getUsername(),
+                message
+        );
+    }
+
+    private void denyUserAccess(AuthUserSession currentUser, Long targetId, String targetName, String message) {
+        if (currentUser != null) {
+            operationLogService.record(new OperationLogRecord(
+                    currentUser.userId(),
+                    resolveActorName(currentUser),
+                    currentUser.roleCode(),
+                    currentUser.companyId(),
+                    "USER_ACCESS_DENIED",
+                    "USER",
+                    targetId,
+                    targetName,
+                    "FAILED",
+                    message
+            ));
+        }
+        throw new ForbiddenException(message);
     }
 
     private String resolveActorName(AuthUserSession currentUser) {

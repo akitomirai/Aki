@@ -3,8 +3,11 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { changeBatchStatus, createRiskAction, getBatchDetail, getBatchList } from '../api/batch'
 import { getFriendlyErrorMessage, riskActionOptions } from '../utils/batchExperience'
+import { useAuthStore } from '../stores/auth'
+import { canManageAdminBatch, isRegulator } from '../utils/access'
 
 const router = useRouter()
+const authStore = useAuthStore()
 
 const loading = ref(false)
 const rows = ref([])
@@ -16,6 +19,9 @@ const riskSubmitting = ref(false)
 const resumeSubmitting = ref(false)
 const riskDialog = ref(createRiskDialogState())
 const resumeDialog = ref(createResumeDialogState())
+const roleCode = computed(() => authStore.user?.roleCode || '')
+const canManageRisk = computed(() => canManageAdminBatch(roleCode.value))
+const readOnlyRiskView = computed(() => isRegulator(roleCode.value))
 
 const riskTabs = [
   { value: 'FROZEN', label: '已冻结' },
@@ -418,11 +424,51 @@ async function openWorkbenchAfterRefresh(item) {
 
           <div class="row-actions action-stack">
             <button class="text-button primary-text" :data-testid="`risk-open-workbench-${item.id}`" @click="openWorkbenchAfterRefresh(item)">进入工作台</button>
-            <button class="text-button" :data-testid="`risk-comment-${item.id}`" :disabled="!canHandleRisk(item)" @click="openRiskDialog(item, 'COMMENT')">补处理说明</button>
-            <button class="text-button" :data-testid="`risk-rectification-${item.id}`" :disabled="!canHandleRisk(item)" @click="openRiskDialog(item, 'RECTIFICATION')">补整改记录</button>
-            <button class="text-button" :data-testid="`risk-processing-${item.id}`" :disabled="!canHandleRisk(item)" @click="openRiskDialog(item, 'PROCESSING')">标记处理中</button>
-            <button class="text-button" :data-testid="`risk-rectified-${item.id}`" :disabled="!canHandleRisk(item)" @click="openRiskDialog(item, 'RECTIFIED')">标记已整改</button>
-            <button class="text-button" :data-testid="`risk-resume-${item.id}`" :disabled="!canResume(item)" @click="openResumeDialog(item)">恢复发布</button>
+            <button
+              v-if="canManageRisk"
+              class="text-button"
+              :data-testid="`risk-comment-${item.id}`"
+              :disabled="!canHandleRisk(item)"
+              @click="openRiskDialog(item, 'COMMENT')"
+            >
+              补处理说明
+            </button>
+            <button
+              v-if="canManageRisk"
+              class="text-button"
+              :data-testid="`risk-rectification-${item.id}`"
+              :disabled="!canHandleRisk(item)"
+              @click="openRiskDialog(item, 'RECTIFICATION')"
+            >
+              补整改记录
+            </button>
+            <button
+              v-if="canManageRisk"
+              class="text-button"
+              :data-testid="`risk-processing-${item.id}`"
+              :disabled="!canHandleRisk(item)"
+              @click="openRiskDialog(item, 'PROCESSING')"
+            >
+              标记处理中
+            </button>
+            <button
+              v-if="canManageRisk"
+              class="text-button"
+              :data-testid="`risk-rectified-${item.id}`"
+              :disabled="!canHandleRisk(item)"
+              @click="openRiskDialog(item, 'RECTIFIED')"
+            >
+              标记已整改
+            </button>
+            <button
+              v-if="canManageRisk"
+              class="text-button"
+              :data-testid="`risk-resume-${item.id}`"
+              :disabled="!canResume(item)"
+              @click="openResumeDialog(item)"
+            >
+              恢复发布
+            </button>
           </div>
         </article>
       </div>
@@ -475,7 +521,13 @@ async function openWorkbenchAfterRefresh(item) {
 
         <div class="dialog-actions" style="margin-top: 18px;">
           <button class="ghost" :disabled="riskSubmitting" @click="closeRiskDialog">取消</button>
-          <button class="warning" data-testid="risk-action-submit" :disabled="riskSubmitting" @click="submitRiskAction">
+          <button
+            v-if="!readOnlyRiskView"
+            class="warning"
+            data-testid="risk-action-submit"
+            :disabled="riskSubmitting"
+            @click="submitRiskAction"
+          >
             {{ riskSubmitting ? '正在保存...' : '确认保存' }}
           </button>
         </div>
@@ -528,7 +580,13 @@ async function openWorkbenchAfterRefresh(item) {
 
         <div class="dialog-actions" style="margin-top: 18px;">
           <button class="ghost" :disabled="resumeSubmitting" @click="closeResumeDialog">取消</button>
-          <button class="success" data-testid="risk-resume-submit" :disabled="resumeSubmitting" @click="submitResume">
+          <button
+            v-if="!readOnlyRiskView"
+            class="success"
+            data-testid="risk-resume-submit"
+            :disabled="resumeSubmitting"
+            @click="submitResume"
+          >
             {{ resumeSubmitting ? '正在恢复...' : '确认恢复发布' }}
           </button>
         </div>

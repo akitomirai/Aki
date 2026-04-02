@@ -4,6 +4,8 @@ $root = Resolve-Path (Join-Path $PSScriptRoot '..')
 $jsonPath = Join-Path $root 'output\playwright\full-regression-baseline.json'
 $scriptPath = Join-Path $root 'output\playwright\full-regression-baseline.mjs'
 $screenshotDir = Join-Path $root 'output\playwright'
+$playwrightDir = Join-Path $root 'tests\e2e'
+$logPermissionSpec = 'specs/log-permission-smoke.spec.mjs'
 
 function Wait-HttpOk {
     param(
@@ -59,6 +61,24 @@ function Add-Issue {
     $script:issues += $Message
 }
 
+function Invoke-LogPermissionSmoke {
+    $env:ADMIN_BASE_URL = 'http://127.0.0.1:5174'
+    $env:TRACE_BASE_URL = 'http://127.0.0.1:5173'
+    $env:API_BASE_URL = 'http://127.0.0.1:8080/api'
+
+    Write-Host "Running log permission smoke: $logPermissionSpec" -ForegroundColor Cyan
+    Push-Location $playwrightDir
+    try {
+        npm run test -- $logPermissionSpec
+        if ($LASTEXITCODE -ne 0) {
+            throw "Log permission smoke failed with exit code: $LASTEXITCODE"
+        }
+    }
+    finally {
+        Pop-Location
+    }
+}
+
 Write-Host 'Checking runtime before baseline regression...' -ForegroundColor Cyan
 Ensure-Service -Name 'backend' -Url 'http://127.0.0.1:8080/actuator/health'
 Ensure-Service -Name 'admin-web' -Url 'http://127.0.0.1:5174/login'
@@ -82,6 +102,8 @@ if (-not (Test-Path $jsonPath)) {
 
 $result = Get-Content $jsonPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $issues = @()
+
+Invoke-LogPermissionSmoke
 
 if ($result.seedBaseline.workbench.batchStatusCode -ne 'PUBLISHED') {
     Add-Issue "Seed baseline batch 2 code is not PUBLISHED: $($result.seedBaseline.workbench.batchStatusCode)"
@@ -170,5 +192,6 @@ Write-Host "Screenshots : $screenshotDir"
 Write-Host 'Verified gates:' -ForegroundColor Cyan
 Write-Host '  - demo seed is restored to the published baseline'
 Write-Host '  - assignment chain, draft blocking, operator submit, risk chain, and public linkage all passed'
+Write-Host '  - log permission smoke passed for platform, enterprise_admin, and operator'
 Write-Host '  - high-frequency pages do not expose English seed values or raw enum values'
 Write-Host '  - publishedAt, task status, and risk status remain consistent'
