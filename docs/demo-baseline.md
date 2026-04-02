@@ -123,6 +123,20 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run-baseline-regression.ps1
 - `tests/e2e/specs/log-permission-smoke.spec.mjs`
 - `scripts/run-baseline-regression.ps1` 现在会在主回归末尾追加执行这条 smoke
 
+主回归噪音口径：
+
+- 当前 baseline regression 的目标是“全绿且无旧噪音”
+- `run-baseline-regression.ps1` 现在会把结果明确分成：
+  - `PASS`
+  - `Expected intercepts`
+  - `True failures`
+- 当前唯一保留的预期拦截是“改派前草稿阻断”：
+  - `POST /api/batches/2/assignment`
+  - 返回 `400`
+  - 中文提示为“该批次当前分配人存在未提交草稿，请先取消改派，或确认强制改派并清除原分配人的未提交草稿。”
+  - 这是预期行为，不再计入旧 HTTP / console 噪音
+- 历史上主回归里那条 `/api/batches/2/assignment` 的 `400` 已从噪音桶移出；如果后续再出现新的 `400`、新的 console error 或 page error，会按真异常处理并直接让回归失败
+
 主回归覆盖：
 
 - 管理员批次列表与工作台

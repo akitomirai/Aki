@@ -108,6 +108,7 @@ if (-not (Test-Path $jsonPath)) {
 
 $result = Get-Content $jsonPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $issues = @()
+$expectedIntercepts = To-Array $result.uiErrors.expectedIntercepts
 
 Invoke-PlaywrightSmoke -Spec $logPermissionSpec
 Invoke-PlaywrightSmoke -Spec $regulatorReadonlySpec
@@ -163,16 +164,12 @@ if ($result.finalState.supportDraftCount -ne 0) {
     Add-Issue "operator_support still has draft residue after regression: $($result.finalState.supportDraftCount)"
 }
 
-$unexpectedHttpErrors = To-Array $result.uiErrors.httpErrors | Where-Object {
-    -not ($_.status -eq 400 -and $_.url -like '*/api/batches/2/assignment')
-}
+$unexpectedHttpErrors = To-Array $result.uiErrors.httpErrors
 if ($unexpectedHttpErrors.Count -gt 0) {
     Add-Issue "Unexpected HTTP errors were captured: $($unexpectedHttpErrors | ConvertTo-Json -Compress)"
 }
 
-$unexpectedConsoleErrors = To-Array $result.uiErrors.consoleErrors | Where-Object {
-    -not ($_.text -match 'status of 400' -and ($_.pageUrl -like '*/batches/2'))
-}
+$unexpectedConsoleErrors = To-Array $result.uiErrors.consoleErrors
 if ($unexpectedConsoleErrors.Count -gt 0) {
     Add-Issue "Unexpected browser console errors were captured: $($unexpectedConsoleErrors | ConvertTo-Json -Compress)"
 }
@@ -185,6 +182,20 @@ if ($pageErrors.Count -gt 0) {
 if ($issues.Count -gt 0) {
     Write-Host ''
     Write-Host 'Baseline regression FAILED:' -ForegroundColor Red
+    Write-Host 'PASS:' -ForegroundColor Green
+    Write-Host '  - demo seed restore, assignment chain, operator submit, risk chain, and public linkage still completed'
+    Write-Host '  - log permission smoke still passed'
+    Write-Host '  - regulator readonly smoke still passed'
+    Write-Host 'Expected intercepts:' -ForegroundColor Yellow
+    if ($expectedIntercepts.Count -eq 0) {
+        Write-Host '  - none'
+    }
+    else {
+        $expectedIntercepts | ForEach-Object {
+            Write-Host "  - [$($_.status) $($_.method)] $($_.label): $($_.message)" -ForegroundColor Yellow
+        }
+    }
+    Write-Host 'True failures:' -ForegroundColor Red
     $issues | ForEach-Object { Write-Host " - $_" -ForegroundColor Red }
     Write-Host ''
     Write-Host "JSON Result : $jsonPath"
@@ -196,10 +207,21 @@ Write-Host ''
 Write-Host 'Baseline regression PASSED.' -ForegroundColor Green
 Write-Host "JSON Result : $jsonPath"
 Write-Host "Screenshots : $screenshotDir"
-Write-Host 'Verified gates:' -ForegroundColor Cyan
+Write-Host 'PASS:' -ForegroundColor Green
 Write-Host '  - demo seed is restored to the published baseline'
-Write-Host '  - assignment chain, draft blocking, operator submit, risk chain, and public linkage all passed'
+Write-Host '  - assignment chain, operator submit, risk chain, and public linkage all passed'
 Write-Host '  - log permission smoke passed for platform, enterprise_admin, and operator'
 Write-Host '  - regulator readonly smoke passed for default landing, read-only pages, and deny logging'
 Write-Host '  - high-frequency pages do not expose English seed values or raw enum values'
 Write-Host '  - publishedAt, task status, and risk status remain consistent'
+Write-Host 'Expected intercepts:' -ForegroundColor Yellow
+if ($expectedIntercepts.Count -eq 0) {
+    Write-Host '  - none'
+}
+else {
+    $expectedIntercepts | ForEach-Object {
+        Write-Host "  - [$($_.status) $($_.method)] $($_.label): $($_.message)" -ForegroundColor Yellow
+    }
+}
+Write-Host 'True failures:' -ForegroundColor Cyan
+Write-Host '  - none'
