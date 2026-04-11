@@ -262,6 +262,23 @@ const modeCounts = computed(() => ({
   ALL: listStats.value.total
 }))
 
+const batchOverviewCards = computed(() => {
+  const detailMap = {
+    ACTION: '优先处理资料未齐或仍需推进的批次',
+    READY: '已经接近发布收口，可继续完成发布',
+    RISK: '需要重点说明冻结、召回和整改进展',
+    LIVE: '方便回查公开页和二维码展示效果',
+    ALL: '从全局视角快速看完整批次台账'
+  }
+
+  return listModeOptions.value.map((item) => ({
+    value: item.value,
+    label: item.label,
+    count: modeCounts.value[item.value] ?? 0,
+    detail: detailMap[item.value] || '查看当前批次集合'
+  }))
+})
+
 const topQueue = computed(() => {
   return batchCards.value.filter((card) => card.insight.isActionable).slice(0, 3)
 })
@@ -1182,10 +1199,10 @@ function buildBatchInsight(item) {
     nextCopy,
     priority,
     progress: [
-      { label: '杩芥函', done: !needsTrace },
-      { label: '璐ㄦ', done: hasQuality },
+      { label: '追溯', done: !needsTrace },
+      { label: '质检', done: hasQuality },
       { label: '二维码', done: hasQr },
-      { label: '鍙戝竷', done: item.status === 'PUBLISHED' }
+      { label: '发布', done: item.status === 'PUBLISHED' }
     ]
   }
 }
@@ -1356,60 +1373,30 @@ function statusClass(status) {
       <span>{{ readOnlyBannerText }}</span>
     </section>
 
-    <section class="panel batch-tabs-panel">
-      <div class="batch-tabs">
-        <button
-          v-for="item in listModeOptions"
-          :key="item.value"
-          type="button"
-          class="batch-tab"
-          :class="{ active: listMode === item.value }"
-          @click="switchListMode(item.value)"
-        >
-          <span>{{ item.label }}</span>
-          <strong>{{ modeCounts[item.value] ?? 0 }}</strong>
-        </button>
-      </div>
-    </section>
-
-    <section class="stats-grid batch-stats-grid">
-      <article class="stat-card">
-        <span>批次总数</span>
-        <strong>{{ listStats.total }}</strong>
+    <section class="overview-cards overview-cards--five">
+      <article
+        v-for="item in batchOverviewCards"
+        :key="item.value"
+        class="overview-card"
+        :class="{ 'is-active': listMode === item.value }"
+        :data-testid="`batch-mode-${item.value}`"
+        @click="switchListMode(item.value)"
+      >
+        <span class="overview-card__icon" />
+        <div class="overview-card__body">
+          <span class="overview-card__label">{{ item.label }}</span>
+          <strong class="overview-card__value">{{ item.count }}</strong>
+        </div>
       </article>
-      <article class="stat-card">
-        <span>{{ readOnlyBatchView ? '重点关注' : '待继续处理' }}</span>
-        <strong>{{ listStats.actionable }}</strong>
-      </article>
-      <article class="stat-card" :class="{ warning: !readOnlyBatchView }">
-        <span>{{ readOnlyBatchView ? '已发布' : '可直接发布' }}</span>
-        <strong>{{ readOnlyBatchView ? modeCounts.LIVE : listStats.ready }}</strong>
-      </article>
-      <article class="stat-card warning">
-        <span>风险关注</span>
-        <strong>{{ listStats.risk }}</strong>
-      </article>
-    </section>
-
-    <section class="hero-card batch-mode-banner">
-      <div>
-        <p class="eyebrow">当前看板</p>
-        <h2>{{ activeModeMeta.title }}</h2>
-        <p class="lead">{{ activeModeMeta.copy }}</p>
-      </div>
-      <div class="hero-actions mode-banner-note">
-        <span>当前显示 {{ visibleBatchCards.length }} 个批次</span>
-        <strong>{{ listModeOptions.find((item) => item.value === listMode)?.label || '全部批次' }}</strong>
-      </div>
-      <div v-if="topQueue.length" class="queue-strip">
-        <article v-for="card in topQueue" :key="card.item.id" class="queue-item">
-          <strong>{{ card.item.batchCode }}</strong>
-          <span>{{ card.item.productName }} · {{ card.insight.nextLabel }}</span>
-        </article>
-      </div>
     </section>
 
     <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <h2 class="panel-heading__title">筛选条件</h2>
+        </div>
+      </div>
+
       <div class="filter-grid">
         <label>
           <span>批次号</span>
@@ -1440,7 +1427,7 @@ function statusClass(status) {
       </div>
 
       <div class="toolbar">
-        <span class="list-summary">{{ activeModeMeta.copy }}</span>
+        <span class="list-summary">当前看板为“{{ listModeOptions.find((item) => item.value === listMode)?.label || '全部批次' }}”，当前显示 {{ visibleBatchCards.length }} 个批次。</span>
         <div class="toolbar-actions">
           <button class="ghost" data-testid="batch-export-ledger" :disabled="loading || !visibleBatchCards.length" @click="exportCurrentLedger">
             导出台账
@@ -1471,6 +1458,12 @@ function statusClass(status) {
     </section>
 
     <section v-else class="panel">
+      <div class="panel-heading">
+        <div>
+          <h2 class="panel-heading__title">批次台账</h2>
+        </div>
+      </div>
+
       <div class="batch-table-head">
         <span>批次与产品</span>
         <span>现场与企业</span>
@@ -1746,7 +1739,7 @@ function statusClass(status) {
               class="ghost"
               @click="copyLatestTraceRecord"
             >
-              澶嶅埗涓婁竴鏉″苟寰皟
+              复制上一条并微调
             </button>
           </div>
 
@@ -1763,13 +1756,13 @@ function statusClass(status) {
           </div>
 
           <label>
-            <span>闃舵</span>
+            <span>阶段</span>
             <select v-model="traceForm.stage" @change="setTraceStage(traceForm.stage)">
               <option v-for="item in stageOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
             </select>
           </label>
           <label>
-            <span>璁板綍鏃堕棿</span>
+            <span>记录时间</span>
             <input v-model="traceForm.eventTime" type="datetime-local">
           </label>
           <label>
@@ -1782,7 +1775,7 @@ function statusClass(status) {
           </label>
           <label class="full-width">
             <span>记录标题</span>
-            <input v-model.trim="traceForm.title" type="text" placeholder="涓€鍙ヨ瘽璇存槑杩欎釜鑺傜偣">
+            <input v-model.trim="traceForm.title" type="text" placeholder="一句话说明这个节点">
           </label>
           <label class="full-width">
             <span>记录说明</span>
@@ -1795,7 +1788,7 @@ function statusClass(status) {
 
           <div class="full-width template-grid">
             <div class="template-card">
-              <span>甯哥敤鍦扮偣</span>
+              <span>常用地点</span>
               <div class="chip-row">
                 <button
                   v-for="item in traceStageProfile.locationTemplates"
@@ -1808,7 +1801,7 @@ function statusClass(status) {
               </div>
             </div>
             <div class="template-card">
-              <span>璇存槑妯℃澘</span>
+              <span>说明模板</span>
               <div class="chip-row">
                 <button
                   v-for="item in traceStageProfile.summaryTemplates"
@@ -1851,11 +1844,11 @@ function statusClass(status) {
 
           <label class="checkbox-field full-width">
             <input v-model="traceForm.visibleToConsumer" type="checkbox">
-            <span>杩欐潯璁板綍鍚屾灞曠ず缁欐秷璐硅€</span>
+            <span>这条记录同步展示给消费者</span>
           </label>
 
           <div v-if="traceDialogContext.latestRecord" class="full-width last-record-card">
-            <span>涓婁竴鏉¤褰</span>
+            <span>上一条记录</span>
             <strong>{{ traceDialogContext.latestRecord.title }}</strong>
             <p>{{ traceDialogContext.latestRecord.location }} 路 {{ traceDialogContext.latestRecord.eventTime }}</p>
             <small>{{ traceDialogContext.latestRecord.summary }}</small>
@@ -1864,15 +1857,15 @@ function statusClass(status) {
 
         <div v-else-if="dialog.type === 'quality'" class="form-grid" data-testid="batch-quality-dialog">
           <label>
-            <span>鎶ュ憡缂栧彿</span>
-            <input v-model.trim="qualityForm.reportNo" type="text" placeholder="渚嬪 JX-20260325-01">
+            <span>报告编号</span>
+            <input v-model.trim="qualityForm.reportNo" type="text" placeholder="例如 JX-20260325-01">
           </label>
           <label>
             <span>检测机构</span>
             <input v-model.trim="qualityForm.agency" type="text" placeholder="例如 江西省农产品质检中心">
           </label>
           <label>
-            <span>缁撴灉</span>
+            <span>结果</span>
             <select v-model="qualityForm.result">
               <option v-for="item in qualityOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
             </select>
@@ -1882,7 +1875,7 @@ function statusClass(status) {
             <input v-model="qualityForm.reportTime" type="datetime-local">
           </label>
           <label class="full-width">
-            <span>璐ㄦ鎽樿</span>
+            <span>质检摘要</span>
             <textarea
               v-model.trim="qualityForm.highlightsText"
               rows="4"
@@ -1890,13 +1883,13 @@ function statusClass(status) {
             />
           </label>
           <label class="full-width">
-            <span>闄勪欢</span>
+            <span>附件</span>
             <div class="upload-box">
               <input type="file" accept=".pdf,image/png,image/jpeg,image/webp" multiple @change="handleQualityFilesChange">
               <small>可上传 PDF 或图片，公开页会优先展示质检结论，后台同时保留附件备查。</small>
             </div>
           </label>
-          <div v-if="qualityUploading" class="full-width upload-hint">姝ｅ湪涓婁紶璐ㄦ闄勪欢...</div>
+          <div v-if="qualityUploading" class="full-width upload-hint">正在上传质检附件...</div>
           <div v-if="qualityForm.uploadedFiles.length" class="full-width uploaded-file-list">
             <article v-for="item in qualityForm.uploadedFiles" :key="item.id" class="uploaded-file-item">
               <div>
@@ -1913,29 +1906,29 @@ function statusClass(status) {
 
         <div v-else-if="dialog.type === 'status'" class="form-grid">
           <label>
-            <span>鐩爣鐘舵€</span>
+            <span>目标状态</span>
             <select v-model="statusForm.targetStatus">
-              <option value="PUBLISHED">鍙戝竷</option>
-              <option value="FROZEN">鍐荤粨</option>
-              <option value="RECALLED">鍙洖</option>
+              <option value="PUBLISHED">发布</option>
+              <option value="FROZEN">冻结</option>
+              <option value="RECALLED">召回</option>
             </select>
           </label>
           <label>
-            <span>澶勭悊浜</span>
+            <span>处理人</span>
             <input v-model.trim="statusForm.operatorName" type="text">
           </label>
           <label class="full-width">
-            <span>澶勭悊鍘熷洜</span>
+            <span>处理原因</span>
             <textarea
               v-model.trim="statusForm.reason"
               rows="4"
-              placeholder="寤鸿鍐欐竻妤氬綋鍓嶆壒娆′负浠€涔堣鍙戝竷銆佸喕缁撴垨鍙洖"
+              placeholder="建议写清当前批次为什么要发布、冻结或召回"
             />
           </label>
         </div>
 
         <div class="dialog-actions">
-          <button class="ghost" @click="closeDialog">鍙栨秷</button>
+          <button class="ghost" @click="closeDialog">取消</button>
           <button
             v-if="dialog.type === 'trace'"
             class="ghost"
@@ -2044,11 +2037,13 @@ function statusClass(status) {
   </div>
 </template>
 
+<style src="../assets/styles/admin-task-pages.css" scoped></style>
+
 <style scoped>
 .page-shell {
-  max-width: 1240px;
+  max-width: 1320px;
   margin: 0 auto;
-  padding: 28px 20px 48px;
+  padding: 28px 22px 48px;
 }
 
 .batch-tabs-panel {
@@ -2103,9 +2098,12 @@ function statusClass(status) {
 .batch-card,
 .dialog-card,
 .message-bar {
-  border-radius: 28px;
-  background: var(--admin-surface);
-  box-shadow: var(--admin-shadow);
+  border: 1px solid rgba(56, 134, 217, 0.12);
+  border-radius: 30px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow:
+    0 22px 54px rgba(45, 113, 194, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
 .hero-card {
@@ -2593,14 +2591,19 @@ button:disabled {
   display: grid;
   grid-template-columns: 1.1fr 0.95fr 0.85fr 0.85fr 1.15fr 1.25fr;
   gap: 16px;
-  padding: 0 0 14px;
-  border-bottom: 1px solid rgba(56, 134, 217, 0.12);
-  color: var(--admin-text-soft);
+  padding: 0 12px 14px;
+  color: #5f7ea3;
   font-size: 13px;
+  font-weight: 700;
 }
 
 .batch-row-list {
   display: grid;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid rgba(56, 134, 217, 0.14);
+  border-radius: 26px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 252, 255, 0.98) 100%);
 }
 
 .batch-row {
@@ -2608,12 +2611,18 @@ button:disabled {
   grid-template-columns: 1.1fr 0.95fr 0.85fr 0.85fr 1.15fr 1.25fr;
   gap: 16px;
   align-items: center;
-  padding: 18px 0;
-  border-bottom: 1px solid rgba(56, 134, 217, 0.1);
+  padding: 20px 18px;
+  border-top: 1px solid rgba(56, 134, 217, 0.1);
+  background: transparent;
+  transition: background-color 0.18s ease;
 }
 
-.batch-row:last-child {
-  border-bottom: 0;
+.batch-row:first-child {
+  border-top: 0;
+}
+
+.batch-row:hover {
+  background: rgba(48, 149, 246, 0.03);
 }
 
 .row-main,

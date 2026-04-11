@@ -28,6 +28,7 @@ CREATE TABLE sys_user (
   username VARCHAR(64) NOT NULL UNIQUE,
   password VARCHAR(128) NOT NULL,
   real_name VARCHAR(64),
+  phone VARCHAR(32),
   role_code VARCHAR(32) NOT NULL,
   company_id BIGINT,
   status TINYINT DEFAULT 1,

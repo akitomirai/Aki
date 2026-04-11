@@ -88,19 +88,19 @@ function handleSecondaryClick(action, event) {
 <style scoped>
 .primary-action-group {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 
 .action-primary,
 .secondary-button {
-  min-height: 40px;
-  padding: 0 16px;
+  min-height: 44px;
+  padding: 0 18px;
   border-radius: 999px;
   border: 1px solid transparent;
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
-  transition: transform 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease, border-color 0.16s ease;
 }
 
 .action-primary {
@@ -109,26 +109,26 @@ function handleSecondaryClick(action, event) {
 
 .action-primary.primary {
   background: linear-gradient(135deg, #3597f6 0%, #2f7dd8 100%);
-  box-shadow: 0 12px 20px rgba(48, 149, 246, 0.22);
+  box-shadow: 0 12px 22px rgba(48, 149, 246, 0.16);
 }
 
 .action-primary.success {
-  background: linear-gradient(135deg, #2ea66a 0%, #258a57 100%);
-  box-shadow: 0 12px 20px rgba(39, 148, 94, 0.2);
+  background: linear-gradient(135deg, #74c89c 0%, #63b98b 100%);
+  box-shadow: 0 12px 22px rgba(99, 185, 139, 0.16);
 }
 
 .action-primary.warning {
-  background: linear-gradient(135deg, #ffad42 0%, #f28b22 100%);
-  box-shadow: 0 12px 20px rgba(242, 139, 34, 0.22);
+  background: linear-gradient(135deg, #ffbf66 0%, #f29a34 100%);
+  box-shadow: 0 12px 22px rgba(242, 154, 52, 0.18);
 }
 
 .action-primary.danger {
-  background: linear-gradient(135deg, #f06565 0%, #dd4a4a 100%);
-  box-shadow: 0 12px 20px rgba(221, 74, 74, 0.2);
+  background: linear-gradient(135deg, #ef8c86 0%, #df6d67 100%);
+  box-shadow: 0 12px 22px rgba(223, 109, 103, 0.16);
 }
 
 .action-primary.ghost {
-  border-color: rgba(56, 134, 217, 0.18);
+  border-color: rgba(56, 134, 217, 0.16);
   background: #fff;
   color: var(--admin-primary-deep);
 }
@@ -145,17 +145,18 @@ function handleSecondaryClick(action, event) {
   margin: 0;
   color: var(--admin-text-soft);
   line-height: 1.7;
+  font-size: 13px;
 }
 
 .secondary-menu {
   border: 1px solid rgba(194, 212, 230, 0.72);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.86);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.92);
 }
 
 .secondary-menu > summary {
-  min-height: 38px;
-  padding: 8px 14px;
+  min-height: 40px;
+  padding: 9px 14px;
   color: var(--admin-primary-deep);
   font-size: 13px;
   font-weight: 700;
@@ -170,11 +171,11 @@ function handleSecondaryClick(action, event) {
 .secondary-list {
   display: grid;
   gap: 8px;
-  padding: 10px;
+  padding: 12px;
 }
 
 .secondary-button {
-  border-color: rgba(56, 134, 217, 0.18);
+  border-color: rgba(56, 134, 217, 0.16);
   background: #fff;
   color: var(--admin-primary-deep);
   font-size: 13px;

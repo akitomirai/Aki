@@ -26,14 +26,21 @@
 }
 
 .nav-groups {
-  display: grid;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
-  align-content: start;
 }
 
 .nav-group {
   display: grid;
   gap: 4px;
+}
+
+.nav-group--account {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--admin-border);
 }
 
 .nav-group-title {
@@ -113,10 +120,14 @@
 
 .header-secondary-button,
 .logout-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 38px;
   padding: 0 16px;
   border-radius: 999px;
   cursor: pointer;
+  text-decoration: none;
 }
 
 .header-secondary-button {
@@ -152,7 +163,15 @@
   }
 
   .nav-groups {
+    display: grid;
+    flex: initial;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .nav-group--account {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
   }
 }
 

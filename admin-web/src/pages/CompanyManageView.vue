@@ -57,10 +57,51 @@
     </el-card>
 
     <div class="manage-summary">
-      <div class="manage-summary-chip">{{ summaryLabel }} <strong>{{ companies.length }}</strong></div>
-      <div v-if="isPlatformAdmin" class="manage-summary-chip">启用中 <strong>{{ summary.enabled }}</strong></div>
-      <div v-if="isPlatformAdmin" class="manage-summary-chip">已停用 <strong>{{ summary.disabled }}</strong></div>
-      <div v-if="isPlatformAdmin" class="manage-summary-chip">已归档 <strong>{{ summary.archived }}</strong></div>
+      <button
+        v-if="isPlatformAdmin"
+        type="button"
+        class="manage-summary-chip manage-summary-chip--interactive"
+        :class="{ 'is-active': searchForm.status === '' }"
+        data-testid="companies-summary-all"
+        @click="handleSummaryChipClick('')"
+      >
+        <span>{{ summaryLabel }}</span>
+        <strong>{{ companies.length }}</strong>
+      </button>
+      <div v-else class="manage-summary-chip">{{ summaryLabel }} <strong>{{ companies.length }}</strong></div>
+      <button
+        v-if="isPlatformAdmin"
+        type="button"
+        class="manage-summary-chip manage-summary-chip--interactive"
+        :class="{ 'is-active': searchForm.status === 'ENABLED' }"
+        data-testid="companies-summary-enabled"
+        @click="handleSummaryChipClick('ENABLED')"
+      >
+        <span>启用中</span>
+        <strong>{{ summary.enabled }}</strong>
+      </button>
+      <button
+        v-if="isPlatformAdmin"
+        type="button"
+        class="manage-summary-chip manage-summary-chip--interactive"
+        :class="{ 'is-active': searchForm.status === 'DISABLED' }"
+        data-testid="companies-summary-disabled"
+        @click="handleSummaryChipClick('DISABLED')"
+      >
+        <span>已停用</span>
+        <strong>{{ summary.disabled }}</strong>
+      </button>
+      <button
+        v-if="isPlatformAdmin"
+        type="button"
+        class="manage-summary-chip manage-summary-chip--interactive"
+        :class="{ 'is-active': searchForm.status === 'ARCHIVED' }"
+        data-testid="companies-summary-archived"
+        @click="handleSummaryChipClick('ARCHIVED')"
+      >
+        <span>已归档</span>
+        <strong>{{ summary.archived }}</strong>
+      </button>
     </div>
 
     <el-card shadow="never" class="manage-table-card">
@@ -160,15 +201,10 @@
     <el-dialog
       v-model="showDialog"
       :title="dialogTitle"
-      width="680px"
+      width="720px"
       @closed="resetForm"
     >
-      <div class="dialog-intro-card">
-        <strong>{{ dialogIntroTitle }}</strong>
-        <span>{{ dialogIntroDesc }}</span>
-      </div>
-
-      <el-form :model="form" label-width="118px" class="dialog-form dialog-form--grouped" data-testid="company-form-dialog">
+      <el-form :model="form" label-position="top" class="dialog-form dialog-form--grouped" data-testid="company-form-dialog">
         <div class="dialog-section-title">基础信息</div>
         <el-form-item label="企业名称（必填）" required>
           <el-input v-model.trim="form.name" maxlength="64" show-word-limit placeholder="请输入企业名称" data-testid="company-form-name" />
@@ -208,15 +244,7 @@
               />
             </el-select>
           </el-form-item>
-          <div class="full-row dialog-status-note">
-            <strong>{{ statusText(form.status) }}</strong>
-            <span>{{ companyStatusHint(form.status) }}</span>
-          </div>
         </template>
-        <div v-else class="full-row dialog-status-note">
-          <strong>本轮仅维护基础资料</strong>
-          <span>企业状态仍由平台管理员统一维护，你在这里只能修改名称、联系人、电话和地址。</span>
-        </div>
       </el-form>
 
       <template #footer>
@@ -293,18 +321,6 @@ const dialogTitle = computed(() => {
   }
   return isEnterpriseAdmin.value ? '编辑本企业资料' : '编辑企业'
 })
-const dialogIntroTitle = computed(() => {
-  if (dialogMode.value === 'create') {
-    return '先补齐企业档案，再继续到产品管理补产品。'
-  }
-  return isEnterpriseAdmin.value ? '当前正在维护本企业资料，保存后会同步影响本企业产品和批次归属。' : '当前正在调整企业档案，保存后会同步回到企业台账。'
-})
-const dialogIntroDesc = computed(() => {
-  if (isEnterpriseAdmin.value) {
-    return '本轮企业管理员只维护基础资料，不处理企业状态、企业删除或平台级企业台账。'
-  }
-  return '带“必填”字段会直接用于产品归属、批次建档和后续联系人回查。'
-})
 
 function isSuccessResponse(res) {
   return res?.success === true || res?.code === 0 || String(res?.code) === '0'
@@ -341,15 +357,9 @@ function statusClass(value) {
   return 'is-enabled'
 }
 
-function companyStatusHint(status) {
-  const normalized = String(status || '').trim().toUpperCase()
-  if (normalized === 'DISABLED') {
-    return '已停用的企业会保留历史台账，后续新建产品或批次前建议先确认是否继续使用。'
-  }
-  if (normalized === 'ARCHIVED') {
-    return '已归档的企业主要用于历史回查，不建议继续作为日常建档入口。'
-  }
-  return '启用中的企业可继续关联产品、创建批次和执行日常维护。'
+function handleSummaryChipClick(status) {
+  searchForm.status = status
+  loadCompanies()
 }
 
 function validateCompanyForm() {
@@ -613,40 +623,25 @@ onMounted(() => {
   width: 100%;
 }
 
-.dialog-intro-card,
-.dialog-status-note {
-  border: 1px solid var(--admin-border);
-  border-radius: 18px;
-  background: var(--admin-surface-soft);
-}
-
-.dialog-intro-card {
-  display: grid;
-  gap: 6px;
-  padding: 14px 16px;
-  margin-bottom: 18px;
-}
-
-.dialog-intro-card strong,
-.dialog-status-note strong,
 .dialog-section-title {
   color: var(--admin-text);
-}
-
-.dialog-intro-card span,
-.dialog-status-note span {
-  color: var(--admin-text-soft);
-  line-height: 1.6;
 }
 
 .dialog-form--grouped {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0 16px;
+  gap: 0 18px;
 }
 
 .dialog-form--grouped :deep(.el-form-item) {
   margin-bottom: 18px;
+}
+
+.dialog-form--grouped :deep(.el-form-item__label) {
+  padding-bottom: 8px;
+  color: var(--admin-text);
+  font-weight: 600;
+  line-height: 1.3;
 }
 
 .dialog-section-title,
@@ -658,12 +653,6 @@ onMounted(() => {
   margin-bottom: 10px;
   font-size: 15px;
   font-weight: 700;
-}
-
-.dialog-status-note {
-  display: grid;
-  gap: 6px;
-  padding: 14px 16px;
 }
 
 @media (max-width: 768px) {

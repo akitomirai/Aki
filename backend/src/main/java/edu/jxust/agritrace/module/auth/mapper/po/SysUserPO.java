@@ -14,6 +14,7 @@ public class SysUserPO {
     private String username;
     private String password;
     private String realName;
+    private String phone;
     private String roleCode;
     private Long companyId;
     private Integer status;
@@ -52,6 +53,14 @@ public class SysUserPO {
 
     public void setRealName(String realName) {
         this.realName = realName;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
     }
 
     public String getRoleCode() {

@@ -9,7 +9,7 @@ const traceStageProfiles = {
   PRODUCE: {
     label: '生产',
     defaultTitle: '记录生产关键节点',
-    defaultOperator: '现场补录员',
+    defaultOperator: '现场录入员',
     locationTemplates: ['一号种植基地', '采收作业区', '加工包装区'],
     summaryTemplates: ['完成本批次现场作业记录，原料与操作人已核对。', '本节点已完成补录，可继续补下一个生产或流转节点。']
   },
@@ -45,7 +45,7 @@ const traceStageProfiles = {
     label: '上市',
     defaultTitle: '记录上市销售',
     defaultOperator: '渠道管理员',
-    locationTemplates: ['门店陈列区', '商超上架点', '电商发货仓'],
+    locationTemplates: ['门店陈列区', '商超上架点', '电商发货位'],
     summaryTemplates: ['本批次已进入销售环节，对外展示信息已准备。', '上市节点已记录，可同步检查二维码与公开页。']
   },
   REGULATION: {
@@ -53,7 +53,7 @@ const traceStageProfiles = {
     defaultTitle: '记录监管处理',
     defaultOperator: '监管联络员',
     locationTemplates: ['监管检查现场', '企业整改会议室', '追溯复核点'],
-    summaryTemplates: ['已记录监管动作与处理意见，便于答辩演示说明。', '当前监管节点已补录，后续可继续更新处理进度。']
+    summaryTemplates: ['已记录监管动作与处理意见，便于答辩展示说明。', '当前监管节点已补录，后续可继续更新处理进度。']
   }
 }
 

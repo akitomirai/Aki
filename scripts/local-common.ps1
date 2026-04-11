@@ -15,7 +15,7 @@ $script:ServiceCatalog = [ordered]@{
         DisplayName = 'admin-web'
         Port = 5174
         Url = 'http://127.0.0.1:5174'
-        ProbeUrl = 'http://127.0.0.1:5174/login'
+        ProbeUrl = 'http://127.0.0.1:5174/'
         LogFileName = 'admin-web.log'
     }
     traceWeb = [pscustomobject]@{
@@ -216,6 +216,25 @@ function Wait-HttpOk {
     )
 
     return (Wait-HttpResult -Url $Url -TimeoutSeconds $TimeoutSeconds).Ok
+}
+
+function Wait-PortListening {
+    param(
+        [Parameter(Mandatory = $true)]
+        [int]$Port,
+        [int]$TimeoutSeconds = 30
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    do {
+        $records = Get-PortListenerRecords -Port $Port
+        if ($records.Count -gt 0) {
+            return $true
+        }
+        Start-Sleep -Seconds 1
+    } while ((Get-Date) -lt $deadline)
+
+    return $false
 }
 
 function Get-ProcessRecord {

@@ -6,7 +6,12 @@
       </div>
 
       <nav class="nav-groups" aria-label="后台菜单">
-        <section v-for="section in menuSections" :key="section.title" class="nav-group">
+        <section
+          v-for="section in menuSections"
+          :key="section.title"
+          class="nav-group"
+          :class="{ 'nav-group--account': section.type === 'account' }"
+        >
           <p class="nav-group-title">{{ section.title }}</p>
           <RouterLink
             v-for="item in section.items"
@@ -29,14 +34,9 @@
             <strong>{{ displayName }}</strong>
             <span>{{ roleName }}</span>
           </div>
-          <button
-            class="header-secondary-button"
-            type="button"
-            data-testid="admin-change-password"
-            @click="openChangePassword"
-          >
-            修改密码
-          </button>
+          <RouterLink class="header-secondary-button" to="/profile">
+            个人资料
+          </RouterLink>
           <button class="logout-button" type="button" @click="logout">退出登录</button>
         </div>
       </header>
@@ -50,14 +50,8 @@
 
 <script setup>
 import { useAdminLayout } from '../../composables/useAdminLayout'
-import { useAuthStore } from '../../stores/auth'
 
-const authStore = useAuthStore()
 const { activeMenu, displayName, logout, menuSections, pageTitle, roleName } = useAdminLayout()
-
-function openChangePassword() {
-  authStore.openPasswordDialog()
-}
 </script>
 
 <style src="./admin-layout.css" scoped></style>

@@ -71,17 +71,19 @@ const roleCounts = computed(() => {
   return counts
 })
 
+const enabledCount = computed(() => rows.value.filter((item) => Number(item.status) === 1).length)
+const disabledCount = computed(() => rows.value.filter((item) => Number(item.status) !== 1).length)
+const passwordPendingCount = computed(() => rows.value.filter((item) => item.needChangePassword).length)
+const currentCompanyName = computed(() => authStore.user?.companyName || '当前企业')
+const companyFieldRequired = computed(() => roleNeedsCompany(dialog.value.form.roleCode))
+const companyFieldDisabled = computed(() => !companyFieldRequired.value || isEnterpriseAdmin.value)
+
 const listSummary = computed(() => {
   if (isPlatformAdmin.value) {
     return `共 ${rows.value.length} 个用户，当前显示 ${visibleRows.value.length} 个。`
   }
   return `当前仅展示本企业用户，共 ${rows.value.length} 个，当前显示 ${visibleRows.value.length} 个。`
 })
-
-const companyFilterEnabled = computed(() => isPlatformAdmin.value)
-const currentCompanyName = computed(() => authStore.user?.companyName || '当前企业')
-const companyFieldRequired = computed(() => roleNeedsCompany(dialog.value.form.roleCode))
-const companyFieldDisabled = computed(() => !companyFieldRequired.value || isEnterpriseAdmin.value)
 
 onMounted(async () => {
   await Promise.all([loadCompanyOptions(), fetchRows()])
@@ -163,24 +165,29 @@ function clearMessage() {
 }
 
 function resolveStatusTone(status) {
-  return Number(status) === 1 ? 'published' : 'recalled'
+  return Number(status) === 1 ? 'is-enabled' : 'is-disabled'
 }
 
 function resolveRoleTone(roleCode) {
   return {
-    PLATFORM_ADMIN: 'published',
-    ENTERPRISE_ADMIN: 'draft',
-    OPERATOR: 'published',
-    REGULATOR: 'frozen'
-  }[String(roleCode || '').toUpperCase()] || 'draft'
+    PLATFORM_ADMIN: 'is-enabled',
+    ENTERPRISE_ADMIN: 'is-archived',
+    OPERATOR: 'is-enabled',
+    REGULATOR: 'is-disabled'
+  }[String(roleCode || '').toUpperCase()] || 'is-archived'
 }
 
 function resolvePasswordTone(item) {
-  return item.needChangePassword ? 'draft' : 'published'
+  return item.needChangePassword ? 'is-archived' : 'is-enabled'
 }
 
 function companyText(item) {
-  return item.companyName || '平台直属'
+  return item.companyName || '平台主管账号'
+}
+
+function handleStatusChipClick(status) {
+  filters.value.status = filters.value.status === status ? '' : status
+  fetchRows()
 }
 
 function resetFilters() {
@@ -208,7 +215,7 @@ async function fetchRows() {
     const response = await getUserList(cleanObject({
       keyword: filters.value.keyword || undefined,
       status: filters.value.status === '' ? undefined : Number(filters.value.status),
-      companyId: companyFilterEnabled.value ? normalizeCompanyId(filters.value.companyId) || undefined : undefined
+      companyId: isPlatformAdmin.value ? normalizeCompanyId(filters.value.companyId) || undefined : undefined
     }))
     rows.value = response.data ?? []
   } catch (error) {
@@ -343,188 +350,214 @@ async function submitResetPassword() {
 </script>
 
 <template>
-  <div class="page-shell" data-testid="users-page">
+  <div class="manage-page user-manage" data-testid="users-page">
     <section class="manage-page-header">
       <div>
         <h1 class="manage-page-title">用户管理</h1>
-        <p class="manage-page-subtitle">
-          在后台统一维护平台管理员、企业管理员、现场操作员和监管人员，账号启停、角色归属、首次登录改密和管理员重置密码都从这里处理。
-        </p>
+        <p class="manage-page-desc">统一维护平台管理员、企业管理员、现场操作员和监管人员账号，先筛选，再执行编辑、重置密码和启停。</p>
       </div>
       <div class="manage-page-actions">
-        <button class="ghost" data-testid="users-refresh-button" :disabled="loading" @click="fetchRows">刷新</button>
-        <button class="primary" data-testid="users-open-create" @click="openCreateDialog">新增用户</button>
+        <el-button data-testid="users-refresh-button" @click="fetchRows" :loading="loading">刷新</el-button>
+        <el-button type="primary" data-testid="users-open-create" @click="openCreateDialog">新增用户</el-button>
       </div>
     </section>
 
-    <section class="panel todo-tabs-panel">
-      <div class="todo-tabs">
-        <button
-          v-for="tab in roleTabs"
-          :key="tab.value"
-          type="button"
-          class="todo-tab"
-          :class="{ active: activeRoleTab === tab.value }"
-          :data-testid="`users-tab-${tab.value}`"
-          @click="activeRoleTab = tab.value"
+    <div class="manage-summary">
+      <button
+        v-for="tab in roleTabs"
+        :key="tab.value"
+        type="button"
+        class="manage-summary-chip manage-summary-chip--interactive"
+        :class="{ 'is-active': activeRoleTab === tab.value }"
+        :data-testid="`users-tab-${tab.value}`"
+        @click="activeRoleTab = tab.value"
+      >
+        <span>{{ tab.label }}</span>
+        <strong>{{ roleCounts[tab.value] ?? 0 }}</strong>
+      </button>
+      <button
+        type="button"
+        class="manage-summary-chip manage-summary-chip--interactive"
+        :class="{ 'is-active': filters.status === '1' }"
+        data-testid="users-summary-enabled"
+        @click="handleStatusChipClick('1')"
+      >
+        <span>启用中</span>
+        <strong>{{ enabledCount }}</strong>
+      </button>
+      <button
+        type="button"
+        class="manage-summary-chip manage-summary-chip--interactive"
+        :class="{ 'is-active': filters.status === '0' }"
+        data-testid="users-summary-disabled"
+        @click="handleStatusChipClick('0')"
+      >
+        <span>已停用</span>
+        <strong>{{ disabledCount }}</strong>
+      </button>
+      <div class="manage-summary-chip">
+        <span>待改密码</span>
+        <strong>{{ passwordPendingCount }}</strong>
+      </div>
+    </div>
+
+    <el-card shadow="never" class="manage-filter-card">
+      <div class="manage-filter-grid user-filter-grid">
+        <el-input
+          v-model.trim="filters.keyword"
+          clearable
+          class="manage-filter-item"
+          data-testid="users-filter-keyword"
+          placeholder="输入用户名或姓名"
+          @keyup.enter="fetchRows"
+        />
+
+        <el-select
+          v-if="isPlatformAdmin"
+          v-model="filters.companyId"
+          clearable
+          filterable
+          class="manage-filter-item"
+          data-testid="users-filter-company"
+          placeholder="所属企业"
+          :loading="companyLoading"
         >
-          <span>{{ tab.label }}</span>
-          <strong>{{ roleCounts[tab.value] ?? 0 }}</strong>
-        </button>
-      </div>
-    </section>
+          <el-option value="" label="全部企业" />
+          <el-option v-for="item in companyOptions" :key="item.id" :label="item.name" :value="item.id" />
+        </el-select>
 
-    <section class="panel">
-      <div class="filter-grid">
-        <label>
-          <span>关键词</span>
-          <input
-            v-model.trim="filters.keyword"
-            data-testid="users-filter-keyword"
-            type="text"
-            placeholder="输入用户名或姓名"
-          >
-        </label>
+        <el-input
+          v-else
+          class="manage-filter-item"
+          :model-value="currentCompanyName"
+          disabled
+        />
 
-        <label v-if="companyFilterEnabled">
-          <span>所属企业</span>
-          <select v-model="filters.companyId" data-testid="users-filter-company" :disabled="companyLoading">
-            <option value="">全部企业</option>
-            <option v-for="item in companyOptions" :key="item.id" :value="item.id">{{ item.name }}</option>
-          </select>
-        </label>
-        <label v-else>
-          <span>所属企业</span>
-          <input :value="currentCompanyName" type="text" disabled>
-        </label>
+        <el-select
+          v-model="filters.status"
+          class="manage-filter-item"
+          data-testid="users-filter-status"
+          placeholder="用户状态"
+        >
+          <el-option value="" label="全部状态" />
+          <el-option value="1" label="启用" />
+          <el-option value="0" label="停用" />
+        </el-select>
 
-        <label>
-          <span>用户状态</span>
-          <select v-model="filters.status" data-testid="users-filter-status">
-            <option value="">全部状态</option>
-            <option value="1">启用</option>
-            <option value="0">停用</option>
-          </select>
-        </label>
-
-        <label>
-          <span>当前角色筛选</span>
-          <input :value="roleTabs.find((item) => item.value === activeRoleTab)?.label || '全部用户'" type="text" disabled>
-        </label>
-      </div>
-
-      <div class="toolbar">
-        <span class="list-summary">{{ listSummary }}</span>
-        <div class="toolbar-actions">
-          <button class="primary" data-testid="users-search-button" :disabled="loading" @click="fetchRows">查询</button>
-          <button class="ghost" data-testid="users-reset-button" :disabled="loading" @click="resetFilters">重置</button>
+        <div class="summary-slot">
+          <span class="manage-muted">{{ listSummary }}</span>
         </div>
+
+        <el-button type="primary" data-testid="users-search-button" @click="fetchRows">查询</el-button>
+        <el-button data-testid="users-reset-button" @click="resetFilters">重置</el-button>
       </div>
-    </section>
+    </el-card>
 
     <section v-if="message" class="message-bar" :class="messageType">{{ message }}</section>
 
-    <section v-if="loading" class="panel empty-state">
-      <div>
-        <h3>正在加载用户列表...</h3>
-        <p class="empty-copy">请稍等，系统正在汇总角色、企业、账号状态和密码状态。</p>
-      </div>
-    </section>
-
-    <section v-else-if="!visibleRows.length" class="panel empty-state">
-      <div>
-        <h3>当前筛选下没有用户</h3>
-        <p class="empty-copy">可以调整角色、企业、状态或关键词后再查看。</p>
-      </div>
-    </section>
-
-    <section v-else class="panel">
-      <div class="todo-table-head user-head">
-        <span>用户名</span>
-        <span>姓名</span>
-        <span>角色</span>
-        <span>所属企业</span>
-        <span>状态</span>
-        <span>密码状态</span>
-        <span>最近更新时间</span>
-        <span>操作</span>
-      </div>
-
-      <div class="todo-row-list">
-        <article
-          v-for="item in visibleRows"
-          :key="item.id"
-          class="todo-row user-row"
-          :data-testid="`users-row-${item.id}`"
-        >
-          <div class="row-main">
-            <strong>{{ item.username }}</strong>
-            <small>ID {{ item.id }}</small>
+    <el-card shadow="never" class="manage-table-card">
+      <template #header>
+        <div class="manage-table-header">
+          <div>
+            <p class="manage-table-title">用户台账</p>
+            <p class="manage-table-tip">列表按用户名、角色、企业和状态统一回看，右侧直接执行编辑、重置密码和启停。</p>
           </div>
+        </div>
+      </template>
 
-          <div class="row-main">
-            <strong>{{ item.realName }}</strong>
-            <small>{{ item.username }}</small>
-          </div>
+      <el-table
+        :data="visibleRows"
+        v-loading="loading"
+        border
+        stripe
+        empty-text="当前筛选下没有用户"
+        data-testid="users-table"
+      >
+        <el-table-column label="用户名" min-width="150" show-overflow-tooltip>
+          <template #default="{ row }">
+            <div class="name-cell" :data-testid="`users-row-${row.id}`">
+              <strong>{{ row.username }}</strong>
+            </div>
+          </template>
+        </el-table-column>
 
-          <div class="status-stack">
-            <span class="status-badge" :class="resolveRoleTone(item.roleCode)">{{ item.roleName }}</span>
-            <small>{{ item.roleCode }}</small>
-          </div>
+        <el-table-column label="姓名" min-width="140" show-overflow-tooltip>
+          <template #default="{ row }">
+            {{ row.realName || '未填写' }}
+          </template>
+        </el-table-column>
 
-          <div class="row-meta">
-            <strong>{{ companyText(item) }}</strong>
-            <small>{{ item.companyId ? `企业 ID ${item.companyId}` : '平台直属账号' }}</small>
-          </div>
+        <el-table-column label="角色" min-width="150" show-overflow-tooltip>
+          <template #default="{ row }">
+            <el-tag effect="plain" size="small" class="manage-status-tag" :class="resolveRoleTone(row.roleCode)">
+              {{ row.roleName }}
+            </el-tag>
+          </template>
+        </el-table-column>
 
-          <div class="status-stack">
-            <span class="status-badge" :class="resolveStatusTone(item.status)">{{ item.statusLabel }}</span>
-            <small>{{ Number(item.status) === 1 ? '可登录，可参与新分配' : '不可登录，不可参与新分配' }}</small>
-          </div>
+        <el-table-column label="所属企业" min-width="180" show-overflow-tooltip>
+          <template #default="{ row }">
+            <strong>{{ companyText(row) }}</strong>
+          </template>
+        </el-table-column>
 
-          <div class="status-stack">
-            <span class="status-badge" :class="resolvePasswordTone(item)">{{ item.passwordStatusLabel }}</span>
-            <small>{{ item.passwordUpdatedAt || '尚未设置' }}</small>
-          </div>
+        <el-table-column label="状态" width="110">
+          <template #default="{ row }">
+            <el-tag effect="plain" size="small" class="manage-status-tag" :class="resolveStatusTone(row.status)">
+              {{ row.statusLabel }}
+            </el-tag>
+          </template>
+        </el-table-column>
 
-          <div class="row-meta">
-            <strong>{{ item.updatedAt || '暂无更新' }}</strong>
-            <small>最近更新时间</small>
-          </div>
+        <el-table-column label="密码状态" min-width="130">
+          <template #default="{ row }">
+            <el-tag effect="plain" size="small" class="manage-status-tag" :class="resolvePasswordTone(row)">
+              {{ row.passwordStatusLabel }}
+            </el-tag>
+          </template>
+        </el-table-column>
 
-          <div class="row-actions">
-            <button class="text-button" :data-testid="`user-edit-${item.id}`" @click="openEditDialog(item)">编辑</button>
-            <button
-              class="text-button"
-              :data-testid="`user-reset-password-${item.id}`"
-              :disabled="Number(authStore.user?.id) === Number(item.id)"
-              @click="openResetPasswordDialog(item)"
-            >
-              重置密码
-            </button>
-            <button
-              class="text-button"
-              :data-testid="`user-toggle-${item.id}`"
-              :disabled="Number(authStore.user?.id) === Number(item.id)"
-              @click="toggleUserStatus(item)"
-            >
-              {{ Number(item.status) === 1 ? '停用' : '启用' }}
-            </button>
-          </div>
-        </article>
-      </div>
-    </section>
+        <el-table-column label="最近更新时间" min-width="160" show-overflow-tooltip>
+          <template #default="{ row }">
+            {{ row.updatedAt || '暂无更新' }}
+          </template>
+        </el-table-column>
+
+        <el-table-column label="操作" min-width="260" fixed="right">
+          <template #default="{ row }">
+            <div class="action-cell">
+              <el-button type="primary" link class="table-action-link" :data-testid="`user-edit-${row.id}`" @click="openEditDialog(row)">编辑</el-button>
+              <el-button
+                type="primary"
+                link
+                class="table-action-link"
+                :data-testid="`user-reset-password-${row.id}`"
+                :disabled="Number(authStore.user?.id) === Number(row.id)"
+                @click="openResetPasswordDialog(row)"
+              >
+                重置密码
+              </el-button>
+              <el-button
+                type="primary"
+                link
+                class="table-action-link"
+                :data-testid="`user-toggle-${row.id}`"
+                :disabled="Number(authStore.user?.id) === Number(row.id)"
+                @click="toggleUserStatus(row)"
+              >
+                {{ Number(row.status) === 1 ? '停用' : '启用' }}
+              </el-button>
+            </div>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
 
     <div v-if="dialog.visible" class="dialog-mask" @click.self="closeDialog">
       <section class="dialog-card user-dialog" data-testid="user-form-dialog">
         <div class="dialog-head">
           <div>
             <h3>{{ dialog.mode === 'create' ? '新增用户' : '编辑用户' }}</h3>
-            <p>
-              {{ dialog.mode === 'create'
-                ? '新建账号后会自动标记为“首次登录需改密”，交付给同事后需要先完成改密。'
-                : '可修改显示名、角色和企业归属，保存后列表会立即刷新。' }}
-            </p>
           </div>
           <button class="ghost" :disabled="saving" @click="closeDialog">关闭</button>
         </div>
@@ -579,11 +612,6 @@ async function submitResetPassword() {
               <option value="">{{ companyFieldRequired ? '请选择所属企业' : '当前角色无需绑定企业' }}</option>
               <option v-for="item in formCompanyOptions" :key="item.id" :value="item.id">{{ item.name }}</option>
             </select>
-            <small class="field-note">
-              <template v-if="!companyFieldRequired">平台管理员和监管人员默认不绑定企业。</template>
-              <template v-else-if="isEnterpriseAdmin">企业管理员只能管理本企业用户：{{ currentCompanyName }}</template>
-              <template v-else>企业管理员和现场操作员必须绑定所属企业。</template>
-            </small>
           </label>
         </div>
 
@@ -601,7 +629,6 @@ async function submitResetPassword() {
         <div class="dialog-head">
           <div>
             <h3>重置密码</h3>
-            <p>为 {{ resetDialog.displayName }} 设置新的登录密码。重置后，该用户下次登录必须先修改密码。</p>
           </div>
           <button class="ghost" :disabled="resetSaving" @click="closeResetPasswordDialog">关闭</button>
         </div>
@@ -629,20 +656,52 @@ async function submitResetPassword() {
   </div>
 </template>
 
-<style src="../../assets/styles/admin-task-pages.css" scoped></style>
-
 <style scoped>
-.user-head,
-.user-row {
-  grid-template-columns:
-    minmax(0, 1fr)
-    minmax(0, 1.1fr)
-    minmax(0, 0.9fr)
-    minmax(0, 1fr)
-    minmax(0, 0.95fr)
-    minmax(0, 1fr)
-    minmax(0, 1fr)
-    minmax(0, 1.2fr);
+.user-manage {
+  padding: 20px;
+}
+
+.user-filter-grid {
+  grid-template-columns: minmax(0, 1.6fr) minmax(180px, 1fr) minmax(180px, 1fr) minmax(240px, 1fr) auto auto;
+}
+
+.summary-slot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 8px;
+}
+
+.name-cell,
+.stack-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.name-cell strong,
+.stack-cell strong {
+  color: var(--admin-text);
+  font-size: 14px;
+}
+
+.name-cell span,
+.stack-cell span {
+  color: var(--admin-text-soft);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.action-cell {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  white-space: nowrap;
+}
+
+.table-action-link {
+  padding: 0;
+  font-weight: 600;
 }
 
 .user-dialog,
@@ -650,12 +709,54 @@ async function submitResetPassword() {
   width: min(760px, 100%);
 }
 
-.field-note {
-  line-height: 1.6;
+.dialog-head h3 {
+  margin: 0;
+  color: var(--admin-text);
 }
 
-@media (max-width: 760px) {
-  .user-row {
+.dialog-card label {
+  display: block;
+}
+
+.dialog-card label span {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--admin-text-soft);
+  font-size: 14px;
+}
+
+.dialog-card input,
+.dialog-card select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border: 1px solid var(--admin-border);
+  border-radius: 16px;
+  background: var(--admin-surface-soft);
+  color: var(--admin-text);
+}
+
+.full-width {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 960px) {
+  .user-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .user-manage {
+    padding: 14px;
+  }
+
+  .summary-slot {
+    justify-content: flex-start;
+    padding-right: 0;
+  }
+
+  .user-filter-grid {
     grid-template-columns: 1fr;
   }
 }

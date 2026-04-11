@@ -3,10 +3,11 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import {
   getRoleName,
-  hasRoleAccess,
-  isEnterpriseAdmin,
-  isRegulator
+  hasRoleAccess
 } from '../utils/access'
+
+const dashboardRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN']
+const batchReadRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN', 'REGULATOR']
 
 export function useAdminLayout() {
   const route = useRoute()
@@ -23,6 +24,7 @@ export function useAdminLayout() {
   })
 
   const activeMenu = computed(() => {
+    if (route.path.startsWith('/profile')) return '/profile'
     if (route.path.startsWith('/users')) return '/users'
     if (route.path.startsWith('/logs')) return '/logs'
     if (route.path.startsWith('/qr')) return '/qr'
@@ -41,36 +43,23 @@ export function useAdminLayout() {
 
   const menuSections = computed(() => {
     const role = roleCode.value
-    const enterpriseOnly = isEnterpriseAdmin(role)
-    const regulatorOnly = isRegulator(role)
     const sections = []
 
-    if (regulatorOnly) {
-      return [
-        {
-          title: '监管查看',
-          items: [
-            { key: '/risk', label: '风险查看', to: '/risk' },
-            { key: '/batches', label: '批次查看', to: '/batches' },
-            { key: '/quality', label: '质检查看', to: '/quality' }
-          ]
-        }
-      ]
+    if (hasRoleAccess(role, dashboardRoles)) {
+      sections.push({
+        title: '工作台',
+        items: [
+          { key: '/dashboard', label: '首页总览', to: '/dashboard' }
+        ]
+      })
     }
-
-    sections.push({
-      title: '工作台',
-      items: [
-        { key: '/dashboard', label: '首页总览', to: '/dashboard' }
-      ]
-    })
 
     const baseDataItems = []
     if (hasRoleAccess(role, ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN'])) {
       baseDataItems.push({ key: '/products', label: '产品管理', to: '/products' })
       baseDataItems.push({
         key: '/companies',
-        label: enterpriseOnly ? '本企业资料' : '企业管理',
+        label: role === 'ENTERPRISE_ADMIN' ? '本企业资料' : '企业管理',
         to: '/companies'
       })
     }
@@ -93,12 +82,14 @@ export function useAdminLayout() {
       })
     }
 
-    sections.push({
-      title: '业务管理',
-      items: [
-        { key: '/batches', label: '批次管理', to: '/batches' }
-      ]
-    })
+    if (hasRoleAccess(role, batchReadRoles)) {
+      sections.push({
+        title: '业务管理',
+        items: [
+          { key: '/batches', label: '批次管理', to: '/batches' }
+        ]
+      })
+    }
 
     const qualityItems = []
     if (hasRoleAccess(role, ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN'])) {
@@ -114,6 +105,14 @@ export function useAdminLayout() {
         items: qualityItems
       })
     }
+
+    sections.push({
+      title: '账号设置',
+      type: 'account',
+      items: [
+        { key: '/profile', label: '个人资料', to: '/profile' }
+      ]
+    })
 
     return sections
   })

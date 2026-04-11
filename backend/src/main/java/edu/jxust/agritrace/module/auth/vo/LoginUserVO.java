@@ -5,9 +5,11 @@ public class LoginUserVO {
     private Long id;
     private String username;
     private String realName;
+    private String phone;
     private String roleCode;
     private String roleName;
     private Long companyId;
+    private String companyName;
     private Boolean needChangePassword;
     private String passwordUpdatedAt;
 
@@ -35,6 +37,14 @@ public class LoginUserVO {
         this.realName = realName;
     }
 
+    public String getPhone() {
+        return phone;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
+    }
+
     public String getRoleCode() {
         return roleCode;
     }
@@ -57,6 +67,14 @@ public class LoginUserVO {
 
     public void setCompanyId(Long companyId) {
         this.companyId = companyId;
+    }
+
+    public String getCompanyName() {
+        return companyName;
+    }
+
+    public void setCompanyName(String companyName) {
+        this.companyName = companyName;
     }
 
     public Boolean getNeedChangePassword() {

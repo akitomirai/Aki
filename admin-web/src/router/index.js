@@ -27,6 +27,15 @@ const routes = [
     }
   },
   {
+    path: '/register',
+    name: 'register',
+    component: () => import('../pages/Register/RegisterView.vue'),
+    meta: {
+      guestOnly: true,
+      title: '注册'
+    }
+  },
+  {
     path: '/field-entry',
     name: 'field-entry',
     component: () => import('../pages/FieldEntryView.vue'),
@@ -123,7 +132,7 @@ const routes = [
         component: () => import('../pages/QualityTodoView.vue'),
         meta: {
           requiresAuth: true,
-          title: '质检查看',
+          title: '质检待办',
           roles: qualityReadRoles
         }
       },
@@ -135,6 +144,16 @@ const routes = [
           requiresAuth: true,
           title: '风险处理',
           roles: riskRoles
+        }
+      },
+      {
+        path: 'profile',
+        name: 'profile',
+        component: () => import('../pages/ProfileView.vue'),
+        meta: {
+          requiresAuth: true,
+          title: '个人资料',
+          roles: ALL_ADMIN_ROLES
         }
       },
       {

@@ -79,8 +79,13 @@ try {
     }
 
     foreach ($service in $started) {
-        $probe = Wait-HttpResult -Url $service.ProbeUrl -TimeoutSeconds 120
-        if (-not $probe.Ok) {
+        $serviceReady = if ($service.Name -eq 'backend') {
+            Wait-HttpOk -Url $service.ProbeUrl -TimeoutSeconds 120
+        } else {
+            Wait-PortListening -Port $service.Port -TimeoutSeconds 75
+        }
+
+        if (-not $serviceReady) {
             Write-Host ''
             Write-Host "Service failed to become healthy: $($service.DisplayName)" -ForegroundColor Red
             Write-Host "Probe URL : $($service.ProbeUrl)"

@@ -26,17 +26,11 @@ const currentCompanyName = computed(() => authStore.user?.companyName || '当前
 const pageTitle = computed(() => isEnterpriseAdmin.value ? '本企业操作日志' : '操作日志')
 const pageDesc = computed(() => {
   if (isEnterpriseAdmin.value) {
-    return `只查看 ${currentCompanyName.value} 的关键留痕，包含资料维护、批次流转和越权拒绝记录，方便企业管理员回查本企业内的后台动作。`
+    return `只查看 ${currentCompanyName.value} 的关键后台留痕，方便回查本企业内的资料维护、批次流转和风险处置动作。`
   }
-  return '统一查看用户管理、批次分配、质检、二维码、发布、风险处理和现场作业提交的关键留痕，方便管理员快速回查谁在什么时间做了什么。'
+  return '统一查看关键后台留痕，便于按时间、操作人和企业快速回看近期动作。'
 })
-const scopedModeHint = computed(() => `当前只展示 ${currentCompanyName.value} 的操作日志，所属企业已固定，不支持切换到其他企业。`)
-const companyFieldHint = computed(() => {
-  if (companyFilterEnabled.value) {
-    return '可按企业切换范围，排查跨企业后台动作。'
-  }
-  return '当前账号固定查看本企业日志，越权拒绝记录也会按本企业范围留痕。'
-})
+const scopedModeHint = computed(() => `当前只展示 ${currentCompanyName.value} 的操作日志，所属企业范围已固定。`)
 const pageCount = computed(() => Math.max(1, Math.ceil(Number(total.value || 0) / Number(pageSize.value || 20))))
 const pageSummary = computed(() => {
   if (!total.value) {
@@ -44,14 +38,31 @@ const pageSummary = computed(() => {
   }
   const from = (page.value - 1) * pageSize.value + 1
   const to = Math.min(total.value, page.value * pageSize.value)
-  return `共 ${total.value} 条操作日志，当前显示 ${from}-${to} 条。`
+  return `共 ${total.value} 条日志，当前显示 ${from}-${to} 条。`
 })
-const emptyStateCopy = computed(() => {
-  if (companyFilterEnabled.value) {
-    return '可以调整操作类型、时间范围、企业或操作人后再查看。'
-  }
-  return '可以调整操作类型、时间范围或操作人后再查看。'
-})
+
+const actionOptions = [
+  { value: '', label: '全部操作类型' },
+  { value: 'AUTH_LOGIN_SUCCESS', label: '登录成功' },
+  { value: 'USER_CREATE', label: '新建用户' },
+  { value: 'USER_UPDATE', label: '编辑用户' },
+  { value: 'USER_ENABLE', label: '启用用户' },
+  { value: 'USER_DISABLE', label: '停用用户' },
+  { value: 'USER_RESET_PASSWORD', label: '重置密码' },
+  { value: 'BATCH_ASSIGN', label: '分配操作员' },
+  { value: 'BATCH_REASSIGN', label: '改派操作员' },
+  { value: 'BATCH_UNASSIGN', label: '清空分配' },
+  { value: 'QUALITY_UPLOAD', label: '上传质检' },
+  { value: 'QR_GENERATE', label: '生成二维码' },
+  { value: 'BATCH_PUBLISH', label: '发布批次' },
+  { value: 'RISK_FREEZE', label: '冻结批次' },
+  { value: 'RISK_COMMENT', label: '补处理说明' },
+  { value: 'RISK_RECTIFICATION', label: '补整改记录' },
+  { value: 'RISK_PROCESSING', label: '标记处理中' },
+  { value: 'RISK_RECTIFIED', label: '标记已整改' },
+  { value: 'RISK_RESUME_PUBLISH', label: '恢复发布' },
+  { value: 'TRACE_RECORD_SUBMIT', label: '提交现场记录' }
+]
 
 const roleOptions = [
   { value: '', label: '全部角色' },
@@ -65,41 +76,6 @@ const resultOptions = [
   { value: '', label: '全部结果' },
   { value: 'SUCCESS', label: '成功' },
   { value: 'FAILED', label: '失败' }
-]
-
-const actionOptions = [
-  { value: '', label: '全部操作类型' },
-  { value: 'AUTH_LOGIN_SUCCESS', label: '登录成功' },
-  { value: 'USER_CREATE', label: '新建用户' },
-  { value: 'USER_UPDATE', label: '编辑用户' },
-  { value: 'USER_ENABLE', label: '启用用户' },
-  { value: 'USER_DISABLE', label: '停用用户' },
-  { value: 'USER_RESET_PASSWORD', label: '重置密码' },
-  { value: 'USER_ACCESS_DENIED', label: '用户管理越权拒绝' },
-  { value: 'COMPANY_ACCESS_DENIED', label: '企业资料越权拒绝' },
-  { value: 'PRODUCT_ACCESS_DENIED', label: '产品资料越权拒绝' },
-  { value: 'LOG_ACCESS_DENIED', label: '日志访问越权拒绝' },
-  { value: 'BATCH_ACCESS_DENIED', label: '批次访问被拒绝' },
-  { value: 'BATCH_EDIT_DENIED', label: '批次编辑被拒绝' },
-  { value: 'BATCH_ASSIGN', label: '分配操作员' },
-  { value: 'BATCH_REASSIGN', label: '改派操作员' },
-  { value: 'BATCH_UNASSIGN', label: '清空分配' },
-  { value: 'BATCH_ASSIGN_DENIED', label: '任务分配被拒绝' },
-  { value: 'QUALITY_UPLOAD', label: '上传质检' },
-  { value: 'QUALITY_UPLOAD_DENIED', label: '质检上传被拒绝' },
-  { value: 'QR_GENERATE', label: '生成二维码' },
-  { value: 'QR_PUBLISH_DENIED', label: '二维码/发布操作被拒绝' },
-  { value: 'BATCH_PUBLISH', label: '发布批次' },
-  { value: 'RISK_FREEZE', label: '冻结批次' },
-  { value: 'RISK_COMMENT', label: '补处理说明' },
-  { value: 'RISK_RECTIFICATION', label: '补整改记录' },
-  { value: 'RISK_PROCESSING', label: '标记处理中' },
-  { value: 'RISK_RECTIFIED', label: '标记已整改' },
-  { value: 'RISK_RESUME_PUBLISH', label: '恢复发布' },
-  { value: 'RISK_ACTION_DENIED', label: '风险处理被拒绝' },
-  { value: 'TRACE_RECORD_SUBMIT', label: '提交现场记录' },
-  { value: 'TRACE_RECORD_DENIED', label: '现场记录提交被拒绝' },
-  { value: 'TRACE_IMAGE_UPLOAD', label: '图片上传成功' }
 ]
 
 onMounted(async () => {
@@ -207,240 +183,215 @@ function closeDetailDialog() {
 }
 
 function goPrevPage() {
-  if (loading.value || page.value <= 1) {
-    return
-  }
+  if (loading.value || page.value <= 1) return
   fetchRows(page.value - 1)
 }
 
 function goNextPage() {
-  if (loading.value || page.value >= pageCount.value) {
-    return
-  }
+  if (loading.value || page.value >= pageCount.value) return
   fetchRows(page.value + 1)
 }
 
 function companyText(item) {
-  return item.companyName || '平台主管范围'
+  return item.companyName || '平台范围'
 }
 
 function actionTone(actionType) {
   const code = String(actionType || '').toUpperCase()
-  if (code.endsWith('_DENIED')) {
-    return 'recalled'
-  }
-  if (code.startsWith('RISK_')) {
-    return 'frozen'
-  }
-  if (code.startsWith('USER_') || code.startsWith('AUTH_')) {
-    return 'draft'
-  }
-  return 'published'
+  if (code.startsWith('RISK_')) return 'is-archived'
+  if (code.startsWith('USER_') || code.startsWith('AUTH_')) return 'is-enabled'
+  return 'is-disabled'
 }
 
 function resultTone(result) {
-  return String(result || '').toUpperCase() === 'FAILED' ? 'recalled' : 'published'
+  return String(result || '').toUpperCase() === 'FAILED' ? 'is-disabled' : 'is-enabled'
 }
 
 function roleTone(roleCode) {
   return {
-    PLATFORM_ADMIN: 'published',
-    ENTERPRISE_ADMIN: 'draft',
-    OPERATOR: 'published',
-    REGULATOR: 'frozen'
-  }[String(roleCode || '').toUpperCase()] || 'draft'
+    PLATFORM_ADMIN: 'is-enabled',
+    ENTERPRISE_ADMIN: 'is-archived',
+    OPERATOR: 'is-enabled',
+    REGULATOR: 'is-disabled'
+  }[String(roleCode || '').toUpperCase()] || 'is-archived'
 }
 
 function summaryPreview(item) {
   const text = String(item.summary || '')
-  if (text.length <= 44) {
+  if (text.length <= 52) {
     return text
   }
-  return `${text.slice(0, 44)}...`
+  return `${text.slice(0, 52)}...`
 }
 </script>
 
 <template>
-  <div class="page-shell" data-testid="logs-page">
+  <div class="manage-page logs-manage" data-testid="logs-page">
     <section class="manage-page-header">
       <div>
         <h1 class="manage-page-title">{{ pageTitle }}</h1>
-        <p class="manage-page-subtitle">{{ pageDesc }}</p>
+        <p class="manage-page-desc">{{ pageDesc }}</p>
       </div>
       <div class="manage-page-actions">
-        <button class="ghost" data-testid="logs-refresh-button" :disabled="loading" @click="fetchRows(page)">刷新</button>
+        <el-button data-testid="logs-refresh-button" @click="fetchRows(page)" :loading="loading">刷新</el-button>
       </div>
     </section>
 
-    <section v-if="isEnterpriseAdmin" class="panel profile-banner" data-testid="logs-self-mode">
+    <el-card v-if="isEnterpriseAdmin" shadow="never" class="profile-banner" data-testid="logs-self-mode">
       <strong>当前为本企业日志模式</strong>
       <span>{{ scopedModeHint }}</span>
-    </section>
+    </el-card>
 
-    <section class="panel">
-      <div class="filter-grid logs-filter-grid">
-        <label>
-          <span>操作类型</span>
-          <select v-model="filters.actionType" data-testid="logs-filter-action">
-            <option v-for="item in actionOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-          </select>
-        </label>
+    <el-card shadow="never" class="manage-filter-card">
+      <div class="manage-filter-grid logs-filter-grid">
+        <el-select v-model="filters.actionType" class="manage-filter-item" data-testid="logs-filter-action" placeholder="操作类型">
+          <el-option v-for="item in actionOptions" :key="item.value" :label="item.label" :value="item.value" />
+        </el-select>
 
-        <label>
-          <span>操作人</span>
-          <input
-            v-model.trim="filters.operatorKeyword"
-            data-testid="logs-filter-operator"
-            type="text"
-            placeholder="输入操作人姓名"
-          >
-        </label>
+        <el-input
+          v-model.trim="filters.operatorKeyword"
+          class="manage-filter-item"
+          data-testid="logs-filter-operator"
+          placeholder="输入操作人姓名"
+          @keyup.enter="fetchRows(1)"
+        />
 
-        <label>
-          <span>角色</span>
-          <select v-model="filters.roleCode" data-testid="logs-filter-role">
-            <option v-for="item in roleOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-          </select>
-        </label>
+        <el-select v-model="filters.roleCode" class="manage-filter-item" data-testid="logs-filter-role" placeholder="角色">
+          <el-option v-for="item in roleOptions" :key="item.value" :label="item.label" :value="item.value" />
+        </el-select>
 
-        <label v-if="companyFilterEnabled">
-          <span>所属企业</span>
-          <select v-model="filters.companyId" data-testid="logs-filter-company" :disabled="companyLoading">
-            <option value="">全部企业</option>
-            <option v-for="item in companyOptions" :key="item.id" :value="item.id">{{ item.name }}</option>
-          </select>
-          <small class="filter-note">{{ companyFieldHint }}</small>
-        </label>
-        <label v-else>
-          <span>所属企业</span>
-          <input :value="currentCompanyName" data-testid="logs-company-fixed" type="text" disabled>
-          <small class="filter-note" data-testid="logs-company-hint">{{ companyFieldHint }}</small>
-        </label>
+        <el-select
+          v-if="companyFilterEnabled"
+          v-model="filters.companyId"
+          class="manage-filter-item"
+          data-testid="logs-filter-company"
+          placeholder="所属企业"
+          :loading="companyLoading"
+          clearable
+          filterable
+        >
+          <el-option value="" label="全部企业" />
+          <el-option v-for="item in companyOptions" :key="item.id" :label="item.name" :value="item.id" />
+        </el-select>
 
-        <label>
-          <span>结果</span>
-          <select v-model="filters.result" data-testid="logs-filter-result">
-            <option v-for="item in resultOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-          </select>
-        </label>
+        <el-input
+          v-else
+          class="manage-filter-item"
+          :model-value="currentCompanyName"
+          data-testid="logs-company-fixed"
+          disabled
+        />
 
-        <label>
-          <span>开始日期</span>
-          <input v-model="filters.dateFrom" data-testid="logs-filter-date-from" type="date">
-        </label>
+        <el-select v-model="filters.result" class="manage-filter-item" data-testid="logs-filter-result" placeholder="结果">
+          <el-option v-for="item in resultOptions" :key="item.value" :label="item.label" :value="item.value" />
+        </el-select>
 
-        <label>
-          <span>结束日期</span>
-          <input v-model="filters.dateTo" data-testid="logs-filter-date-to" type="date">
-        </label>
+        <el-input v-model="filters.dateFrom" class="manage-filter-item" data-testid="logs-filter-date-from" type="date" />
+        <el-input v-model="filters.dateTo" class="manage-filter-item" data-testid="logs-filter-date-to" type="date" />
 
-        <label>
-          <span>分页</span>
-          <input :value="`第 ${page} / ${pageCount} 页`" type="text" disabled>
-        </label>
-      </div>
-
-      <div class="toolbar">
-        <span class="list-summary">{{ pageSummary }}</span>
-        <div class="toolbar-actions">
-          <button class="primary" data-testid="logs-search-button" :disabled="loading" @click="fetchRows(1)">查询</button>
-          <button class="ghost" data-testid="logs-reset-button" :disabled="loading" @click="resetFilters">重置</button>
+        <div class="summary-slot">
+          <span class="manage-muted">{{ pageSummary }}</span>
         </div>
+
+        <el-button type="primary" data-testid="logs-search-button" @click="fetchRows(1)">查询</el-button>
+        <el-button data-testid="logs-reset-button" @click="resetFilters">重置</el-button>
       </div>
-    </section>
+    </el-card>
 
     <section v-if="message" class="message-bar" :class="messageType">{{ message }}</section>
 
-    <section v-if="loading" class="panel empty-state">
-      <div>
-        <h3>正在加载操作日志...</h3>
-        <p class="empty-copy">请稍等，系统正在汇总关键后台动作和留痕结果。</p>
-      </div>
-    </section>
-
-    <section v-else-if="!rows.length" class="panel empty-state">
-      <div>
-        <h3>当前筛选下没有日志</h3>
-        <p class="empty-copy">{{ emptyStateCopy }}</p>
-      </div>
-    </section>
-
-    <section v-else class="panel">
-      <div class="todo-table-head logs-head">
-        <span>操作时间</span>
-        <span>操作人</span>
-        <span>角色</span>
-        <span>所属企业</span>
-        <span>操作类型</span>
-        <span>操作对象</span>
-        <span>结果</span>
-        <span>摘要</span>
-      </div>
-
-      <div class="todo-row-list">
-        <article
-          v-for="item in rows"
-          :key="item.id"
-          class="todo-row logs-row"
-          :data-testid="`logs-row-${item.id}`"
-        >
-          <div class="row-meta">
-            <strong>{{ item.createdAt || '暂无时间' }}</strong>
-            <small>日志 ID {{ item.id }}</small>
+    <el-card shadow="never" class="manage-table-card">
+      <template #header>
+        <div class="manage-table-header">
+          <div>
+            <p class="manage-table-title">日志台账</p>
+            <p class="manage-table-tip">按时间、操作人、企业、操作类型和结果回看关键后台动作，内部编码不直接暴露在主列表中。</p>
           </div>
+        </div>
+      </template>
 
-          <div class="row-main">
-            <strong>{{ item.operatorName }}</strong>
-            <small>{{ item.operatorUserId ? `用户 ID ${item.operatorUserId}` : '系统动作' }}</small>
-          </div>
+      <el-table
+        :data="rows"
+        v-loading="loading"
+        border
+        stripe
+        empty-text="当前筛选下没有日志"
+        data-testid="logs-table"
+      >
+        <el-table-column label="操作时间" min-width="170" show-overflow-tooltip>
+          <template #default="{ row }">
+            {{ row.createdAt || '暂无时间' }}
+          </template>
+        </el-table-column>
 
-          <div class="status-stack">
-            <span class="status-badge" :class="roleTone(item.roleCode)">{{ item.roleName }}</span>
-            <small>{{ item.roleCode || 'SYSTEM' }}</small>
-          </div>
+        <el-table-column label="操作人" min-width="140" show-overflow-tooltip>
+          <template #default="{ row }">
+            {{ row.operatorName || '系统用户' }}
+          </template>
+        </el-table-column>
 
-          <div class="row-meta">
-            <strong>{{ companyText(item) }}</strong>
-            <small>{{ item.companyId ? `企业 ID ${item.companyId}` : '平台范围日志' }}</small>
-          </div>
+        <el-table-column label="角色" min-width="130" show-overflow-tooltip>
+          <template #default="{ row }">
+            <el-tag effect="plain" size="small" class="manage-status-tag" :class="roleTone(row.roleCode)">
+              {{ row.roleName || '系统用户' }}
+            </el-tag>
+          </template>
+        </el-table-column>
 
-          <div class="status-stack">
-            <span class="status-badge" :class="actionTone(item.actionType)">{{ item.actionTypeLabel }}</span>
-            <small>{{ item.actionType }}</small>
-          </div>
+        <el-table-column label="所属企业" min-width="170" show-overflow-tooltip>
+          <template #default="{ row }">
+            {{ companyText(row) }}
+          </template>
+        </el-table-column>
 
-          <div class="row-meta">
-            <strong>{{ item.targetDisplay }}</strong>
-            <small>{{ item.targetTypeLabel }}</small>
-          </div>
+        <el-table-column label="操作类型" min-width="180" show-overflow-tooltip>
+          <template #default="{ row }">
+            <el-tag effect="plain" size="small" class="manage-status-tag" :class="actionTone(row.actionType)">
+              {{ row.actionTypeLabel || '系统操作' }}
+            </el-tag>
+          </template>
+        </el-table-column>
 
-          <div class="status-stack">
-            <span class="status-badge" :class="resultTone(item.result)">{{ item.resultLabel }}</span>
-            <small>{{ item.result }}</small>
-          </div>
+        <el-table-column label="操作对象" min-width="170" show-overflow-tooltip>
+          <template #default="{ row }">
+            {{ row.targetDisplay || '系统对象' }}
+          </template>
+        </el-table-column>
 
-          <div class="row-actions logs-summary-cell">
-            <span class="summary-copy">{{ summaryPreview(item) || '暂无摘要' }}</span>
-            <button class="text-button" :data-testid="`logs-detail-${item.id}`" @click="openDetailDialog(item)">查看详情</button>
-          </div>
-        </article>
-      </div>
+        <el-table-column label="结果" width="110">
+          <template #default="{ row }">
+            <el-tag effect="plain" size="small" class="manage-status-tag" :class="resultTone(row.result)">
+              {{ row.resultLabel || '成功' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="摘要" min-width="280" show-overflow-tooltip>
+          <template #default="{ row }">
+            <div class="summary-cell">
+              <span>{{ summaryPreview(row) || '暂无摘要' }}</span>
+              <el-button type="primary" link class="table-action-link" :data-testid="`logs-detail-${row.id}`" @click="openDetailDialog(row)">
+                查看详情
+              </el-button>
+            </div>
+          </template>
+        </el-table-column>
+      </el-table>
 
       <div class="toolbar logs-pagination">
         <span class="list-summary">第 {{ page }} / {{ pageCount }} 页</span>
         <div class="toolbar-actions">
-          <button class="ghost" data-testid="logs-prev-page" :disabled="loading || page <= 1" @click="goPrevPage">上一页</button>
-          <button class="ghost" data-testid="logs-next-page" :disabled="loading || page >= pageCount" @click="goNextPage">下一页</button>
+          <el-button data-testid="logs-prev-page" :disabled="loading || page <= 1" @click="goPrevPage">上一页</el-button>
+          <el-button data-testid="logs-next-page" :disabled="loading || page >= pageCount" @click="goNextPage">下一页</el-button>
         </div>
       </div>
-    </section>
+    </el-card>
 
     <div v-if="detailDialog.visible" class="dialog-mask" @click.self="closeDetailDialog">
       <section class="dialog-card logs-detail-dialog" data-testid="logs-detail-dialog">
         <div class="dialog-head">
           <div>
             <h3>日志详情</h3>
-            <p>查看该条关键后台动作的完整摘要与对象信息。</p>
           </div>
           <button class="ghost" @click="closeDetailDialog">关闭</button>
         </div>
@@ -475,7 +426,7 @@ function summaryPreview(item) {
             <strong>{{ detailDialog.item?.resultLabel || '成功' }}</strong>
           </div>
           <div>
-            <span>原始编码</span>
+            <span>内部编码</span>
             <strong>{{ detailDialog.item?.actionType || 'SYSTEM' }}</strong>
           </div>
         </div>
@@ -489,9 +440,11 @@ function summaryPreview(item) {
   </div>
 </template>
 
-<style src="../../assets/styles/admin-task-pages.css" scoped></style>
-
 <style scoped>
+.logs-manage {
+  padding: 20px;
+}
+
 .profile-banner {
   display: grid;
   gap: 8px;
@@ -514,39 +467,32 @@ function summaryPreview(item) {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-.filter-note {
-  margin-top: 8px;
-  color: var(--admin-text-soft);
+.summary-slot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 8px;
+}
+
+.summary-cell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.summary-cell span {
+  color: var(--admin-text);
   line-height: 1.6;
 }
 
-.logs-head,
-.logs-row {
-  grid-template-columns:
-    minmax(0, 0.95fr)
-    minmax(0, 0.85fr)
-    minmax(0, 0.8fr)
-    minmax(0, 0.9fr)
-    minmax(0, 0.9fr)
-    minmax(0, 1.2fr)
-    minmax(0, 0.8fr)
-    minmax(0, 1.2fr);
-}
-
-.logs-summary-cell {
-  align-items: flex-start;
-  justify-content: space-between;
-}
-
-.summary-copy {
-  color: var(--admin-text);
-  line-height: 1.7;
+.table-action-link {
+  padding: 0;
+  font-weight: 600;
 }
 
 .logs-pagination {
   margin-top: 18px;
-  padding-top: 18px;
-  border-top: 1px solid var(--admin-border);
 }
 
 .logs-detail-dialog {
@@ -577,9 +523,24 @@ function summaryPreview(item) {
 
 @media (max-width: 900px) {
   .logs-filter-grid,
-  .logs-detail-grid,
-  .logs-row {
+  .logs-detail-grid {
     grid-template-columns: 1fr;
+  }
+
+  .summary-slot {
+    justify-content: flex-start;
+    padding-right: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .logs-manage {
+    padding: 14px;
+  }
+
+  .summary-cell {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 </style>

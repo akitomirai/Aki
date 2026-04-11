@@ -67,9 +67,18 @@
     </el-card>
 
     <div class="manage-summary">
-      <div class="manage-summary-chip">启用中<strong>{{ summary.enabled }}</strong></div>
-      <div class="manage-summary-chip">已停用<strong>{{ summary.disabled }}</strong></div>
-      <div class="manage-summary-chip">已归档<strong>{{ summary.archived }}</strong></div>
+      <button
+        v-for="chip in summaryChips"
+        :key="chip.value"
+        type="button"
+        class="manage-summary-chip manage-summary-chip--interactive"
+        :class="{ 'is-active': searchForm.status === chip.value }"
+        :data-testid="`products-summary-${chip.value.toLowerCase()}`"
+        @click="handleSummaryChipClick(chip.value)"
+      >
+        <span>{{ chip.label }}</span>
+        <strong>{{ chip.count }}</strong>
+      </button>
     </div>
 
     <el-card shadow="never" class="manage-table-card">
@@ -168,15 +177,10 @@
     <el-dialog
       v-model="showDialog"
       :title="dialogMode === 'create' ? '新增产品' : '编辑产品'"
-      width="700px"
+      width="760px"
       @closed="resetForm"
     >
-      <div class="dialog-intro-card">
-        <strong>{{ dialogMode === 'create' ? '先把产品归到企业下，再继续去批次管理建批次。' : '当前正在调整产品资料，保存后会同步回到产品台账。' }}</strong>
-        <span>产品名称、企业归属和产地会直接影响批次建档、工作台展示和公开查询。</span>
-      </div>
-
-      <el-form :model="form" label-width="126px" class="dialog-form dialog-form--grouped" data-testid="products-form-dialog">
+      <el-form :model="form" label-position="top" class="dialog-form dialog-form--grouped" data-testid="products-form-dialog">
         <div class="dialog-section-title">归属关系</div>
         <el-form-item label="所属企业（必填）" required>
           <el-select
@@ -224,10 +228,6 @@
             />
           </el-select>
         </el-form-item>
-        <div class="full-row dialog-status-note">
-          <strong>{{ statusText(form.status) }}</strong>
-          <span>{{ productStatusHint(form.status) }}</span>
-        </div>
       </el-form>
 
       <template #footer>
@@ -321,6 +321,12 @@ const summary = computed(() => productList.value.reduce((result, item) => {
   archived: 0
 }))
 
+const summaryChips = computed(() => ([
+  { value: 'ENABLED', label: '启用中', count: summary.value.enabled },
+  { value: 'DISABLED', label: '已停用', count: summary.value.disabled },
+  { value: 'ARCHIVED', label: '已归档', count: summary.value.archived }
+]))
+
 function textOf(value, fallback = '-') {
   return normalizeDisplayText(value, fallback)
 }
@@ -340,15 +346,9 @@ function statusClass(value) {
   return 'is-enabled'
 }
 
-function productStatusHint(status) {
-  const normalized = String(status || '').trim().toUpperCase()
-  if (normalized === 'DISABLED') {
-    return '已停用的产品会保留历史台账，后续建批次前建议先确认是否继续使用。'
-  }
-  if (normalized === 'ARCHIVED') {
-    return '已归档的产品主要用于历史回查，不建议继续作为日常建档入口。'
-  }
-  return '启用中的产品可继续用于批次建档、工作台回查和公开展示。'
+function handleSummaryChipClick(status) {
+  searchForm.status = searchForm.status === status ? '' : status
+  loadProducts()
 }
 
 function joinSpec(specification, unit) {
@@ -634,40 +634,25 @@ onMounted(async () => {
   width: 100%;
 }
 
-.dialog-intro-card,
-.dialog-status-note {
-  border: 1px solid var(--admin-border);
-  border-radius: 18px;
-  background: var(--admin-surface-soft);
-}
-
-.dialog-intro-card {
-  display: grid;
-  gap: 6px;
-  padding: 14px 16px;
-  margin-bottom: 18px;
-}
-
-.dialog-intro-card strong,
-.dialog-status-note strong,
 .dialog-section-title {
   color: var(--admin-text);
-}
-
-.dialog-intro-card span,
-.dialog-status-note span {
-  color: var(--admin-text-soft);
-  line-height: 1.6;
 }
 
 .dialog-form--grouped {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0 16px;
+  gap: 0 18px;
 }
 
 .dialog-form--grouped :deep(.el-form-item) {
   margin-bottom: 18px;
+}
+
+.dialog-form--grouped :deep(.el-form-item__label) {
+  padding-bottom: 8px;
+  color: var(--admin-text);
+  font-weight: 600;
+  line-height: 1.3;
 }
 
 .dialog-section-title,
@@ -679,12 +664,6 @@ onMounted(async () => {
   margin-bottom: 10px;
   font-size: 15px;
   font-weight: 700;
-}
-
-.dialog-status-note {
-  display: grid;
-  gap: 6px;
-  padding: 14px 16px;
 }
 
 @media (max-width: 768px) {

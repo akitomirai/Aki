@@ -55,6 +55,33 @@ const tabCounts = computed(() => {
   }, {})
 })
 
+const qrOverviewCards = computed(() => ([
+  {
+    value: 'NEED_QR',
+    label: '待生成二维码',
+    count: tabCounts.value.NEED_QR ?? 0,
+    detail: '还需要补齐二维码入口的批次'
+  },
+  {
+    value: 'READY',
+    label: '已生成待发布',
+    count: tabCounts.value.READY ?? 0,
+    detail: '二维码就绪，可继续检查发布条件'
+  },
+  {
+    value: 'PUBLISHED',
+    label: '已发布',
+    count: tabCounts.value.PUBLISHED ?? 0,
+    detail: '可回查公开入口与扫码展示'
+  },
+  {
+    value: 'BLOCKED',
+    label: '不可发布',
+    count: tabCounts.value.BLOCKED ?? 0,
+    detail: '仍有前置条件没有满足'
+  }
+]))
+
 const publishDialogError = computed(() => {
   if (!publishDialog.value.visible) {
     return ''
@@ -549,24 +576,30 @@ async function submitPublish() {
       </div>
     </section>
 
-    <section class="panel todo-tabs-panel">
-      <div class="todo-tabs">
-        <button
-          v-for="tab in tabs"
-          :key="tab.value"
-          type="button"
-          class="todo-tab"
-          :class="{ active: activeTab === tab.value }"
-          :data-testid="`qr-tab-${tab.value}`"
-          @click="activeTab = tab.value"
-        >
-          <span>{{ tab.label }}</span>
-          <strong>{{ tabCounts[tab.value] ?? 0 }}</strong>
-        </button>
-      </div>
+    <section class="overview-cards">
+      <article
+        v-for="card in qrOverviewCards"
+        :key="card.value"
+        class="overview-card"
+        :class="{ 'is-active': activeTab === card.value }"
+        :data-testid="`qr-tab-${card.value}`"
+        @click="activeTab = card.value"
+      >
+        <span class="overview-card__icon" />
+        <div class="overview-card__body">
+          <span class="overview-card__label">{{ card.label }}</span>
+          <strong class="overview-card__value">{{ card.count }}</strong>
+        </div>
+      </article>
     </section>
 
     <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <h2 class="panel-heading__title">筛选条件</h2>
+        </div>
+      </div>
+
       <div class="filter-grid">
         <label>
           <span>批次名称 / 编号</span>
@@ -591,7 +624,7 @@ async function submitPublish() {
 
       <div class="toolbar">
         <div class="list-summary">
-          当前显示 {{ visibleRows.length }} 个批次，直接看二维码是否就绪、为什么能发，以及下一步应该做什么。
+          当前显示 {{ visibleRows.length }} 个批次。
         </div>
         <div class="toolbar-actions">
           <button
@@ -625,6 +658,12 @@ async function submitPublish() {
     <section v-if="message" class="message-bar" :class="messageType">{{ message }}</section>
 
     <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <h2 class="panel-heading__title">二维码与发布台账</h2>
+        </div>
+      </div>
+
       <div class="todo-table-head qr-head">
         <span>选择</span>
         <span>批次</span>
@@ -925,6 +964,10 @@ async function submitPublish() {
   margin: 12px 0 0;
   color: #b63f3f;
   line-height: 1.6;
+}
+
+.empty-state {
+  min-height: 150px;
 }
 
 @media (max-width: 760px) {

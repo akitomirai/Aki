@@ -1,10 +1,15 @@
-/**
- * 认证相关接口
- */
 import http from './http'
 
 export function loginApi(data) {
   return http.post('/auth/login', data)
+}
+
+export function getProfileApi() {
+  return http.get('/auth/profile')
+}
+
+export function updateProfileApi(data) {
+  return http.patch('/auth/profile', data)
 }
 
 export function registerApi(data) {

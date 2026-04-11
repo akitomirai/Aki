@@ -642,42 +642,30 @@ async function openWorkbenchAfterRefresh(item) {
       <span>{{ readOnlyBannerText }}</span>
     </section>
 
-    <section class="panel todo-tabs-panel">
-      <div class="todo-tabs">
-        <button
-          v-for="tab in riskTabs"
-          :key="tab.value"
-          type="button"
-          class="todo-tab"
-          :class="{ active: activeTab === tab.value }"
-          :data-testid="`risk-tab-${tab.value}`"
-          @click="activeTab = tab.value"
-        >
-          <span>{{ tab.label }}</span>
-          <strong>{{ tabCounts[tab.value] ?? 0 }}</strong>
-        </button>
-      </div>
-    </section>
-
-    <section class="panel board-panel">
-      <div class="board-head">
-        <div>
-          <p class="panel-label">当前看板</p>
-          <h2>{{ activeTabMeta.label }}</h2>
-          <p class="board-copy">{{ boardLeadText }}</p>
+    <section class="overview-cards">
+      <article
+        v-for="(card, index) in riskOverviewCards"
+        :key="riskTabs[index].value"
+        class="overview-card"
+        :class="{ 'is-active': activeTab === riskTabs[index].value }"
+        :data-testid="`risk-tab-${riskTabs[index].value}`"
+        @click="activeTab = riskTabs[index].value"
+      >
+        <span class="overview-card__icon" />
+        <div class="overview-card__body">
+          <span class="overview-card__label">{{ card.label }}</span>
+          <strong class="overview-card__value">{{ card.value }}</strong>
         </div>
-        <span class="board-badge">{{ visibleRows.length }} 个批次</span>
-      </div>
-      <div class="board-grid">
-        <article v-for="card in riskOverviewCards" :key="card.key" class="board-card">
-          <small>{{ card.label }}</small>
-          <strong>{{ card.value }}</strong>
-          <p>{{ card.detail }}</p>
-        </article>
-      </div>
+      </article>
     </section>
 
     <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <h2 class="panel-heading__title">筛选条件</h2>
+        </div>
+      </div>
+
       <div class="filter-grid">
         <label>
           <span>批次名称 / 编号</span>
@@ -721,6 +709,12 @@ async function openWorkbenchAfterRefresh(item) {
     </section>
 
     <section v-else class="panel">
+      <div class="panel-heading">
+        <div>
+          <h2 class="panel-heading__title">风险处置台账</h2>
+        </div>
+      </div>
+
       <div class="todo-table-head risk-head">
         <span>批次概况</span>
         <span>当前判断</span>
@@ -1111,12 +1105,11 @@ async function openWorkbenchAfterRefresh(item) {
   line-height: 1.6;
 }
 
-@media (max-width: 760px) {
-  .board-head,
-  .board-grid {
-    grid-template-columns: 1fr;
-  }
+.empty-state {
+  min-height: 160px;
+}
 
+@media (max-width: 760px) {
   .risk-row {
     grid-template-columns: 1fr;
   }
