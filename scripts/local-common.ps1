@@ -284,6 +284,9 @@ function Test-ProjectProcessRecord {
     if ($path.ToLowerInvariant().Contains($needle)) {
         return $true
     }
+    if ($commandLine -like '*edu.jxust.agritrace.TraceabilityBackendApplication*' -and $commandLine -like '*spring.profiles.active=demo*') {
+        return $true
+    }
     return $false
 }
 
@@ -368,6 +371,80 @@ function Stop-ProjectPortProcess {
         }
         Stop-ProcessTree -RootProcessId $record.Pid | Out-Null
     }
+}
+
+function Get-PortConflictEntries {
+    param(
+        [Parameter(Mandatory = $true)]
+        [int[]]$Ports
+    )
+
+    $entries = @()
+    foreach ($port in ($Ports | Select-Object -Unique)) {
+        $records = Get-PortListenerRecords -Port $port
+        foreach ($record in $records) {
+            $entries += [pscustomobject]@{
+                Port = $port
+                Pid = $record.Pid
+                ProcessName = $record.ProcessName
+                Path = $record.Path
+                CommandLine = $record.CommandLine
+                ManagedByWorkspace = Test-ProjectProcessRecord -Record $record
+            }
+        }
+    }
+
+    return $entries | Sort-Object Port, Pid -Unique
+}
+
+function Format-PortConflictSummary {
+    param(
+        [Parameter(Mandatory = $true)]
+        [array]$Entries
+    )
+
+    return ($Entries | ForEach-Object {
+        $scope = if ($_.ManagedByWorkspace) { 'workspace/demo process' } else { 'external process' }
+        $command = [string]$_.CommandLine
+        if ($command.Length -gt 140) {
+            $command = $command.Substring(0, 140) + '...'
+        }
+        "port $($_.Port) -> pid $($_.Pid) ($($_.ProcessName), $scope)`n  $command"
+    }) -join [Environment]::NewLine
+}
+
+function Resolve-RequiredPortConflicts {
+    param(
+        [Parameter(Mandatory = $true)]
+        [int[]]$Ports,
+        [switch]$AutoStopWorkspaceProcesses
+    )
+
+    $conflicts = Get-PortConflictEntries -Ports $Ports
+    if ($conflicts.Count -eq 0) {
+        return @()
+    }
+
+    $stopped = @()
+    if ($AutoStopWorkspaceProcesses) {
+        $workspaceConflicts = $conflicts | Where-Object { $_.ManagedByWorkspace }
+        foreach ($entry in ($workspaceConflicts | Sort-Object Pid -Unique)) {
+            Stop-ProcessTree -RootProcessId $entry.Pid | Out-Null
+            $stopped += $entry
+        }
+
+        if ($stopped.Count -gt 0) {
+            Start-Sleep -Seconds 1
+        }
+    }
+
+    $remaining = Get-PortConflictEntries -Ports $Ports
+    if ($remaining.Count -gt 0) {
+        $summary = Format-PortConflictSummary -Entries $remaining
+        throw "Required ports are already in use.`n$summary`nOnly workspace/demo processes are auto-cleaned. Please stop external listeners first."
+    }
+
+    return $stopped
 }
 
 function Show-LogTail {

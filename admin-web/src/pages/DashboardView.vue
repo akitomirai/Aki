@@ -108,6 +108,7 @@ onMounted(() => {
     <section class="manage-page-header">
       <div>
         <h1 class="manage-page-title">首页总览</h1>
+        <p class="manage-page-subtitle">围绕最终答辩基线，快速查看批次全局状态、风险提醒和主链路入口。</p>
       </div>
       <div class="manage-page-actions">
         <el-button :loading="loading" @click="loadDashboard">刷新</el-button>
@@ -151,7 +152,7 @@ onMounted(() => {
               </div>
               <div class="item-meta">
                 <em>{{ item.nextStep }}</em>
-                <RouterLink :to="`/batches/${item.id}`">进入工作台</RouterLink>
+                <RouterLink :to="`/batches/${item.id}`">查看工作台</RouterLink>
               </div>
             </li>
           </ul>
@@ -170,7 +171,7 @@ onMounted(() => {
               </div>
               <div class="item-meta">
                 <em class="risk-text">{{ item.statusLabel }}</em>
-                <RouterLink :to="`/batches/${item.id}`">查看详情</RouterLink>
+                <RouterLink :to="`/batches/${item.id}`">查看工作台</RouterLink>
               </div>
             </li>
           </ul>
@@ -201,7 +202,7 @@ onMounted(() => {
               </div>
               <div class="item-meta">
                 <em>{{ item.statusLabel }}</em>
-                <RouterLink :to="`/batches/${item.id}`">查看</RouterLink>
+                <RouterLink :to="`/batches/${item.id}`">查看工作台</RouterLink>
               </div>
             </li>
           </ul>

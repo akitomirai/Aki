@@ -62,6 +62,7 @@ import edu.jxust.agritrace.module.batch.service.MasterDataService;
 import edu.jxust.agritrace.module.batch.service.support.AttachmentGovernanceService;
 import edu.jxust.agritrace.module.batch.service.support.AttachmentStorageService;
 import edu.jxust.agritrace.module.batch.service.support.BatchRiskResolver;
+import edu.jxust.agritrace.module.batch.service.support.BatchStatusFlowAdvisor;
 import edu.jxust.agritrace.module.batch.service.support.TraceDisplayLabels;
 import edu.jxust.agritrace.module.batch.service.support.QrImageStorageService;
 import edu.jxust.agritrace.module.batch.service.support.TraceLinkBuilder;
@@ -142,6 +143,7 @@ public class BatchServiceImpl implements BatchService {
     private final AttachmentStorageService attachmentStorageService;
     private final AttachmentGovernanceService attachmentGovernanceService;
     private final BatchRiskResolver batchRiskResolver;
+    private final BatchStatusFlowAdvisor batchStatusFlowAdvisor;
     private final OperationLogService operationLogService;
 
     public BatchServiceImpl(
@@ -164,6 +166,7 @@ public class BatchServiceImpl implements BatchService {
             AttachmentStorageService attachmentStorageService,
             AttachmentGovernanceService attachmentGovernanceService,
             BatchRiskResolver batchRiskResolver,
+            BatchStatusFlowAdvisor batchStatusFlowAdvisor,
             OperationLogService operationLogService
     ) {
         this.traceBatchMapper = traceBatchMapper;
@@ -185,6 +188,7 @@ public class BatchServiceImpl implements BatchService {
         this.attachmentStorageService = attachmentStorageService;
         this.attachmentGovernanceService = attachmentGovernanceService;
         this.batchRiskResolver = batchRiskResolver;
+        this.batchStatusFlowAdvisor = batchStatusFlowAdvisor;
         this.operationLogService = operationLogService;
     }
 
@@ -574,6 +578,10 @@ public class BatchServiceImpl implements BatchService {
         AuthUserSession currentUser = requireCurrentUser();
         ensureQualityWriter(currentUser, batchPO);
         LocalDateTime reportTime = parseFlexibleDateTime(request.reportTime(), LocalDateTime.now());
+        List<String> highlights = sanitizeQualityHighlights(request.highlights());
+        if (highlights.isEmpty()) {
+            throw new IllegalArgumentException("quality highlights cannot be empty");
+        }
         List<BizAttachmentPO> attachments = claimAttachments(request.attachmentIds(), AttachmentBusinessType.QUALITY_ATTACHMENT, null);
 
         QualityReportPO reportPO = new QualityReportPO();
@@ -582,7 +590,7 @@ public class BatchServiceImpl implements BatchService {
         reportPO.setAgency(request.agency().trim());
         reportPO.setResult(request.result().trim().toUpperCase(Locale.ROOT));
         reportPO.setReportFileUrl(firstAttachmentUrl(attachments, null));
-        reportPO.setReportJson(writeQualityJson(request.highlights(), attachments));
+        reportPO.setReportJson(writeQualityJson(highlights, attachments));
         reportPO.setCreatedAt(reportTime);
         qualityReportMapper.insert(reportPO);
         bindAttachmentsToBusiness(attachments, reportPO.getId());
@@ -610,6 +618,7 @@ public class BatchServiceImpl implements BatchService {
             throw new IllegalArgumentException("risk handling can only be added when the batch is frozen or recalled");
         }
         validateRiskActionRequest(request);
+        validateRiskActionFlow(batch, request);
 
         BatchRiskActionPO actionPO = new BatchRiskActionPO();
         actionPO.setBatchId(batchId);
@@ -945,6 +954,13 @@ public class BatchServiceImpl implements BatchService {
         BatchRiskResolver.RiskSnapshot riskSnapshot = batchRiskResolver.resolve(batch);
         boolean canResume = batchRiskResolver.canResume(batch);
         List<BatchActionVO> actions = buildActions(batch);
+        BatchStatusFlowAdvisor.RecommendedAction recommendedAction = batchStatusFlowAdvisor.recommendAction(
+                batch,
+                latestTrace != null,
+                latestQuality != null && !"FAIL".equalsIgnoreCase(latestQuality.result()),
+                batch.getQrCode() != null,
+                canResume
+        );
         boolean publishReady = actions.stream()
                 .anyMatch(action -> ("PUBLISH".equals(action.code()) || "RESUME".equals(action.code())) && action.enabled());
         boolean draftPending = assignedDraft != null;
@@ -984,7 +1000,10 @@ public class BatchServiceImpl implements BatchService {
                 isTaskCompletedToday(batch, currentUser),
                 draftPending,
                 TraceDisplayLabels.draftStatus(draftPending),
-                formatDateTime(assignedDraft == null ? null : assignedDraft.getUpdatedAt())
+                formatDateTime(assignedDraft == null ? null : assignedDraft.getUpdatedAt()),
+                recommendedAction.code(),
+                recommendedAction.label(),
+                recommendedAction.hint()
         );
     }
 
@@ -1280,42 +1299,7 @@ public class BatchServiceImpl implements BatchService {
     }
 
     private List<BatchActionVO> buildActions(BatchEntity batch) {
-        if (batch != null) {
-            return buildRoleAwareActions(batch);
-        }
-        AuthUserSession currentUser = currentUser();
-        QualityReportEntity latestQuality = latestQuality(batch);
-        boolean hasQualifiedReport = latestQuality != null && !"FAIL".equalsIgnoreCase(latestQuality.result());
-        boolean hasQr = batch.getQrCode() != null;
-        boolean canEdit = canEditBatch(currentUser, batch);
-        boolean canTrace = canWriteTrace(currentUser, batch);
-        boolean canQuality = canManageCompanyBatch(currentUser, batch);
-        boolean canQr = canManageCompanyBatch(currentUser, batch);
-        boolean canRisk = canManageCompanyBatch(currentUser, batch);
-        boolean canPublish = canManageCompanyBatch(currentUser, batch)
-                && batch.getStatus() == BatchStatus.DRAFT
-                && hasQualifiedReport
-                && hasQr;
-        boolean canResume = canManageCompanyBatch(currentUser, batch)
-                && batch.getStatus() == BatchStatus.FROZEN
-                && hasQualifiedReport
-                && hasQr
-                && batchRiskResolver.canResume(batch);
-        boolean canFreeze = canRisk && batch.getStatus() == BatchStatus.PUBLISHED;
-        boolean canRecall = canRisk && (batch.getStatus() == BatchStatus.PUBLISHED || batch.getStatus() == BatchStatus.FROZEN);
-        boolean canGenerateQr = canQr && !hasQr;
-
-        return List.of(
-                new BatchActionVO("EDIT", "编辑批次", true, "仅保留高频字段，避免长表单。", "neutral"),
-                new BatchActionVO("ADD_TRACE", "新增追溯记录", batch.getStatus() != BatchStatus.RECALLED, "使用快速录入补齐关键节点。", "primary"),
-                new BatchActionVO("UPLOAD_QUALITY", "上传质检", batch.getStatus() != BatchStatus.RECALLED, "发布前优先补齐高价值质检摘要。", "success"),
-                new BatchActionVO("GENERATE_QR", hasQr ? "查看二维码" : "生成二维码", canGenerateQr, hasQr ? "已存在二维码，继续返回已有结果。" : "同一批次默认只生成一次二维码。", "primary"),
-                new BatchActionVO("VIEW_PUBLIC", "公开页预览", hasQr, hasQr ? "可直接打开公开追溯页。" : "需先生成二维码。", "neutral"),
-                new BatchActionVO("PUBLISH", "发布批次", canPublish, hasQualifiedReport && hasQr ? "已满足发布条件。" : "需先补齐合格质检和二维码。", "success"),
-                new BatchActionVO("RESUME", "恢复发布", canResume, canResume ? "整改已完成，满足恢复发布条件。" : "先补充处理意见并标记整改完成。", "success"),
-                new BatchActionVO("FREEZE", "冻结批次", canFreeze, "发现异常时应快速冻结，并写明原因。", "warning"),
-                new BatchActionVO("RECALL", "召回批次", canRecall, "召回后公开页首屏需展示风险提示。", "danger")
-        );
+        return buildRoleAwareActions(batch);
     }
 
     private List<BatchActionVO> buildRoleAwareActions(BatchEntity batch) {
@@ -1323,16 +1307,17 @@ public class BatchServiceImpl implements BatchService {
         QualityReportEntity latestQuality = latestQuality(batch);
         boolean hasQualifiedReport = latestQuality != null && !"FAIL".equalsIgnoreCase(latestQuality.result());
         boolean hasQr = batch.getQrCode() != null;
+        boolean canManageBatch = canManageCompanyBatch(currentUser, batch);
         boolean canEdit = canEditBatch(currentUser, batch);
         boolean canTrace = canWriteTrace(currentUser, batch);
-        boolean canQuality = canManageCompanyBatch(currentUser, batch);
-        boolean canQr = canManageCompanyBatch(currentUser, batch);
-        boolean canRisk = canManageCompanyBatch(currentUser, batch);
-        boolean canPublish = canManageCompanyBatch(currentUser, batch)
+        boolean canQuality = canManageBatch;
+        boolean canQr = canManageBatch;
+        boolean canRisk = canManageBatch;
+        boolean canPublish = canManageBatch
                 && batch.getStatus() == BatchStatus.DRAFT
                 && hasQualifiedReport
                 && hasQr;
-        boolean canResume = canManageCompanyBatch(currentUser, batch)
+        boolean canResume = canManageBatch
                 && batch.getStatus() == BatchStatus.FROZEN
                 && hasQualifiedReport
                 && hasQr
@@ -1340,6 +1325,9 @@ public class BatchServiceImpl implements BatchService {
         boolean canFreeze = canRisk && batch.getStatus() == BatchStatus.PUBLISHED;
         boolean canRecall = canRisk && (batch.getStatus() == BatchStatus.PUBLISHED || batch.getStatus() == BatchStatus.FROZEN);
         boolean canGenerateQr = canQr && !hasQr;
+        String publishBlockedReason = canManageBatch
+                ? defaultValue(resolvePublishBlockedReason(batch, batch.getStatus()), "已满足发布条件。")
+                : "当前账号不能发布批次。";
 
         return List.of(
                 new BatchActionVO("EDIT", "编辑批次", canEdit, canEdit ? "可维护批次基础资料。" : "当前账号只能查看该批次资料。", "neutral"),
@@ -1347,44 +1335,44 @@ public class BatchServiceImpl implements BatchService {
                 new BatchActionVO("UPLOAD_QUALITY", "上传质检", canQuality && batch.getStatus() != BatchStatus.RECALLED, canQuality ? "发布前优先补齐质检摘要。" : "当前账号不能上传质检。", "success"),
                 new BatchActionVO("GENERATE_QR", hasQr ? "查看二维码" : "生成二维码", canGenerateQr, hasQr ? "二维码已存在，可继续核对公开页。" : (canQr ? "同一批次默认只生成一次二维码。" : "当前账号不能生成二维码。"), "primary"),
                 new BatchActionVO("VIEW_PUBLIC", "公开页预览", hasQr, hasQr ? "可直接打开公开追溯页。" : "需先生成二维码。", "neutral"),
-                new BatchActionVO("PUBLISH", "发布批次", canPublish, canManageCompanyBatch(currentUser, batch) ? (hasQualifiedReport && hasQr ? "已满足发布条件。" : "需先补齐合格质检和二维码。") : "当前账号不能发布批次。", "success"),
-                new BatchActionVO("RESUME", "恢复发布", canResume, canResume ? "整改已完成，满足恢复发布条件。" : (canManageCompanyBatch(currentUser, batch) ? "先补充处理意见并标记整改完成。" : "当前账号不能恢复发布。"), "success"),
+                new BatchActionVO("PUBLISH", "发布批次", canPublish, canPublish ? "已满足发布条件。" : publishBlockedReason, "success"),
+                new BatchActionVO("RESUME", "恢复发布", canResume, canResume ? "整改已完成，满足恢复发布条件。" : publishBlockedReason, "success"),
                 new BatchActionVO("FREEZE", "冻结批次", canFreeze, canRisk ? "发现异常时应快速冻结，并写明原因。" : "当前账号不能处理风险状态。", "warning"),
                 new BatchActionVO("RECALL", "召回批次", canRecall, canRisk ? "召回后公开页首页会展示风险提示。" : "当前账号不能发起召回。", "danger")
         );
     }
 
     private void validateStatusTransition(BatchEntity batch, BatchStatus currentStatus, BatchStatus targetStatus) {
-        if (currentStatus == targetStatus) {
-            return;
-        }
-        if (currentStatus == BatchStatus.RECALLED) {
-            throw new IllegalArgumentException("已召回批次不能恢复到其他状态");
+        if (!batchStatusFlowAdvisor.canTransition(currentStatus, targetStatus)) {
+            throw new IllegalArgumentException(batchStatusFlowAdvisor.blockedTransitionHint(currentStatus, targetStatus));
         }
         if (targetStatus == BatchStatus.PUBLISHED) {
-            if (batch.getQrCode() == null) {
-                throw new IllegalArgumentException("发布前请先生成二维码");
-            }
-            QualityReportEntity latestQuality = latestQuality(batch);
-            if (latestQuality == null) {
-                throw new IllegalArgumentException("发布前请先上传质检摘要");
-            }
-            if ("FAIL".equalsIgnoreCase(latestQuality.result())) {
-                throw new IllegalArgumentException("检测结果不合格，不能发布");
-            }
-            if (currentStatus != BatchStatus.DRAFT && currentStatus != BatchStatus.FROZEN) {
-                throw new IllegalArgumentException("当前状态不支持发布或恢复发布");
-            }
-            if (currentStatus == BatchStatus.FROZEN && !batchRiskResolver.canResume(batch)) {
-                throw new IllegalArgumentException("请先补充处理意见并标记整改完成，再恢复发布");
+            String blockedReason = resolvePublishBlockedReason(batch, currentStatus);
+            if (blockedReason != null) {
+                throw new IllegalArgumentException(blockedReason);
             }
         }
-        if (targetStatus == BatchStatus.FROZEN && currentStatus != BatchStatus.PUBLISHED) {
-            throw new IllegalArgumentException("只有已发布批次可以冻结");
+    }
+
+    private String resolvePublishBlockedReason(BatchEntity batch, BatchStatus currentStatus) {
+        if (!batchStatusFlowAdvisor.canTransition(currentStatus, BatchStatus.PUBLISHED)) {
+            return batchStatusFlowAdvisor.blockedTransitionHint(currentStatus, BatchStatus.PUBLISHED);
         }
-        if (targetStatus == BatchStatus.RECALLED && currentStatus != BatchStatus.PUBLISHED && currentStatus != BatchStatus.FROZEN) {
-            throw new IllegalArgumentException("只有已发布或已冻结批次可以召回");
+
+        QualityReportEntity latestQuality = latestQuality(batch);
+        if (latestQuality == null) {
+            return "发布前请先上传质检摘要";
         }
+        if ("FAIL".equalsIgnoreCase(latestQuality.result())) {
+            return "检测结果不合格，不能发布";
+        }
+        if (batch.getQrCode() == null) {
+            return "发布前请先生成二维码";
+        }
+        if (currentStatus == BatchStatus.FROZEN && !batchRiskResolver.canResume(batch)) {
+            return "请先补充处理意见并标记整改完成，再恢复发布";
+        }
+        return null;
     }
 
     private QualityReportEntity latestQuality(BatchEntity batch) {
@@ -1690,6 +1678,19 @@ public class BatchServiceImpl implements BatchService {
                 .toList();
     }
 
+    private List<String> sanitizeQualityHighlights(List<String> highlights) {
+        if (highlights == null || highlights.isEmpty()) {
+            return List.of();
+        }
+        return highlights.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .distinct()
+                .limit(20)
+                .toList();
+    }
+
     private List<FileAssetVO> sanitizeDraftFiles(List<FieldDraftFileItemDTO> uploadedFiles) {
         if (uploadedFiles == null || uploadedFiles.isEmpty()) {
             return List.of();
@@ -1924,7 +1925,6 @@ public class BatchServiceImpl implements BatchService {
             return;
         }
         denyQrPublish(currentUser, batchPO, "当前账号不能执行“" + statusActionLabel(targetStatus) + "”操作。");
-        denyQrPublish(currentUser, batchPO, "当前账号不能执行“" + (targetStatus == null ? "状态变更" : targetStatus.name()) + "”操作。");
     }
 
     private void ensureTraceWriter(AuthUserSession currentUser, TraceBatchPO batchPO) {
@@ -1958,7 +1958,6 @@ public class BatchServiceImpl implements BatchService {
         if (canManageCompanyBatch(currentUser, batchPO)) {
             return;
         }
-        denyQrPublish(currentUser, batchPO, "当前账号不能执行“" + actionLabel + "”操作。");
         denyQrPublish(currentUser, batchPO, "当前账号不能执行“" + actionLabel + "”操作。");
     }
 
@@ -2186,6 +2185,51 @@ public class BatchServiceImpl implements BatchService {
         if ((request.actionType() == RiskActionType.PROCESSING || request.actionType() == RiskActionType.RECTIFIED) && !hasReason) {
             throw new IllegalArgumentException("reason is required when marking processing or rectification completed");
         }
+    }
+
+    private void validateRiskActionFlow(BatchEntity batch, BatchRiskActionCreateRequest request) {
+        List<BatchRiskActionEntity> actionsAfterAbnormal = riskActionsAfterAbnormal(batch);
+        RiskActionType latestType = actionsAfterAbnormal.stream()
+                .max(Comparator.comparing(BatchRiskActionEntity::createdAt))
+                .map(BatchRiskActionEntity::actionType)
+                .orElse(null);
+
+        if (request.actionType() == RiskActionType.PROCESSING && latestType == RiskActionType.PROCESSING) {
+            throw new IllegalArgumentException("当前已标记为处理中，请先补整改记录或更新下一阶段动作");
+        }
+        if (request.actionType() == RiskActionType.PROCESSING && latestType == RiskActionType.RECTIFIED) {
+            throw new IllegalArgumentException("当前已标记整改完成，请勿回退到处理中");
+        }
+        if (request.actionType() == RiskActionType.RECTIFIED) {
+            boolean hasHandlingContext = actionsAfterAbnormal.stream().anyMatch(action ->
+                    action.actionType() == RiskActionType.COMMENT
+                            || action.actionType() == RiskActionType.RECTIFICATION
+                            || action.actionType() == RiskActionType.PROCESSING
+            );
+            if (!hasHandlingContext) {
+                throw new IllegalArgumentException("请先补处理说明或整改记录，再标记已整改");
+            }
+            if (latestType == RiskActionType.RECTIFIED) {
+                throw new IllegalArgumentException("当前已经标记为已整改，无需重复提交");
+            }
+        }
+    }
+
+    private List<BatchRiskActionEntity> riskActionsAfterAbnormal(BatchEntity batch) {
+        LocalDateTime abnormalAt = abnormalAt(batch);
+        return batch.getRiskActions().stream()
+                .filter(item -> abnormalAt == null || !item.createdAt().isBefore(abnormalAt))
+                .toList();
+    }
+
+    private LocalDateTime abnormalAt(BatchEntity batch) {
+        if (batch.getStatus() == BatchStatus.RECALLED) {
+            return batch.getRecalledAt();
+        }
+        if (batch.getStatus() == BatchStatus.FROZEN) {
+            return batch.getFrozenAt();
+        }
+        return null;
     }
 
     private List<BizAttachmentPO> claimAttachments(List<Long> attachmentIds, AttachmentBusinessType businessType, Long existingBusinessId) {

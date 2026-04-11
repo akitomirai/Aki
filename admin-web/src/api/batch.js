@@ -1,5 +1,17 @@
 import http from './http'
 
+function withBatchPath(id, path) {
+  return `/batches/${id}/${path}`
+}
+
+function postBatchPath(id, path, data) {
+  return http.post(withBatchPath(id, path), data)
+}
+
+function getBatchPath(id, path) {
+  return http.get(withBatchPath(id, path))
+}
+
 export function getBatchList(params) {
   return http.get('/batches', { params })
 }
@@ -47,11 +59,11 @@ export function updateBatch(id, data) {
 }
 
 export function createTraceRecord(id, data) {
-  return http.post(`/batches/${id}/records/quick`, data)
+  return postBatchPath(id, 'records/quick', data)
 }
 
 export function updateBatchAssignment(id, data) {
-  return http.post(`/batches/${id}/assignment`, data)
+  return postBatchPath(id, 'assignment', data)
 }
 
 export function getFieldDraftList() {
@@ -59,11 +71,11 @@ export function getFieldDraftList() {
 }
 
 export function getFieldDraft(id) {
-  return http.get(`/batches/${id}/field-draft`)
+  return getBatchPath(id, 'field-draft')
 }
 
 export function saveFieldDraft(id, data) {
-  return http.post(`/batches/${id}/field-draft`, data)
+  return postBatchPath(id, 'field-draft', data)
 }
 
 export function deleteFieldDraft(id) {
@@ -71,17 +83,17 @@ export function deleteFieldDraft(id) {
 }
 
 export function createQualityReport(id, data) {
-  return http.post(`/batches/${id}/quality-reports`, data)
+  return postBatchPath(id, 'quality-reports', data)
 }
 
 export function createRiskAction(id, data) {
-  return http.post(`/batches/${id}/risk-actions`, data)
+  return postBatchPath(id, 'risk-actions', data)
 }
 
 export function generateBatchQr(id) {
-  return http.post(`/batches/${id}/qr`)
+  return postBatchPath(id, 'qr')
 }
 
 export function changeBatchStatus(id, data) {
-  return http.post(`/batches/${id}/status`, data)
+  return postBatchPath(id, 'status', data)
 }

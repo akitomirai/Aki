@@ -2,6 +2,7 @@ $ErrorActionPreference = "Stop"
 
 # Project root = directory of this script
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
+. (Join-Path $root 'scripts\local-common.ps1')
 
 Write-Host "Project root: $root" -ForegroundColor Cyan
 
@@ -87,13 +88,21 @@ function Find-JavaHome {
     return $null
 }
 
-Write-Host "Stopping old processes first..." -ForegroundColor Cyan
-Stop-PortProcess -Port 6379
-Stop-PortProcess -Port 8080
-Stop-PortProcess -Port 5174
-Stop-PortProcess -Port 5173
+Write-Host "Checking required ports before startup..." -ForegroundColor Cyan
+try {
+    $stoppedPortRecords = Resolve-RequiredPortConflicts -Ports @(6379, 8080, 5174, 5173) -AutoStopWorkspaceProcesses
+    if ($stoppedPortRecords.Count -gt 0) {
+        Write-Host "Stopped existing workspace/demo listeners:" -ForegroundColor Yellow
+        $stoppedPortRecords | Select-Object Port, Pid, ProcessName | Format-Table -AutoSize
+    }
+}
+catch {
+    Write-Host $_.Exception.Message -ForegroundColor Red
+    Read-Host "Press Enter to exit"
+    exit 1
+}
 
-Start-Sleep -Seconds 2
+Start-Sleep -Seconds 1
 
 $javaHome = Find-JavaHome
 if (-not $javaHome) {

@@ -93,7 +93,7 @@ public class BatchController {
     }
 
     @PostMapping("/{batchId}/field-draft")
-    public ApiResponse<FieldDraftVO> saveFieldDraft(@PathVariable Long batchId, @RequestBody FieldDraftSaveRequest request) {
+    public ApiResponse<FieldDraftVO> saveFieldDraft(@PathVariable Long batchId, @Valid @RequestBody FieldDraftSaveRequest request) {
         return ApiResponse.ok("草稿已保存。", batchService.saveFieldDraft(batchId, request));
     }
 

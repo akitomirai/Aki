@@ -10,59 +10,128 @@ const loading = ref(true)
 const errorMessage = ref('')
 const showFullTimeline = ref(false)
 
+const summary = computed(() => detail.value?.summary ?? {})
+const company = computed(() => detail.value?.company ?? {})
+const quality = computed(() => detail.value?.quality ?? {})
+const risk = computed(() => detail.value?.risk ?? {})
+const timelineItems = computed(() => detail.value?.timeline ?? [])
+const latestTimelineItem = computed(() => {
+  const timeline = timelineItems.value
+  return timeline.length ? timeline[timeline.length - 1] : null
+})
+
+const visibleTimeline = computed(() => {
+  return showFullTimeline.value ? timelineItems.value : timelineItems.value.slice(0, 4)
+})
+
+const qualityHighlights = computed(() => quality.value.highlights ?? [])
+
+const publicStatusText = computed(() => summary.value.statusLabel || '状态待确认')
+const publicQualityText = computed(() => quality.value.resultLabel || summary.value.qualityResult || '待补质检')
+const publicPublishedAtText = computed(() => {
+  const publishedAt = summary.value.publishedAt
+  if (publishedAt) {
+    return publishedAt
+  }
+  if (publicStatusText.value === '草稿') {
+    return '尚未公开'
+  }
+  if (['已冻结', '已召回'].includes(publicStatusText.value)) {
+    return '已公开，当前附带风险提示'
+  }
+  return '已公开，时间待补录'
+})
+
+const publicSloganText = computed(() => {
+  return localizeVisibleText(summary.value.slogan) || '扫码后可直接查看批次状态、质检结论和关键追溯节点。'
+})
+
 const verdict = computed(() => {
   if (!detail.value) {
     return {
-      title: '正在加载查询结果',
-      copy: '正在读取批次追溯信息。'
+      title: '正在读取查询结果',
+      copy: '系统正在核对当前批次的状态、质检和关键节点。'
     }
   }
 
-  if (detail.value.risk?.hasRisk) {
+  if (risk.value.hasRisk) {
     return {
-      title: detail.value.risk.statusLabel || '当前存在风险',
-      copy: localizeVisibleText(detail.value.risk.reason) || '当前批次存在异常，请先关注风险提示。'
+      title: risk.value.statusLabel || '当前批次存在风险提示',
+      copy: localizeVisibleText(risk.value.reason) || '当前批次存在异常，请先查看风险提示再决定是否继续使用。'
     }
   }
 
-  if ((detail.value.summary?.qualityResult || '').includes('合格') || /pass/i.test(detail.value.summary?.qualityResult || '')) {
+  if ((publicQualityText.value || '').includes('合格') || /pass/i.test(publicQualityText.value || '')) {
     return {
-      title: '当前批次可正常查询',
-      copy: '已展示企业信息、批次状态和最近质检结论，可继续查看关键过程。'
+      title: '当前批次状态清晰，可放心继续查看',
+      copy: '首屏保留了消费者最关心的状态、质检和关键节点，继续下滑即可回看完整过程。'
     }
   }
 
   return {
     title: '请先关注质检结论',
-    copy: '当前还没有完整的质检说明，建议结合最新记录一起查看。'
+    copy: '当前还没有明确的合格结论，建议结合最近记录与企业说明一起查看。'
   }
 })
 
-const visibleTimeline = computed(() => {
-  const timeline = detail.value?.timeline ?? []
-  return showFullTimeline.value ? timeline : timeline.slice(0, 4)
+const trustSignals = computed(() => [
+  {
+    label: '主体企业',
+    value: summary.value.companyName || company.value.name || '企业信息待补充'
+  },
+  {
+    label: '最近质检',
+    value: publicQualityText.value
+  },
+  {
+    label: '公开时间',
+    value: publicPublishedAtText.value
+  }
+])
+
+const consumerFacts = computed(() => [
+  {
+    label: '生产日期',
+    value: summary.value.productionDate || '待补充'
+  },
+  {
+    label: '产地',
+    value: localizeVisibleText(summary.value.originPlace) || '产地待补充'
+  },
+  {
+    label: '查询说明',
+    value: publicSloganText.value
+  }
+])
+
+const qualitySummaryText = computed(() => {
+  return localizeVisibleText(quality.value.summary) || '当前暂无更多质检补充说明。'
 })
 
-const latestTimelineItem = computed(() => {
-  const timeline = detail.value?.timeline ?? []
-  return timeline.length ? timeline[timeline.length - 1] : null
-})
+const errorState = computed(() => {
+  const message = String(errorMessage.value || '')
+  if (/不存在|未找到|无效|失效|not found|invalid/i.test(message)) {
+    return {
+      title: '这个追溯码暂时无法查询',
+      copy: '可能是追溯码输入有误、二维码已失效，或该批次当前没有开放公开查询。',
+      tips: [
+        '请核对二维码是否完整，或重新扫码一次。',
+        '如果页面来自旧截图或旧海报，请以最新二维码为准。',
+        '若仍无法查询，可联系销售方或企业客服核实。'
+      ]
+    }
+  }
 
-const qualityHighlights = computed(() => detail.value?.quality?.highlights ?? [])
-const publicStatusText = computed(() => detail.value?.summary?.statusLabel || '状态待确认')
-const publicPublishedAtText = computed(() => {
-  const status = publicStatusText.value
-  const publishedAt = detail.value?.summary?.publishedAt
-  if (status === '草稿') {
-    return '尚未公开'
+  return {
+    title: '追溯信息加载失败',
+    copy: '当前网络或服务状态异常，系统暂时没能返回这批产品的公开信息。',
+    tips: [
+      '请稍后刷新后再次尝试。',
+      '如页面持续异常，建议更换网络环境后重试。',
+      '若这是答辩演示环境，请回到后台确认服务是否正常运行。'
+    ]
   }
-  if (publishedAt) {
-    return publishedAt
-  }
-  return ['已冻结', '已召回'].includes(status) ? '已公开，时间待补录' : '已发布，时间待补录'
 })
-const publicQualityText = computed(() => detail.value?.quality?.resultLabel || detail.value?.summary?.qualityResult || '待补质检')
-const publicSloganText = computed(() => localizeVisibleText(detail.value?.summary?.slogan) || '扫码后可查看批次状态、质检结论和关键追溯信息。')
 
 onMounted(() => {
   loadDetail(route.params.token)
@@ -86,18 +155,19 @@ async function loadDetail(token) {
     const response = await getTraceDetail(token)
     detail.value = response.data
   } catch (error) {
+    detail.value = null
     errorMessage.value = error?.response?.data?.message || error?.message || '追溯页加载失败，请稍后重试。'
   } finally {
     loading.value = false
   }
 }
 
-function riskClass(risk) {
+function riskClass(riskInfo) {
   return {
     pending: 'pending',
     warning: 'warning',
     danger: 'danger'
-  }[risk?.riskLevel] ?? 'warning'
+  }[riskInfo?.riskLevel] ?? 'warning'
 }
 
 function localizeVisibleText(text) {
@@ -112,152 +182,171 @@ function localizeVisibleText(text) {
     'Used to verify released-batch linkage with the workbench.': '用于核对已发布批次与工作台、公开页的联动状态。',
     'The batch has been created and still needs field records, QA and QR data.': '当前批次已建档，仍需补录现场记录、质检和二维码。',
     'Used for continuous field-entry verification before publish.': '用于发布前连续补录现场作业与工作台联动验证。',
-    'The batch is paused and waiting for follow-up handling.': '当前批次已暂停流转，等待后续风险处理。',
+    'The batch is paused and waiting for follow-up handling.': '当前批次已暂停流通，等待后续风险处理。',
     'Used to review frozen-batch rectification flow.': '用于核对冻结批次的整改处理流程。',
     'Latest QA failed and the batch is waiting for recheck.': '最近一次质检未通过，当前批次等待复检。'
   }[value] ?? value
 }
 
-function shortSummary(text) {
-  if (!text) {
+function shortSummary(text, length = 72) {
+  const value = String(text || '').trim()
+  if (!value) {
     return '该节点已留痕。'
   }
-  return text.length > 52 ? `${text.slice(0, 52)}...` : text
+  return value.length > length ? `${value.slice(0, length)}...` : value
 }
 </script>
 
 <template>
   <div class="trace-page" data-testid="public-trace-page">
-    <div v-if="loading" class="loading-card">正在加载追溯详情...</div>
+    <section v-if="loading" class="state-card loading-card">
+      <p class="state-eyebrow">正在查询</p>
+      <h1>正在读取追溯信息</h1>
+      <p>系统正在核对当前批次的状态、质检结论和关键节点，请稍候。</p>
+    </section>
 
-    <div v-else-if="errorMessage" class="error-card">
-      {{ errorMessage }}
-    </div>
+    <section v-else-if="errorMessage" class="state-card error-card" data-testid="public-error-state">
+      <p class="state-eyebrow">查询异常</p>
+      <h1 data-testid="public-error-title">{{ errorState.title }}</h1>
+      <p data-testid="public-error-copy">{{ errorState.copy }}</p>
+      <ul class="error-list" data-testid="public-error-tips">
+        <li v-for="tip in errorState.tips" :key="tip">{{ tip }}</li>
+      </ul>
+    </section>
 
     <template v-else-if="detail">
       <section
-        v-if="detail.risk?.hasRisk"
+        v-if="risk.hasRisk"
         class="risk-banner"
         data-testid="public-risk-banner"
-        :class="riskClass(detail.risk)"
+        :class="riskClass(risk)"
       >
-        <p class="risk-tag">风险提醒</p>
-        <h2>{{ detail.risk.statusLabel }}</h2>
-        <p>{{ localizeVisibleText(detail.risk.reason) }}</p>
-        <div class="risk-meta">
-          <span>当前阶段：{{ detail.risk.statusLabel }}</span>
-          <span>最近更新：{{ detail.risk.updatedAt || '暂无' }}</span>
+        <div>
+          <p class="state-eyebrow">风险提示</p>
+          <h2>{{ risk.statusLabel }}</h2>
+          <p>{{ localizeVisibleText(risk.reason) }}</p>
         </div>
-        <small>{{ localizeVisibleText(detail.risk.tip) }}</small>
+        <div class="risk-meta">
+          <span>当前阶段：{{ risk.statusLabel }}</span>
+          <span>最近更新：{{ risk.updatedAt || '暂无记录' }}</span>
+        </div>
+        <small>{{ localizeVisibleText(risk.tip) || '请优先关注企业说明和风险处置结果。' }}</small>
       </section>
 
-      <section class="result-card" data-testid="public-summary">
-        <div class="result-head">
-          <div class="product-block">
-            <img class="product-image" :src="detail.summary.productImageUrl" :alt="detail.summary.productName">
-            <div class="product-copy">
-              <p class="eyebrow">查询结果</p>
-              <h1 data-testid="public-product-name">{{ detail.summary.productName }}</h1>
+      <section class="hero-card" data-testid="public-summary">
+        <div class="hero-card__main">
+          <div class="hero-product">
+            <img class="product-image" :src="summary.productImageUrl" :alt="summary.productName">
+            <div class="hero-copy">
+              <p class="eyebrow">消费者追溯</p>
+              <h1 data-testid="public-product-name">{{ summary.productName }}</h1>
               <p class="verdict-title">{{ verdict.title }}</p>
               <p class="verdict-copy">{{ verdict.copy }}</p>
             </div>
           </div>
 
-          <div class="result-side">
-            <article class="result-pill">
+          <div class="hero-kpi-grid">
+            <article class="kpi-card">
               <span>当前状态</span>
               <strong data-testid="public-status">{{ publicStatusText }}</strong>
             </article>
-            <article class="result-pill highlight">
+            <article class="kpi-card kpi-card--accent">
               <span>质检结论</span>
               <strong data-testid="public-quality">{{ publicQualityText }}</strong>
+            </article>
+            <article class="kpi-card">
+              <span>主体企业</span>
+              <strong data-testid="public-company">{{ summary.companyName || company.name }}</strong>
+            </article>
+            <article class="kpi-card">
+              <span>批次编号</span>
+              <strong data-testid="public-batch-code">{{ summary.batchCode }}</strong>
+            </article>
+            <article class="kpi-card">
+              <span>产地</span>
+              <strong data-testid="public-origin">{{ localizeVisibleText(summary.originPlace) || '产地待补充' }}</strong>
+            </article>
+            <article class="kpi-card">
+              <span>公开时间</span>
+              <strong>{{ publicPublishedAtText }}</strong>
             </article>
           </div>
         </div>
 
-        <div class="summary-grid">
-          <div>
-            <span>企业</span>
-            <strong data-testid="public-company">{{ detail.summary.companyName }}</strong>
-          </div>
-          <div>
-            <span>批次号</span>
-            <strong data-testid="public-batch-code">{{ detail.summary.batchCode }}</strong>
-          </div>
-          <div>
-            <span>产地</span>
-            <strong data-testid="public-origin">{{ localizeVisibleText(detail.summary.originPlace) }}</strong>
-          </div>
-          <div>
-            <span>生产日期</span>
-            <strong>{{ detail.summary.productionDate || '暂无' }}</strong>
-          </div>
-          <div>
-            <span>公开时间</span>
-            <strong>{{ publicPublishedAtText }}</strong>
-          </div>
-          <div>
-            <span>查询说明</span>
-            <strong>{{ publicSloganText }}</strong>
-          </div>
-        </div>
+        <aside class="trust-card">
+          <p class="state-eyebrow state-eyebrow--muted">可信依据</p>
+          <ul class="trust-list">
+            <li v-for="item in trustSignals" :key="item.label">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
+            </li>
+          </ul>
+        </aside>
       </section>
 
       <section class="detail-grid">
         <article class="card">
           <div class="section-head">
-            <h2>基础信息</h2>
-            <span>企业与批次</span>
+            <div>
+              <h2>消费者最关心的信息</h2>
+              <p>首屏只保留状态、来源和使用判断，方便扫完码后快速理解。</p>
+            </div>
+            <span>扫码首屏</span>
           </div>
 
-          <div class="info-grid">
-            <div>
-              <span>企业名称</span>
-              <strong>{{ detail.company.name }}</strong>
-            </div>
-            <div>
-              <span>许可证号</span>
-              <strong>{{ detail.company.licenseNo || '待补充' }}</strong>
-            </div>
-            <div>
-              <span>联系人</span>
-              <strong>{{ detail.company.contactName || '待补充' }}</strong>
-            </div>
-            <div>
-              <span>联系电话</span>
-              <strong>{{ detail.company.contactPhone || '待补充' }}</strong>
+          <div class="fact-grid">
+            <div v-for="item in consumerFacts" :key="item.label" class="fact-card">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
             </div>
           </div>
-
-          <p class="section-copy">{{ localizeVisibleText(detail.company.address) || '企业地址待补充。' }}</p>
         </article>
 
         <article class="card">
           <div class="section-head">
-            <h2>质检与最近记录</h2>
-            <span>{{ publicQualityText }}</span>
+            <div>
+              <h2>企业与检测说明</h2>
+              <p>弱化后台字段感，只保留能支撑“可信度”的关键信息。</p>
+            </div>
+            <span>可信说明</span>
           </div>
 
-          <p class="section-copy">{{ detail.quality.summary }}</p>
+          <div class="fact-grid">
+            <div class="fact-card">
+              <span>企业备案</span>
+              <strong>{{ company.name || summary.companyName || '企业信息待补充' }}</strong>
+            </div>
+            <div class="fact-card">
+              <span>许可证号</span>
+              <strong>{{ company.licenseNo || '待补充' }}</strong>
+            </div>
+          </div>
 
-          <div class="pill-row">
+          <p class="section-copy">{{ qualitySummaryText }}</p>
+
+          <div v-if="qualityHighlights.length" class="pill-row">
             <span v-for="item in qualityHighlights" :key="item">{{ item }}</span>
           </div>
 
-          <div class="recent-card">
-            <span>最近记录</span>
-            <strong>{{ latestTimelineItem?.title || '暂无记录' }}</strong>
-            <p>{{ latestTimelineItem?.time || '暂无时间' }} · {{ localizeVisibleText(latestTimelineItem?.location) || '地点待补充' }}</p>
-            <small>{{ shortSummary(latestTimelineItem?.summary) }}</small>
-          </div>
+          <p class="address-copy">{{ localizeVisibleText(company.address) || '企业地址待补充。' }}</p>
         </article>
       </section>
 
-      <section class="card" data-testid="public-timeline">
+      <section class="card timeline-card" data-testid="public-timeline">
         <div class="section-head">
-          <h2>追溯时间线</h2>
-          <span>{{ detail.timeline.length }} 个节点</span>
+          <div>
+            <h2>关键追溯过程</h2>
+            <p>先看最近动态，再按时间回看关键节点，手机端也能顺着往下滑动查看。</p>
+          </div>
+          <span>{{ timelineItems.length }} 个节点</span>
         </div>
+
+        <article class="latest-event-card">
+          <span>最近动态</span>
+          <strong>{{ latestTimelineItem?.title || '暂无追溯记录' }}</strong>
+          <p>{{ latestTimelineItem?.time || '暂无时间' }} · {{ localizeVisibleText(latestTimelineItem?.location) || '地点待补充' }}</p>
+          <small>{{ shortSummary(latestTimelineItem?.summary) }}</small>
+        </article>
 
         <ol class="timeline">
           <li
@@ -283,11 +372,11 @@ function shortSummary(text) {
         </ol>
 
         <button
-          v-if="detail.timeline.length > 4"
+          v-if="timelineItems.length > 4"
           class="toggle-button"
           @click="showFullTimeline = !showFullTimeline"
         >
-          {{ showFullTimeline ? '收起更多节点' : '查看更多关键节点' }}
+          {{ showFullTimeline ? '收起完整过程' : '展开更多追溯节点' }}
         </button>
       </section>
     </template>
@@ -296,41 +385,96 @@ function shortSummary(text) {
 
 <style scoped>
 .trace-page {
-  max-width: 880px;
+  max-width: 960px;
   margin: 0 auto;
   padding: 18px 14px 40px;
 }
 
-.loading-card,
-.error-card,
+.state-card,
 .risk-banner,
-.result-card,
-.card {
+.hero-card,
+.card,
+.trust-card,
+.latest-event-card,
+.fact-card,
+.kpi-card {
   border-radius: 24px;
   box-shadow: var(--trace-shadow);
 }
 
-.loading-card,
-.error-card,
-.result-card,
-.card {
+.state-card,
+.hero-card,
+.card,
+.trust-card,
+.latest-event-card,
+.fact-card,
+.kpi-card {
   background: var(--trace-surface);
 }
 
-.loading-card,
-.error-card {
+.state-card {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   justify-content: center;
-  min-height: 180px;
-  padding: 20px;
-  color: var(--trace-text-soft);
+  min-height: 240px;
+  padding: 28px 24px;
   text-align: center;
 }
 
+.state-card h1,
+.card h2,
+.timeline-body h3,
+.hero-copy h1,
+.risk-banner h2,
+.latest-event-card strong {
+  margin: 0;
+  color: var(--trace-text);
+}
+
+.state-card p,
+.risk-banner p,
+.verdict-copy,
+.section-copy,
+.timeline-meta,
+.timeline-summary,
+.latest-event-card p,
+.latest-event-card small,
+.address-copy,
+.section-head p {
+  color: #4f6e8f;
+  line-height: 1.7;
+}
+
+.state-eyebrow,
+.eyebrow {
+  margin: 0 0 8px;
+  color: var(--trace-text-soft);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.state-eyebrow--muted {
+  color: #6b86a4;
+}
+
+.error-card {
+  border: 1px solid rgba(190, 70, 58, 0.16);
+  background: rgba(255, 250, 249, 0.98);
+}
+
+.error-list {
+  margin: 16px auto 0;
+  padding-left: 20px;
+  max-width: 520px;
+  text-align: left;
+  color: #6a4a45;
+  line-height: 1.8;
+}
+
 .risk-banner {
-  margin-bottom: 14px;
-  padding: 18px;
+  margin-bottom: 16px;
+  padding: 20px;
 }
 
 .risk-banner.warning {
@@ -348,14 +492,6 @@ function shortSummary(text) {
   color: #a0342c;
 }
 
-.risk-tag,
-.eyebrow {
-  margin: 0 0 8px;
-  font-size: 12px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
 .risk-meta {
   display: flex;
   flex-wrap: wrap;
@@ -364,113 +500,120 @@ function shortSummary(text) {
   font-size: 13px;
 }
 
-.result-card {
+.hero-card {
+  display: grid;
+  grid-template-columns: 1.55fr 0.85fr;
+  gap: 16px;
   padding: 20px;
 }
 
-.result-head {
+.hero-product {
   display: grid;
-  grid-template-columns: 1.3fr 0.7fr;
-  gap: 16px;
-}
-
-.product-block {
-  display: grid;
-  grid-template-columns: 136px 1fr;
-  gap: 16px;
+  grid-template-columns: 148px 1fr;
+  gap: 18px;
   align-items: start;
 }
 
 .product-image {
-  width: 136px;
-  height: 136px;
-  border-radius: 22px;
+  width: 148px;
+  height: 148px;
+  border-radius: 24px;
   object-fit: cover;
   background: linear-gradient(160deg, #eef7ff, #dbeeff);
 }
 
-.product-copy {
+.hero-copy {
   min-width: 0;
 }
 
-.eyebrow {
-  color: var(--trace-text-soft);
-}
-
-h1,
-h2,
-h3,
-p {
-  margin-top: 0;
-}
-
-h1 {
+.hero-copy h1 {
   margin-bottom: 10px;
-  color: var(--trace-text);
   font-size: 30px;
 }
 
 .verdict-title {
-  margin-bottom: 8px;
+  margin: 0 0 8px;
   color: var(--trace-primary-deep);
-  font-size: 19px;
+  font-size: 20px;
   font-weight: 700;
 }
 
-.verdict-copy,
-.section-copy,
-.timeline-meta,
-.timeline-summary,
-.recent-card p,
-.recent-card small {
-  color: #4a6b90;
-  line-height: 1.7;
-}
-
-.result-side,
-.summary-grid,
-.info-grid {
+.hero-kpi-grid,
+.fact-grid,
+.trust-list {
   display: grid;
   gap: 12px;
 }
 
-.result-pill,
-.summary-grid div,
-.info-grid div,
-.recent-card {
-  padding: 14px;
-  border-radius: 18px;
-  background: var(--trace-surface-soft);
+.hero-kpi-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 18px;
+}
+
+.kpi-card,
+.fact-card,
+.latest-event-card {
+  padding: 16px;
   border: 1px solid var(--trace-border);
+  background: var(--trace-surface-soft);
 }
 
-.result-pill.highlight {
-  background: var(--trace-primary-soft);
+.kpi-card--accent {
+  background: rgba(48, 149, 246, 0.1);
 }
 
-.result-pill span,
-.summary-grid span,
-.info-grid span,
-.recent-card span,
-.section-head span {
+.kpi-card span,
+.fact-card span,
+.latest-event-card span,
+.section-head span,
+.timeline-stage,
+.timeline-top span {
   display: block;
   color: var(--trace-text-soft);
   font-size: 12px;
 }
 
-.result-pill strong,
-.summary-grid strong,
-.info-grid strong,
-.recent-card strong {
+.kpi-card strong,
+.fact-card strong {
   display: block;
-  margin-top: 6px;
+  margin-top: 8px;
   color: var(--trace-text);
   line-height: 1.5;
 }
 
-.summary-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin-top: 16px;
+.trust-card {
+  padding: 18px;
+  border: 1px solid rgba(48, 149, 246, 0.14);
+  background: linear-gradient(180deg, rgba(248, 252, 255, 0.98), rgba(241, 248, 255, 0.98));
+}
+
+.trust-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trust-list li {
+  padding: 14px 0;
+  border-bottom: 1px solid rgba(48, 149, 246, 0.08);
+}
+
+.trust-list li:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.trust-list span {
+  display: block;
+  color: var(--trace-text-soft);
+  font-size: 12px;
+}
+
+.trust-list strong {
+  display: block;
+  margin-top: 8px;
+  color: var(--trace-text);
+  line-height: 1.6;
 }
 
 .detail-grid {
@@ -481,12 +624,7 @@ h1 {
 }
 
 .card {
-  margin-top: 14px;
   padding: 20px;
-}
-
-.detail-grid .card {
-  margin-top: 0;
 }
 
 .section-head,
@@ -497,10 +635,9 @@ h1 {
   gap: 12px;
 }
 
-.section-head h2,
-.timeline-body h3 {
-  margin-bottom: 0;
-  color: var(--trace-text);
+.fact-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 16px;
 }
 
 .pill-row {
@@ -516,12 +653,20 @@ h1 {
   min-height: 30px;
   padding: 0 12px;
   border-radius: 999px;
-  background: var(--trace-primary-soft);
+  background: rgba(48, 149, 246, 0.12);
   color: var(--trace-primary-deep);
   font-size: 13px;
 }
 
-.recent-card {
+.address-copy {
+  margin: 16px 0 0;
+}
+
+.timeline-card {
+  margin-top: 14px;
+}
+
+.latest-event-card {
   margin-top: 16px;
 }
 
@@ -547,12 +692,6 @@ h1 {
   box-shadow: 0 0 0 4px rgba(48, 149, 246, 0.14);
 }
 
-.timeline-stage,
-.timeline-top span {
-  color: var(--trace-text-soft);
-  font-size: 12px;
-}
-
 .timeline-image {
   width: 100%;
   margin-top: 12px;
@@ -571,24 +710,25 @@ h1 {
   color: var(--trace-primary-deep);
 }
 
-@media (max-width: 720px) {
-  .result-head,
+@media (max-width: 820px) {
+  .hero-card,
   .detail-grid {
     grid-template-columns: 1fr;
   }
 
-  .summary-grid {
+  .hero-kpi-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 540px) {
+@media (max-width: 560px) {
   .trace-page {
     padding-inline: 12px;
   }
 
-  .product-block,
-  .summary-grid {
+  .hero-product,
+  .hero-kpi-grid,
+  .fact-grid {
     grid-template-columns: 1fr;
   }
 
@@ -597,7 +737,7 @@ h1 {
     height: 220px;
   }
 
-  h1 {
+  .hero-copy h1 {
     font-size: 26px;
   }
 }

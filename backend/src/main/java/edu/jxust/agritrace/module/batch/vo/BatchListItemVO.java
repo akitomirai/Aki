@@ -38,6 +38,9 @@ public record BatchListItemVO(
         boolean todayCompleted,
         boolean draftPending,
         String draftStatusLabel,
-        String draftUpdatedAt
+        String draftUpdatedAt,
+        String recommendedActionCode,
+        String recommendedActionLabel,
+        String recommendedActionHint
 ) {
 }

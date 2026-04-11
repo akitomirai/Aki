@@ -123,7 +123,6 @@
                     </el-button>
                   </div>
 
-                  <!-- 调试/兜底：原始 JSON -->
                   <details class="raw-json">
                     <summary>查看原始数据</summary>
                     <pre class="json-box">{{ formatJson(item.content) }}</pre>
@@ -141,12 +140,6 @@
 </template>
 
 <script setup>
-/**
- * 消费者查询页（优化版）：
- * - 更适合手机展示
- * - fields 按键值渲染
- * - INSPECT 事件支持“查看报告”
- */
 import { onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { getTraceByTokenApi } from '../api/trace'

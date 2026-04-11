@@ -26,7 +26,7 @@ foreach ($serviceName in $serviceOrder) {
     }
 
     $listeners = Get-PortListenerRecords -Port $config.Port | Where-Object {
-        Test-ManagedServiceProcess -ServiceName $serviceName -ProcessId $_.Pid
+        (Test-ManagedServiceProcess -ServiceName $serviceName -ProcessId $_.Pid) -or (Test-ProjectProcessRecord -Record $_)
     }
     foreach ($listener in $listeners) {
         $entries += [pscustomobject]@{
@@ -50,12 +50,29 @@ $results = @()
 foreach ($entry in $entries) {
     $verified = Test-ManagedServiceProcess -ServiceName $entry.Name -ProcessId $entry.Pid
     if (-not $verified) {
-        $results += [pscustomobject]@{
-            Service = $entry.DisplayName
-            Port = $entry.Port
-            Pid = $entry.Pid
-            Result = 'skipped'
-            Note = 'PID no longer matches a managed local runner'
+        $fallbackListeners = Get-PortListenerRecords -Port $entry.Port | Where-Object {
+            Test-ProjectProcessRecord -Record $_
+        }
+        if ($fallbackListeners.Count -eq 0) {
+            $results += [pscustomobject]@{
+                Service = $entry.DisplayName
+                Port = $entry.Port
+                Pid = $entry.Pid
+                Result = 'skipped'
+                Note = 'PID no longer matches a managed local runner'
+            }
+            continue
+        }
+
+        foreach ($listener in $fallbackListeners) {
+            $stoppedIds = Stop-ProcessTree -RootProcessId $listener.Pid
+            $results += [pscustomobject]@{
+                Service = $entry.DisplayName
+                Port = $entry.Port
+                Pid = $listener.Pid
+                Result = 'stopped'
+                Note = "fallback stop ids: $($stoppedIds -join ', ')"
+            }
         }
         continue
     }

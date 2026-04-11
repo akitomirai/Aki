@@ -2,8 +2,11 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { createQualityReport, getBatchDetail, getBatchList, uploadBatchFiles } from '../api/batch'
+import PrimaryActionGroup from '../components/PrimaryActionGroup.vue'
+import StatusTag from '../components/StatusTag.vue'
 import { useAuthStore } from '../stores/auth'
 import { createQualityForm, getFriendlyErrorMessage, getFriendlyUploadError, qualityOptions, splitHighlights } from '../utils/batchExperience'
+import { mapBackendRecommendedQualityActionCode } from '../utils/batchStatusFlow'
 import { isRegulator } from '../utils/access'
 import { resolveQrStatusText } from '../utils/statusPresentation'
 
@@ -31,7 +34,7 @@ const pageSubtitle = computed(() => {
   return '从全局视角处理待上传、已合格、不合格和已上传待发布的批次，不必逐个进工作台找。'
 })
 const readOnlyBannerText = computed(() => '当前为监管查看模式，页面保留批次、企业、质检结论、二维码状态和最近更新时间，便于直接核对质检链路。')
-const openWorkbenchText = computed(() => readOnlyQualityView.value ? '查看批次详情' : '进入工作台')
+const openWorkbenchText = computed(() => readOnlyQualityView.value ? '查看批次详情' : '查看工作台')
 
 const qualityTabs = [
   { value: 'PENDING', label: '待上传' },
@@ -57,6 +60,66 @@ const tabCounts = computed(() => {
     acc[item.value] = rows.value.filter((row) => matchesTab(row, item.value)).length
     return acc
   }, {})
+})
+
+const activeTabMeta = computed(() => qualityTabs.find((item) => item.value === activeTab.value) ?? qualityTabs[0])
+
+const qualityOverviewCards = computed(() => [
+  {
+    key: 'pending',
+    label: '待上传',
+    value: tabCounts.value.PENDING ?? 0,
+    detail: readOnlyQualityView.value ? '还没有质检结果的批次' : '优先补质检摘要后再继续发布'
+  },
+  {
+    key: 'pass',
+    label: '已合格',
+    value: tabCounts.value.PASS ?? 0,
+    detail: '可继续核对二维码和公开页表现'
+  },
+  {
+    key: 'fail',
+    label: '不合格',
+    value: tabCounts.value.FAIL ?? 0,
+    detail: '建议先回工作台确认风险与整改'
+  },
+  {
+    key: 'ready',
+    label: '待发布',
+    value: tabCounts.value.READY ?? 0,
+    detail: '质检条件已齐，可继续发布'
+  }
+])
+
+const boardLeadText = computed(() => {
+  if (readOnlyQualityView.value) {
+    return `${activeTabMeta.value.label}看板会优先保留最新质检结论、二维码状态和发布时间线索，便于直接核对资料完整度。`
+  }
+  return {
+    PENDING: '先补质检摘要，再回工作台继续生成二维码或发布。',
+    PASS: '已合格批次重点核对二维码、公开页和发布动作。',
+    FAIL: '不合格批次先看结果，再决定是否进入风险处理。',
+    READY: '这一组批次已接近发布完成，适合答辩时直接讲主链路闭环。'
+  }[activeTab.value] ?? '优先处理当前看板里最靠近发布的批次。'
+})
+
+const uploadDialogError = computed(() => {
+  if (!uploadDialog.value.visible) {
+    return ''
+  }
+  if (!qualityForm.value.reportNo?.trim()) {
+    return '请填写报告编号。'
+  }
+  if (!qualityForm.value.agency?.trim()) {
+    return '请填写检测机构。'
+  }
+  if (!qualityForm.value.reportTime) {
+    return '请填写检测时间。'
+  }
+  if (!splitHighlights(qualityForm.value.highlightsText).length) {
+    return '请至少填写一条质检摘要。'
+  }
+  return ''
 })
 
 onMounted(async () => {
@@ -121,6 +184,174 @@ function publishReadyText(item) {
     return '已发布'
   }
   return resolvePublishReady(item) ? '允许发布' : '暂不可发布'
+}
+
+function qualityResultText(item) {
+  return item.qualityStatus || '待上传质检'
+}
+
+function qualityPriorityText(item) {
+  const qualityCode = String(item.qualityStatusCode || 'PENDING').toUpperCase()
+  if (qualityCode === 'PENDING') {
+    return '优先补质检摘要'
+  }
+  if (qualityCode === 'FAIL') {
+    return '先核对不合格结论'
+  }
+  if (item.status === 'PUBLISHED') {
+    return '已发布，继续核对公开页'
+  }
+  if (resolvePublishReady(item)) {
+    return '可回工作台继续发布'
+  }
+  return '继续核对二维码准备情况'
+}
+
+function qualityPriorityHint(item) {
+  const qualityCode = String(item.qualityStatusCode || 'PENDING').toUpperCase()
+  if (qualityCode === 'PENDING') {
+    return '补完摘要后，工作台会同步更新发布准备度。'
+  }
+  if (qualityCode === 'FAIL') {
+    return '建议先查看报告，再判断是否需要进入风险处理。'
+  }
+  if (resolvePublishReady(item)) {
+    return '当前资料已接近收口，适合继续讲解发布和公开页。'
+  }
+  return item.qrStatus === 'NOT_GENERATED'
+    ? '二维码还没准备好，先回工作台完成最后一步。'
+    : '可以继续核对最近更新和公开页入口。'
+}
+
+function qualityPriorityTone(item) {
+  const qualityCode = String(item.qualityStatusCode || 'PENDING').toUpperCase()
+  if (qualityCode === 'FAIL') {
+    return 'danger'
+  }
+  if (qualityCode === 'PASS' && resolvePublishReady(item)) {
+    return 'success'
+  }
+  if (qualityCode === 'PASS') {
+    return 'primary'
+  }
+  return 'warning'
+}
+
+function qualityReportAvailable(item) {
+  return String(item.qualityStatusCode || 'PENDING').toUpperCase() !== 'PENDING'
+}
+
+function canExecuteQualityAction(item, actionCode) {
+  if (actionCode === 'workbench') {
+    return true
+  }
+  if (actionCode === 'upload') {
+    return !readOnlyQualityView.value && actionEnabled(item, 'UPLOAD_QUALITY')
+  }
+  if (actionCode === 'report') {
+    return qualityReportAvailable(item)
+  }
+  return false
+}
+
+function recommendedQualityActionCode(item) {
+  if (readOnlyQualityView.value) {
+    return qualityReportAvailable(item) ? 'report' : 'workbench'
+  }
+  const backendCode = mapBackendRecommendedQualityActionCode(item?.recommendedActionCode)
+  if (backendCode && canExecuteQualityAction(item, backendCode)) {
+    return backendCode
+  }
+  if (!qualityReportAvailable(item) && actionEnabled(item, 'UPLOAD_QUALITY')) {
+    return 'upload'
+  }
+  if (qualityReportAvailable(item) && String(item.qualityStatusCode || '').toUpperCase() === 'FAIL') {
+    return 'report'
+  }
+  if (resolvePublishReady(item)) {
+    return 'workbench'
+  }
+  return qualityReportAvailable(item) ? 'report' : 'workbench'
+}
+
+function recommendedQualityActionDisabled(item) {
+  return !canExecuteQualityAction(item, recommendedQualityActionCode(item))
+}
+
+function recommendedQualityActionLabel(item) {
+  return {
+    upload: '上传质检',
+    report: '查看质检结果',
+    workbench: openWorkbenchText.value
+  }[recommendedQualityActionCode(item)]
+}
+
+function recommendedQualityActionClass(item) {
+  return {
+    upload: 'primary',
+    report: String(item.qualityStatusCode || '').toUpperCase() === 'FAIL' ? 'warning' : 'ghost',
+    workbench: resolvePublishReady(item) ? 'success' : 'ghost'
+  }[recommendedQualityActionCode(item)]
+}
+
+function qualitySecondaryActions(item) {
+  const actions = []
+  if (recommendedQualityActionCode(item) !== 'workbench') {
+    actions.push({
+      key: 'workbench',
+      label: openWorkbenchText.value,
+      testId: `quality-open-workbench-${item.id}`,
+      disabled: false
+    })
+  }
+  if (qualityReportAvailable(item) && recommendedQualityActionCode(item) !== 'report') {
+    actions.push({
+      key: 'report',
+      label: '查看质检结果',
+      testId: `quality-open-report-${item.id}`,
+      disabled: false
+    })
+  }
+  if (!readOnlyQualityView.value && actionEnabled(item, 'UPLOAD_QUALITY') && recommendedQualityActionCode(item) !== 'upload') {
+    actions.push({
+      key: 'upload',
+      label: '上传质检',
+      testId: `quality-upload-${item.id}`,
+      disabled: false
+    })
+  }
+  return actions
+}
+
+function handleRecommendedQualityAction(item) {
+  const code = recommendedQualityActionCode(item)
+  if (!canExecuteQualityAction(item, code)) {
+    showMessage('当前动作暂不可执行，请先补齐前置条件。', 'error')
+    return
+  }
+  if (code === 'upload') {
+    openUploadDialog(item)
+    return
+  }
+  if (code === 'report') {
+    openResultDialog(item)
+    return
+  }
+  openWorkbench(item)
+}
+
+function handleSecondaryQualityAction(item, code) {
+  if (code === 'workbench') {
+    openWorkbench(item)
+    return
+  }
+  if (code === 'report') {
+    openResultDialog(item)
+    return
+  }
+  if (code === 'upload') {
+    openUploadDialog(item)
+  }
 }
 
 function latestUpdatedText(item) {
@@ -217,6 +448,10 @@ function openUploadDialog(item) {
   if (readOnlyQualityView.value) {
     return
   }
+  if (!actionEnabled(item, 'UPLOAD_QUALITY')) {
+    showMessage('当前批次暂不允许上传质检，请先检查状态条件。', 'error')
+    return
+  }
   uploadDialog.value = {
     visible: true,
     batch: item
@@ -258,8 +493,21 @@ function removeQualityAttachment(fileId) {
 }
 
 async function submitQualityUpload() {
+  if (qualitySubmitting.value || readOnlyQualityView.value) {
+    return
+  }
   if (!uploadDialog.value.batch?.id) {
     return
+  }
+  if (uploadDialogError.value) {
+    showMessage(uploadDialogError.value, 'error')
+    return
+  }
+  if (String(qualityForm.value.result || '').toUpperCase() === 'FAIL') {
+    const confirmed = window.confirm('当前质检结论为“不合格”，提交后会影响发布流程，确认继续吗？')
+    if (!confirmed) {
+      return
+    }
   }
   qualitySubmitting.value = true
   try {
@@ -327,6 +575,24 @@ function formatFileSize(size) {
       </div>
     </section>
 
+    <section class="panel board-panel">
+      <div class="board-head">
+        <div>
+          <p class="panel-label">当前看板</p>
+          <h2>{{ activeTabMeta.label }}</h2>
+          <p class="board-copy">{{ boardLeadText }}</p>
+        </div>
+        <span class="board-badge">{{ visibleRows.length }} 个批次</span>
+      </div>
+      <div class="board-grid">
+        <article v-for="card in qualityOverviewCards" :key="card.key" class="board-card">
+          <small>{{ card.label }}</small>
+          <strong>{{ card.value }}</strong>
+          <p>{{ card.detail }}</p>
+        </article>
+      </div>
+    </section>
+
     <section class="panel">
       <div class="filter-grid">
         <label>
@@ -343,14 +609,10 @@ function formatFileSize(size) {
             <option v-for="item in statusOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
           </select>
         </label>
-        <label>
-          <span>当前筛选</span>
-          <input :value="qualityTabs.find((item) => item.value === activeTab)?.label || '待上传'" type="text" disabled>
-        </label>
       </div>
 
       <div class="toolbar">
-        <span class="list-summary">共 {{ rows.length }} 个批次，当前显示 {{ visibleRows.length }} 个。</span>
+        <span class="list-summary">当前看板为“{{ activeTabMeta.label }}”，共 {{ rows.length }} 个批次，当前显示 {{ visibleRows.length }} 个。</span>
         <div class="toolbar-actions">
           <button class="primary" data-testid="quality-search-button" :disabled="loading" @click="fetchRows">查询</button>
           <button class="ghost" data-testid="quality-reset-button" :disabled="loading" @click="resetFilters">重置</button>
@@ -362,28 +624,24 @@ function formatFileSize(size) {
 
     <section v-if="loading" class="panel empty-state">
       <div>
-        <h3>正在加载质检待办...</h3>
-        <p class="empty-copy">请稍等，正在汇总批次与质检状态。</p>
+        <h3>正在同步质检看板...</h3>
+        <p class="empty-copy">请稍等，正在汇总批次、质检结论和发布准备度。</p>
       </div>
     </section>
 
     <section v-else-if="!visibleRows.length" class="panel empty-state">
       <div>
-        <h3>当前筛选下没有质检待办</h3>
-        <p class="empty-copy">可以切换 tabs 或调整检索条件后再看。</p>
+        <h3>当前看板下还没有质检任务</h3>
+        <p class="empty-copy">可以切换看板或调整筛选条件后再看。</p>
       </div>
     </section>
 
     <section v-else class="panel">
       <div class="todo-table-head quality-head">
-        <span>批次</span>
-        <span>企业</span>
-        <span>批次状态</span>
-        <span>质检状态</span>
-        <span>二维码</span>
-        <span>允许发布</span>
-        <span>最近更新</span>
-        <span>操作</span>
+        <span>批次概况</span>
+        <span>当前判断</span>
+        <span>发布准备</span>
+        <span>推荐动作</span>
       </div>
 
       <div class="todo-row-list">
@@ -393,54 +651,51 @@ function formatFileSize(size) {
           class="todo-row quality-row"
           :data-testid="`quality-row-${item.id}`"
         >
-          <div class="row-main">
-            <strong>{{ item.productName }}</strong>
-            <span>{{ item.batchCode }}</span>
-            <small>{{ item.currentNode || '待确认环节' }}</small>
+          <div class="row-main quality-main">
+            <div class="row-title-line">
+              <strong>{{ item.productName }}</strong>
+              <span>{{ item.batchCode }}</span>
+            </div>
+            <div class="row-chip-group">
+              <StatusTag :text="item.statusLabel" :tone="statusClass(item.status)" />
+              <StatusTag :text="qualityResultText(item)" :tone="resultStatusTone(item)" />
+              <StatusTag :text="resolveQrStatusText({ status: item.qrStatus, statusLabel: item.qrStatusLabel })" tone="neutral" />
+            </div>
+            <small>{{ item.companyName }} · {{ item.currentNode || '待确认环节' }} · {{ item.originPlace || '产地待补充' }}</small>
           </div>
 
-          <div class="row-meta">
-            <strong>{{ item.companyName }}</strong>
-            <small>{{ item.originPlace || '暂无产地' }}</small>
+          <div class="row-meta quality-focus">
+            <span class="row-label">当前判断</span>
+            <strong>{{ qualityPriorityText(item) }}</strong>
+            <small>{{ qualityPriorityHint(item) }}</small>
+            <span class="priority-chip" :class="qualityPriorityTone(item)">{{ item.qualityStatusCode === 'PENDING' ? '优先处理' : '已形成判断' }}</span>
           </div>
 
-          <div class="status-stack">
-            <span class="status-badge" :class="statusClass(item.status)">{{ item.statusLabel }}</span>
-            <small>{{ item.marketDate || '未发布' }}</small>
-          </div>
-
-          <div class="status-stack">
-            <span class="info-pill" :class="resultStatusTone(item)">{{ item.qualityStatus }}</span>
-            <small>{{ item.qualityStatusCode === 'PENDING' ? '当前还没有质检摘要' : '已有最新质检结论' }}</small>
-          </div>
-
-          <div class="status-stack">
-            <strong>{{ resolveQrStatusText({ status: item.qrStatus, statusLabel: item.qrStatusLabel }) }}</strong>
-            <small>{{ item.qrStatus === 'NOT_GENERATED' ? '发布前需要先生成二维码' : '公开页入口已就绪' }}</small>
-          </div>
-
-          <div class="status-stack">
+          <div class="status-stack quality-ready">
+            <span class="row-label">发布准备</span>
             <strong>{{ publishReadyText(item) }}</strong>
-            <small>{{ resolvePublishReady(item) ? '当前条件允许发布或恢复发布' : '当前还不满足发布条件' }}</small>
+            <small>{{ resolvePublishReady(item) ? '当前条件允许继续发布或恢复发布。' : '仍需补齐质检、二维码或状态条件。' }}</small>
+            <div class="meta-inline">
+              <span>最近更新：{{ latestUpdatedText(item) }}</span>
+              <span>{{ item.marketDate ? `公开时间：${item.marketDate}` : '还没有公开时间' }}</span>
+            </div>
           </div>
 
-          <div class="row-meta">
-            <strong>{{ latestUpdatedText(item) }}</strong>
-            <small>最近更新时间</small>
-          </div>
-
-          <div class="row-actions">
-            <button class="text-button primary-text" :data-testid="`quality-open-workbench-${item.id}`" @click="openWorkbench(item)">{{ openWorkbenchText }}</button>
-            <button class="text-button" :data-testid="`quality-open-report-${item.id}`" :disabled="item.qualityStatusCode === 'PENDING'" @click="openResultDialog(item)">查看质检结果</button>
-            <button
-              v-if="!readOnlyQualityView"
-              class="text-button"
-              :data-testid="`quality-upload-${item.id}`"
-              :disabled="!actionEnabled(item, 'UPLOAD_QUALITY')"
-              @click="openUploadDialog(item)"
-            >
-              上传质检
-            </button>
+          <div class="row-actions quality-actions">
+            <PrimaryActionGroup
+              :primary-label="recommendedQualityActionLabel(item)"
+              :primary-class="recommendedQualityActionClass(item)"
+              :primary-disabled="recommendedQualityActionDisabled(item)"
+              :primary-testid="recommendedQualityActionCode(item) === 'report'
+                ? `quality-open-report-${item.id}`
+                : (recommendedQualityActionCode(item) === 'upload'
+                  ? `quality-upload-${item.id}`
+                  : `quality-open-workbench-${item.id}`)"
+              :primary-hint="qualityPriorityHint(item)"
+              :secondary-actions="qualitySecondaryActions(item)"
+              @primary-click="handleRecommendedQualityAction(item)"
+              @secondary-click="(code) => handleSecondaryQualityAction(item, code)"
+            />
           </div>
         </article>
       </div>
@@ -573,9 +828,11 @@ function formatFileSize(size) {
           </div>
         </div>
 
+        <p v-if="uploadDialogError" class="form-error">{{ uploadDialogError }}</p>
+
         <div class="dialog-actions" style="margin-top: 18px;">
           <button class="ghost" :disabled="qualitySubmitting" @click="closeUploadDialog">取消</button>
-          <button class="primary" data-testid="quality-upload-submit" :disabled="qualitySubmitting || qualityUploading" @click="submitQualityUpload">
+          <button class="primary" data-testid="quality-upload-submit" :disabled="qualitySubmitting || qualityUploading || Boolean(uploadDialogError)" @click="submitQualityUpload">
             {{ qualitySubmitting ? '正在保存...' : '确认上传' }}
           </button>
         </div>
@@ -590,14 +847,154 @@ function formatFileSize(size) {
 .quality-head,
 .quality-row {
   grid-template-columns:
-    minmax(0, 1.6fr)
-    minmax(0, 1.3fr)
-    minmax(0, 0.9fr)
     minmax(0, 1fr)
     minmax(0, 0.8fr)
-    minmax(0, 1fr)
-    minmax(0, 0.9fr)
-    minmax(0, 1.35fr);
+    minmax(0, 0.95fr)
+    minmax(0, 1.15fr);
+}
+
+.board-panel,
+.board-head,
+.board-grid,
+.row-chip-group,
+.secondary-actions,
+.meta-inline {
+  display: grid;
+  gap: 12px;
+}
+
+.board-head {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.board-head h2 {
+  margin: 6px 0 0;
+  color: var(--admin-text);
+  font-size: 22px;
+}
+
+.board-copy {
+  margin: 10px 0 0;
+  color: var(--admin-text-soft);
+  line-height: 1.7;
+}
+
+.board-badge,
+.priority-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  width: fit-content;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.board-badge {
+  background: rgba(48, 149, 246, 0.12);
+  color: var(--admin-primary-deep);
+}
+
+.board-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 16px;
+}
+
+.board-card {
+  padding: 16px;
+  border: 1px solid rgba(194, 212, 230, 0.72);
+  border-radius: 20px;
+  background: var(--admin-surface-soft);
+}
+
+.board-card small,
+.board-card p {
+  color: var(--admin-text-soft);
+}
+
+.board-card strong {
+  display: block;
+  margin-top: 8px;
+  color: var(--admin-text);
+  font-size: 24px;
+}
+
+.board-card p {
+  margin: 10px 0 0;
+  line-height: 1.6;
+}
+
+.quality-main,
+.quality-focus,
+.quality-ready,
+.quality-actions {
+  align-self: stretch;
+}
+
+.row-title-line {
+  display: grid;
+  gap: 4px;
+}
+
+.row-chip-group {
+  margin-top: 4px;
+}
+
+.row-label {
+  color: var(--admin-text-soft);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.priority-chip.primary {
+  background: rgba(48, 149, 246, 0.12);
+  color: var(--admin-primary-deep);
+}
+
+.priority-chip.success {
+  background: rgba(46, 166, 106, 0.12);
+  color: #1e7d50;
+}
+
+.priority-chip.warning {
+  background: rgba(242, 139, 34, 0.14);
+  color: #b96b16;
+}
+
+.priority-chip.danger {
+  background: rgba(221, 74, 74, 0.12);
+  color: #b63f3f;
+}
+
+.quality-ready {
+  gap: 10px;
+}
+
+.meta-inline {
+  margin-top: 2px;
+}
+
+.meta-inline span {
+  color: var(--admin-text-soft);
+  font-size: 12px;
+}
+
+.quality-actions {
+  align-content: start;
+}
+
+.action-copy {
+  margin: 0;
+  color: var(--admin-text-soft);
+  line-height: 1.7;
+}
+
+.secondary-actions {
+  grid-template-columns: repeat(auto-fit, minmax(120px, max-content));
 }
 
 .success {
@@ -611,6 +1008,11 @@ function formatFileSize(size) {
 }
 
 .pending {
+  background: rgba(129, 154, 184, 0.14);
+  color: #57718e;
+}
+
+.neutral {
   background: rgba(129, 154, 184, 0.14);
   color: #57718e;
 }
@@ -634,7 +1036,19 @@ function formatFileSize(size) {
   line-height: 1.7;
 }
 
+.form-error {
+  margin: 14px 0 0;
+  color: #b63f3f;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 @media (max-width: 760px) {
+  .board-head,
+  .board-grid {
+    grid-template-columns: 1fr;
+  }
+
   .quality-row {
     grid-template-columns: 1fr;
   }

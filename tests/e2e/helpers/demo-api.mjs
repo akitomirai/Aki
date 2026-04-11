@@ -55,3 +55,68 @@ export async function createDraftBatch(request) {
     batchId: payload.data.batch.id
   }
 }
+
+export async function createTraceRecordByApi(request, batchId, overrides = {}, credentials = { username: 'platform', password: '123456' }) {
+  const login = await loginByApi(request, credentials)
+  const payload = {
+    stage: 'PRODUCE',
+    title: '答辩演示现场记录',
+    eventTime: new Date().toISOString().slice(0, 16),
+    operatorName: '答辩演示员',
+    location: '答辩演示基地',
+    summary: '已完成现场记录补录，准备继续上传质检与生成二维码。',
+    imageUrl: '',
+    attachmentIds: [],
+    visibleToConsumer: true,
+    ...overrides
+  }
+
+  const response = await request.post(`${apiBaseUrl}/batches/${batchId}/records/quick`, {
+    headers: {
+      Authorization: `Bearer ${login.token}`,
+      'Content-Type': 'application/json'
+    },
+    data: payload
+  })
+
+  if (!response.ok()) {
+    throw new Error(`Failed to create trace record: ${response.status()} ${response.statusText()}`)
+  }
+
+  return response.json()
+}
+
+export async function getBatchWorkbenchByApi(request, batchId, credentials = { username: 'platform', password: '123456' }) {
+  const login = await loginByApi(request, credentials)
+  const response = await request.get(`${apiBaseUrl}/batches/${batchId}`, {
+    headers: {
+      Authorization: `Bearer ${login.token}`
+    }
+  })
+
+  if (!response.ok()) {
+    throw new Error(`Failed to get batch workbench: ${response.status()} ${response.statusText()}`)
+  }
+
+  return response.json()
+}
+
+export async function assignBatchByApi(request, batchId, assigneeUserId, options = {}, credentials = { username: 'platform', password: '123456' }) {
+  const login = await loginByApi(request, credentials)
+  const response = await request.post(`${apiBaseUrl}/batches/${batchId}/assignment`, {
+    headers: {
+      Authorization: `Bearer ${login.token}`,
+      'Content-Type': 'application/json'
+    },
+    data: {
+      assigneeUserId,
+      forceClearDraft: Boolean(options.forceClearDraft)
+    }
+  })
+
+  if (!response.ok()) {
+    throw new Error(`Failed to assign batch: ${response.status()} ${response.statusText()}`)
+  }
+
+  return response.json()
+}

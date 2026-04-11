@@ -1,53 +1,42 @@
-$ErrorActionPreference = "Continue"
+$ErrorActionPreference = 'Continue'
 
-function Stop-PortProcess {
-    param(
-        [Parameter(Mandatory = $true)]
-        [int]$Port
-    )
+$root = Split-Path -Parent $MyInvocation.MyCommand.Path
+. (Join-Path $root 'scripts\local-common.ps1')
 
-    try {
-        $lines = netstat -ano | Select-String ":$Port\s"
+$ports = @(6379, 8080, 5174, 5173)
+$stopped = @()
+$skipped = @()
 
-        if (-not $lines) {
-            Write-Host "Port $Port is not in use." -ForegroundColor DarkGray
-            return
-        }
-
-        $procIds = @()
-
-        foreach ($line in $lines) {
-            $text = ($line.ToString() -replace "\s+", " ").Trim()
-            $parts = $text.Split(" ")
-            $procIdText = $parts[-1]
-
-            if ($procIdText -match "^\d+$" -and $procIdText -ne "0") {
-                $procIds += [int]$procIdText
-            }
-        }
-
-        $procIds = $procIds | Sort-Object -Unique
-
-        foreach ($procId in $procIds) {
-            try {
-                $proc = Get-Process -Id $procId -ErrorAction Stop
-                Write-Host "Stopping process on port $Port : PID=$procId Name=$($proc.ProcessName)" -ForegroundColor Yellow
-                Stop-Process -Id $procId -Force -ErrorAction Stop
-            }
-            catch {
-                Write-Host "Failed to stop PID=$procId, or it already exited." -ForegroundColor DarkYellow
-            }
-        }
+foreach ($port in $ports) {
+    $records = Get-PortListenerRecords -Port $port
+    if ($records.Count -eq 0) {
+        Write-Host "Port $port is not in use." -ForegroundColor DarkGray
+        continue
     }
-    catch {
-        Write-Host "Failed while checking/stopping port $Port : $($_.Exception.Message)" -ForegroundColor Red
+
+    foreach ($record in $records) {
+        if (-not (Test-ProjectProcessRecord -Record $record)) {
+            $skipped += [pscustomobject]@{
+                Port = $port
+                Pid = $record.Pid
+                ProcessName = $record.ProcessName
+            }
+            Write-Host "Skip external listener on port $port : PID=$($record.Pid) Name=$($record.ProcessName)" -ForegroundColor Yellow
+            continue
+        }
+
+        Stop-ProcessTree -RootProcessId $record.Pid | Out-Null
+        $stopped += [pscustomobject]@{
+            Port = $port
+            Pid = $record.Pid
+            ProcessName = $record.ProcessName
+        }
+        Write-Host "Stopped workspace listener on port $port : PID=$($record.Pid) Name=$($record.ProcessName)" -ForegroundColor Green
     }
 }
 
-Write-Host "Stopping project-related processes..." -ForegroundColor Cyan
-Stop-PortProcess -Port 6379
-Stop-PortProcess -Port 8080
-Stop-PortProcess -Port 5174
-Stop-PortProcess -Port 5173
-Write-Host "Done." -ForegroundColor Green
+if ($stopped.Count -eq 0 -and $skipped.Count -eq 0) {
+    Write-Host 'No project-related listeners were found.' -ForegroundColor Yellow
+}
+
 Read-Host "Press Enter to exit"

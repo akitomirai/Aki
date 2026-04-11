@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import PrimaryActionGroup from '../components/PrimaryActionGroup.vue'
 import {
   createTraceRecord,
   deleteFieldDraft as deleteFieldDraftRequest,
@@ -52,6 +53,7 @@ const draftList = ref([])
 const draftMeta = ref(null)
 const lastSuccess = ref(null)
 const formSectionRef = ref(null)
+const showAdvancedFields = ref(false)
 
 const draftMap = computed(() => Object.fromEntries(draftList.value.map((item) => [String(item.batchId), item])))
 const batchMap = computed(() => Object.fromEntries(batches.value.map((item) => [String(item.id), item])))
@@ -102,7 +104,7 @@ const selectedBatch = computed(() => {
 })
 
 const currentBatchCode = computed(() => selectedBatch.value?.batchCode || batchDetail.value?.batch?.batchCode || '')
-const currentProductName = computed(() => selectedBatch.value?.productName || batchDetail.value?.product?.name || '鐜板満浣滀笟')
+const currentProductName = computed(() => selectedBatch.value?.productName || batchDetail.value?.product?.name || '现场作业')
 const currentCompanyName = computed(() => selectedBatch.value?.companyName || batchDetail.value?.company?.name || '')
 const currentStatusLabel = computed(() => selectedBatch.value?.statusLabel || batchDetail.value?.status?.label || '待处理')
 const currentTaskStatusLabel = computed(() => resolveTaskStatusLabel({
@@ -114,7 +116,7 @@ const currentTaskStatusLabel = computed(() => resolveTaskStatusLabel({
 }))
 const currentAssignedAt = computed(() => selectedBatch.value?.assignedAt || batchDetail.value?.task?.assignedAt || '')
 const currentAssigneeName = computed(() => selectedBatch.value?.assigneeName || batchDetail.value?.task?.assigneeName || authStore.user?.realName || '')
-const currentNode = computed(() => batchDetail.value?.status?.currentNode || selectedBatch.value?.currentNode || '寰呰ˉ鐜板満璁板綍')
+const currentNode = computed(() => batchDetail.value?.status?.currentNode || selectedBatch.value?.currentNode || '待补现场记录')
 const currentProfile = computed(() => getStageProfile(traceForm.value.stage))
 const latestRecord = computed(() => batchDetail.value?.trace?.recentRecords?.[0] ?? null)
 const failedImageCount = computed(() => imageItems.value.filter((item) => item.status === 'failed').length)
@@ -130,6 +132,23 @@ const uploadStatusText = computed(() => {
     return `已准备 ${imageItems.value.length} 张图片，可继续排序、补录或提交。`
   }
   return `支持一次选择多张或连续追加，最多保留 ${MAX_IMAGE_COUNT} 张。`
+})
+
+const submitBlockReason = computed(() => entryValidationError('submit'))
+const draftBlockReason = computed(() => entryValidationError('draft'))
+const submitSecondaryActions = computed(() => ([
+  {
+    key: 'save-draft',
+    label: draftSaving.value ? '正在保存草稿...' : '保存草稿',
+    testId: 'field-entry-save-draft',
+    disabled: Boolean(draftBlockReason.value) || draftSaving.value || saving.value || detailLoading.value
+  }
+]))
+const submitPrimaryHint = computed(() => {
+  if (submitBlockReason.value) {
+    return submitBlockReason.value
+  }
+  return '提交后会直接同步到批次工作台。'
 })
 
 const summaryStats = computed(() => {
@@ -148,6 +167,41 @@ const entryHints = computed(() => {
   if (batchDetail.value?.quality?.status === 'PENDING') items.push('现场记录补完后，记得回工作台继续补质量摘要。')
   if (!batchDetail.value?.qr?.generated) items.push('图片和说明提交后，可继续回工作台生成二维码。')
   return items.slice(0, 3)
+})
+
+const entryGuideCards = computed(() => [
+  {
+    key: 'stage',
+    label: '当前要录',
+    value: formatStageLabel(traceForm.value.stage),
+    detail: currentNode.value || '待补现场记录'
+  },
+  {
+    key: 'summary',
+    label: '先说一句',
+    value: traceForm.value.summary || currentProfile.value.summaries[0],
+    detail: '把现场完成情况讲清即可，不必写成后台字段。'
+  },
+  {
+    key: 'image',
+    label: '建议图片',
+    value: imageItems.value.length ? `已准备 ${imageItems.value.length} 张` : '建议带 1-3 张',
+    detail: hasFailedImages.value ? '有上传失败图片，请重试或删除。' : '优先拍关键操作、标签和环境。'
+  }
+])
+
+const advancedFieldSummary = computed(() => {
+  const timeText = traceForm.value.eventTime ? formatDraftTime(traceForm.value.eventTime) : '沿用当前时间'
+  const locationText = traceForm.value.location || currentProfile.value.locations[0] || '地点待补充'
+  const operatorText = traceForm.value.operatorName || defaultOperatorName(currentProfile.value.defaultOperator)
+  return `${timeText} · ${locationText} · ${operatorText} · ${traceForm.value.visibleToConsumer ? '会同步到追溯页' : '仅后台可见'}`
+})
+
+const demoFlowSteps = computed(() => {
+  const steps = ['补现场记录']
+  steps.push(batchDetail.value?.quality?.status === 'PENDING' ? '回工作台上传质检' : '回工作台核对质检')
+  steps.push(batchDetail.value?.qr?.generated ? '查看公开页' : '回工作台生成二维码')
+  return steps
 })
 
 onMounted(async () => {
@@ -448,6 +502,12 @@ function getTaskCopy(batch) {
   return '批次已发布，仍可继续补录新的现场记录和图片。'
 }
 
+function entryButtonText(batch) {
+  if (batch.hasDraft) return '继续录入'
+  if (batch.todayCompleted) return '继续补录'
+  return '开始录入'
+}
+
 function taskToneClass(batch) {
   if (batch.hasDraft) return 'draft'
   if (batch.todayCompleted) return 'done'
@@ -459,7 +519,7 @@ function resolveTaskStatusLabel(batch) {
 }
 
 function formatDraftTime(value) {
-  if (!value) return '鍒氬垰'
+  if (!value) return '刚刚'
   const date = parseDateValue(value)
   if (!date) return value
   return date.toLocaleString('zh-CN', {
@@ -489,7 +549,7 @@ async function loadBatches(options = {}) {
       draftMeta.value = draftMap.value[String(selectedBatchId.value)] ?? null
     }
   } catch (error) {
-    ElMessage.error(error?.response?.data?.message || '寰呭姙鎵规鍔犺浇澶辫触')
+    ElMessage.error(error?.response?.data?.message || '待办批次加载失败，请稍后再试。')
   } finally {
     loading.value = false
   }
@@ -507,7 +567,7 @@ async function loadBatchDetail(batchId = selectedBatchId.value) {
     batchDetail.value = response.data ?? null
   } catch (error) {
     batchDetail.value = null
-    ElMessage.error(error?.response?.data?.message || '鎵规璇︽儏鍔犺浇澶辫触')
+    ElMessage.error(error?.response?.data?.message || '批次详情加载失败，请稍后再试。')
   } finally {
     detailLoading.value = false
   }
@@ -558,6 +618,7 @@ async function openBatch(batchId, options = {}) {
 
   selectedBatchId.value = nextId
   lastSuccess.value = null
+  showAdvancedFields.value = false
   await loadBatchDetail(nextId)
   await hydrateEntryForm(nextId)
 
@@ -576,6 +637,7 @@ function closeBatch(syncRoute = true) {
   resetImageItems()
   draftMeta.value = null
   lastSuccess.value = null
+  showAdvancedFields.value = false
 
   if (syncRoute && route.query.batchId) {
     router.push('/field-entry')
@@ -615,6 +677,33 @@ function serializeDraftForm() {
   }
 }
 
+function entryValidationError(mode = 'submit') {
+  if (!selectedBatchId.value) {
+    return '请先从待办批次进入录入。'
+  }
+  if (!traceForm.value.eventTime) {
+    return '请补充记录时间。'
+  }
+  if (!traceForm.value.operatorName?.trim()) {
+    return '请补充操作人。'
+  }
+  if (!traceForm.value.location?.trim()) {
+    return '请补充地点信息。'
+  }
+  if (mode === 'submit' && !traceForm.value.summary?.trim()) {
+    return '请填写现场说明。'
+  }
+  if (uploading.value) {
+    return mode === 'submit'
+      ? '图片仍在上传中，请等待上传完成后再提交。'
+      : '图片仍在上传中，请稍等上传完成后再保存草稿。'
+  }
+  if (mode === 'submit' && hasFailedImages.value) {
+    return '仍有上传失败的图片，请重试或删除后再提交。'
+  }
+  return ''
+}
+
 async function persistDraft(options = {}) {
   const { silent = false } = options
   const payload = serializeDraftForm()
@@ -642,12 +731,12 @@ async function persistDraft(options = {}) {
 }
 
 async function saveDraftRecord() {
-  if (!selectedBatchId.value) {
-    ElMessage.warning('璇峰厛閫夋嫨寰呭姙鎵规')
+  if (draftSaving.value || saving.value) {
     return
   }
-  if (uploading.value) {
-    ElMessage.warning('图片仍在上传中，请稍等上传完成后再保存草稿。')
+  const error = entryValidationError('draft')
+  if (error) {
+    ElMessage.warning(error)
     return
   }
 
@@ -850,24 +939,32 @@ function continueNextEntry() {
   lastSuccess.value = null
   traceForm.value = buildNextEntryForm(traceForm.value)
   resetImageItems()
+  showAdvancedFields.value = false
   formSectionRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
+function handleSubmitSecondaryAction(actionKey) {
+  if (actionKey === 'save-draft') {
+    saveDraftRecord()
+  }
+}
+
 async function submitFieldRecord() {
-  if (!selectedBatchId.value) {
-    ElMessage.warning('请先选择待办批次')
+  if (saving.value || draftSaving.value) {
     return
   }
-  if (!traceForm.value.summary?.trim()) {
-    ElMessage.warning('请填写现场说明')
+  const error = entryValidationError('submit')
+  if (error) {
+    ElMessage.warning(error)
     return
   }
-  if (uploading.value) {
-    ElMessage.warning('图片仍在上传中，请等待上传完成后再提交。')
-    return
+  if (!traceForm.value.uploadedFiles?.length) {
+    const confirmedWithoutImage = window.confirm('当前未上传现场图片，确认仍要提交记录吗？')
+    if (!confirmedWithoutImage) {
+      return
+    }
   }
-  if (hasFailedImages.value) {
-    ElMessage.warning('仍有上传失败的图片，请重试或删除后再提交。')
+  if (!window.confirm('确认提交当前现场记录吗？提交后会同步到批次工作台。')) {
     return
   }
 
@@ -949,7 +1046,7 @@ async function submitFieldRecord() {
         </div>
       </header>
 
-      <section v-if="loading" class="panel-card loading-card">正在加载我的现场任务...</section>
+      <section v-if="loading" class="panel-card loading-card">正在同步我的现场任务...</section>
 
       <template v-else-if="listViewMode === 'todo'">
         <section class="filter-row">
@@ -979,6 +1076,7 @@ async function submitFieldRecord() {
               <small>当前待处理环节</small>
               <strong>{{ item.currentNode || '待补现场记录' }}</strong>
             </div>
+            <p class="task-copy">{{ getTaskCopy(item) }}</p>
             <div class="task-flags">
               <span class="meta-tag">{{ item.hasDraft ? '有草稿' : '无草稿' }}</span>
               <span class="meta-tag">{{ resolveTodayStatusText(item.todayCompleted) }}</span>
@@ -1004,7 +1102,7 @@ async function submitFieldRecord() {
             </dl>
             <div class="task-actions">
               <button class="primary-button" data-testid="field-todo-open-button" @click="openBatch(item.id)">
-                {{ item.hasDraft ? '继续草稿' : item.todayCompleted ? '继续补录' : '开始作业' }}
+                {{ entryButtonText(item) }}
               </button>
               <button class="ghost-button" @click="openBatchWorkbench(item.id)">查看工作台</button>
             </div>
@@ -1012,8 +1110,8 @@ async function submitFieldRecord() {
         </section>
 
         <section v-else class="panel-card empty-card">
-          <h2>当前筛选下没有任务</h2>
-          <p>可以切换筛选查看草稿待续或今日已完成的批次。</p>
+          <h2>当前看板下还没有待录任务</h2>
+          <p>可以切换到草稿待续或今日已完成，继续查看其他批次。</p>
         </section>
       </template>
 
@@ -1057,7 +1155,7 @@ async function submitFieldRecord() {
         </section>
 
         <section v-else class="panel-card empty-card">
-          <h2>草稿箱还是空的</h2>
+          <h2>还没有待续草稿</h2>
           <p>现场记录保存为草稿后，会在这里继续编辑和提交。</p>
         </section>
       </template>
@@ -1081,14 +1179,14 @@ async function submitFieldRecord() {
         </div>
       </header>
 
-      <section v-if="detailLoading && !batchDetail" class="shell-card loading-card">姝ｅ湪鍔犺浇鐜板満浣滀笟鎵规...</section>
+      <section v-if="detailLoading && !batchDetail" class="shell-card loading-card">正在加载现场作业批次...</section>
 
       <template v-else>
         <section class="shell-card batch-card">
           <div class="section-head">
             <div>
               <h2>当前任务</h2>
-              <p>时间、地点和操作人会优先沿用默认值，现场只需要补环节、说明和图片。</p>
+              <p>先把当前环节、现场一句话和关键图片补齐，低频设置已经收进更多设置。</p>
             </div>
             <button class="ghost-button compact" @click="openBatchWorkbench()">查看批次工作台</button>
           </div>
@@ -1123,6 +1221,13 @@ async function submitFieldRecord() {
           <ul v-if="entryHints.length" class="pending-list">
             <li v-for="item in entryHints" :key="item">{{ item }}</li>
           </ul>
+
+          <div class="demo-path-card">
+            <small>演示顺序</small>
+            <div class="demo-path-flow">
+              <span v-for="step in demoFlowSteps" :key="step">{{ step }}</span>
+            </div>
+          </div>
         </section>
 
         <section v-if="draftMeta" class="shell-card draft-banner" data-testid="field-entry-draft-banner">
@@ -1156,11 +1261,25 @@ async function submitFieldRecord() {
           </section>
 
           <section ref="formSectionRef" class="shell-card form-card">
+            <div class="section-head">
+              <div>
+                <h2>当前要录什么</h2>
+                <p>先补一句现场说明和图片，时间、地点、操作人默认已带入，不必一上来填满整张表单。</p>
+              </div>
+              <button class="ghost-button compact" type="button" @click="showAdvancedFields = !showAdvancedFields">
+                {{ showAdvancedFields ? '收起更多设置' : '更多设置' }}
+              </button>
+            </div>
+
+            <div class="entry-guide-grid">
+              <article v-for="card in entryGuideCards" :key="card.key" class="entry-guide-card">
+                <small>{{ card.label }}</small>
+                <strong>{{ card.value }}</strong>
+                <p>{{ card.detail }}</p>
+              </article>
+            </div>
+
             <p v-if="detailLoading" class="field-note">正在载入批次详情，表单就绪后再开始填写。</p>
-            <label>
-              <span>记录标题</span>
-              <input v-model.trim="traceForm.title" type="text" placeholder="系统已带入默认标题，也可以手动调整">
-            </label>
 
             <label class="full-width">
               <span>现场说明</span>
@@ -1172,37 +1291,6 @@ async function submitFieldRecord() {
               />
             </label>
 
-            <label>
-              <span>记录时间</span>
-              <input v-model="traceForm.eventTime" type="datetime-local">
-            </label>
-
-            <label>
-              <span>地点</span>
-              <input v-model.trim="traceForm.location" type="text" placeholder="填写当前作业地点">
-            </label>
-
-            <label>
-              <span>操作人</span>
-              <input v-model.trim="traceForm.operatorName" type="text" placeholder="填写本次操作人">
-            </label>
-
-            <label class="switch-row">
-              <input v-model="traceForm.visibleToConsumer" type="checkbox">
-              <span>同步展示到消费者追溯页</span>
-            </label>
-
-            <div class="quick-locations full-width">
-              <button
-                v-for="location in currentProfile.locations"
-                :key="location"
-                class="ghost-chip"
-                @click="useLocation(location)"
-              >
-                {{ location }}
-              </button>
-            </div>
-
             <label class="full-width">
               <span>现场图片</span>
               <div class="upload-box">
@@ -1212,30 +1300,75 @@ async function submitFieldRecord() {
             </label>
 
             <div v-if="imageItems.length" class="image-queue full-width" data-testid="field-image-queue">
-              <article v-for="(item, index) in imageItems" :key="item.clientId" class="image-row" :class="`is-${item.status}`">
-                <div class="image-preview">
-                  <img v-if="item.previewUrl" :src="item.previewUrl" :alt="fileLabel(item)">
-                  <div v-else class="image-fallback">{{ index + 1 }}</div>
-                </div>
-                <div class="image-body">
-                  <div class="image-head">
-                    <strong>{{ index + 1 }}. {{ fileLabel(item) }}</strong>
-                    <span class="image-state" :class="item.status">{{ imageStatusLabel(item.status) }}</span>
+              <div class="image-list" data-testid="field-entry-image-grid">
+                <article v-for="(item, index) in imageItems" :key="item.clientId" class="image-row" :class="`is-${item.status}`">
+                  <div class="image-preview">
+                    <img v-if="item.previewUrl" :src="item.previewUrl" :alt="fileLabel(item)">
+                    <div v-else class="image-fallback">{{ index + 1 }}</div>
                   </div>
-                  <div v-if="item.status === 'uploading'" class="progress-track">
-                    <span class="progress-value" :style="{ width: `${item.progress}%` }"></span>
+                  <div class="image-body">
+                    <div class="image-head">
+                      <strong>{{ index + 1 }}. {{ fileLabel(item) }}</strong>
+                      <span class="image-state" :class="item.status">{{ imageStatusLabel(item.status) }}</span>
+                    </div>
+                    <div v-if="item.status === 'uploading'" class="progress-track">
+                      <span class="progress-value" :style="{ width: `${item.progress}%` }"></span>
+                    </div>
+                    <p v-if="item.errorMessage" class="image-error">{{ item.errorMessage }}</p>
+                    <small>{{ formatFileSize(item.size) }}</small>
+                    <div class="image-actions">
+                      <button class="ghost-chip" :disabled="index === 0 || item.status === 'uploading'" @click="moveImage(item.clientId, -1)">上移</button>
+                      <button class="ghost-chip" :disabled="index === imageItems.length - 1 || item.status === 'uploading'" @click="moveImage(item.clientId, 1)">下移</button>
+                      <button v-if="item.status === 'failed'" class="ghost-chip warning" @click="retryImageUpload(item.clientId)">重试</button>
+                      <button class="ghost-chip danger" @click="removeImage(item.clientId)">删除</button>
+                    </div>
                   </div>
-                  <p v-if="item.errorMessage" class="image-error">{{ item.errorMessage }}</p>
-                  <small>{{ formatFileSize(item.size) }}</small>
-                  <div class="image-actions">
-                    <button class="ghost-chip" :disabled="index === 0 || item.status === 'uploading'" @click="moveImage(item.clientId, -1)">上移</button>
-                    <button class="ghost-chip" :disabled="index === imageItems.length - 1 || item.status === 'uploading'" @click="moveImage(item.clientId, 1)">下移</button>
-                    <button v-if="item.status === 'failed'" class="ghost-chip warning" @click="retryImageUpload(item.clientId)">重试</button>
-                    <button class="ghost-chip danger" @click="removeImage(item.clientId)">删除</button>
-                  </div>
-                </div>
-              </article>
+                </article>
+              </div>
             </div>
+
+            <div class="advanced-summary full-width">
+              <small>更多设置默认值</small>
+              <strong>{{ advancedFieldSummary }}</strong>
+            </div>
+
+            <section v-if="showAdvancedFields" class="advanced-fields full-width">
+              <label>
+                <span>记录标题</span>
+                <input v-model.trim="traceForm.title" type="text" placeholder="系统已带入默认标题，也可以手动调整">
+              </label>
+
+              <label>
+                <span>记录时间</span>
+                <input v-model="traceForm.eventTime" type="datetime-local">
+              </label>
+
+              <label>
+                <span>地点</span>
+                <input v-model.trim="traceForm.location" type="text" placeholder="填写当前作业地点">
+              </label>
+
+              <label>
+                <span>操作人</span>
+                <input v-model.trim="traceForm.operatorName" type="text" placeholder="填写本次操作人">
+              </label>
+
+              <div class="quick-locations full-width">
+                <button
+                  v-for="location in currentProfile.locations"
+                  :key="location"
+                  class="ghost-chip"
+                  @click="useLocation(location)"
+                >
+                  {{ location }}
+                </button>
+              </div>
+
+              <label class="switch-row full-width">
+                <input v-model="traceForm.visibleToConsumer" type="checkbox">
+                <span>同步展示到消费者追溯页</span>
+              </label>
+            </section>
           </section>
         </fieldset>
 
@@ -1284,22 +1417,16 @@ async function submitFieldRecord() {
           <small>{{ uploading ? uploadStatusText : draftMeta ? `草稿最近编辑于 ${formatDraftTime(draftMeta.updatedAt)}` : hasFailedImages ? uploadStatusText : '提交后会直接同步到批次工作台' }}</small>
         </div>
         <div class="submit-actions">
-          <button
-            class="ghost-button"
-            data-testid="field-entry-save-draft"
-            :disabled="draftSaving || saving || detailLoading || uploading"
-            @click="saveDraftRecord"
-          >
-            {{ draftSaving ? '姝ｅ湪淇濆瓨...' : '淇濆瓨鑽夌' }}
-          </button>
-          <button
-            class="primary-button"
-            data-testid="field-entry-submit"
-            :disabled="saving || detailLoading || uploading"
-            @click="submitFieldRecord"
-          >
-            {{ saving ? '姝ｅ湪鎻愪氦...' : '鎻愪氦璁板綍' }}
-          </button>
+          <PrimaryActionGroup
+            :primary-label="saving ? '正在提交...' : '提交记录'"
+            primary-class="primary"
+            :primary-disabled="Boolean(submitBlockReason) || saving || draftSaving || detailLoading"
+            primary-testid="field-entry-submit"
+            :primary-hint="submitPrimaryHint"
+            :secondary-actions="submitSecondaryActions"
+            @primary-click="submitFieldRecord"
+            @secondary-click="handleSubmitSecondaryAction"
+          />
         </div>
       </footer>
     </template>
@@ -1360,6 +1487,7 @@ async function submitFieldRecord() {
 .field-header-copy p:last-child,
 .section-head p,
 .todo-copy,
+.task-copy,
 .latest-card p {
   margin: 8px 0 0;
   color: var(--admin-text-soft);
@@ -1412,7 +1540,10 @@ async function submitFieldRecord() {
 
 .summary-strip,
 .task-meta,
-.image-queue {
+.image-queue,
+.image-list,
+.entry-guide-grid,
+.advanced-fields {
   display: grid;
   gap: 12px;
 }
@@ -1530,6 +1661,10 @@ async function submitFieldRecord() {
   color: var(--admin-primary-deep);
   font-size: 13px;
   font-weight: 700;
+}
+
+.task-copy {
+  margin: 0;
 }
 
 .meta-tag {
@@ -1741,6 +1876,19 @@ async function submitFieldRecord() {
   color: #17784f;
 }
 
+.submit-actions {
+  min-width: min(320px, 100%);
+}
+
+.submit-actions :deep(.primary-action-group) {
+  width: min(320px, 100%);
+}
+
+.submit-actions :deep(.action-primary),
+.submit-actions :deep(.secondary-menu) {
+  width: 100%;
+}
+
 .pill {
   background: rgba(56, 134, 217, 0.12);
   color: var(--admin-primary-deep);
@@ -1806,6 +1954,80 @@ async function submitFieldRecord() {
   color: #52779a;
   display: grid;
   gap: 8px;
+}
+
+.demo-path-card {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid rgba(56, 134, 217, 0.14);
+  border-radius: 18px;
+  background: rgba(243, 249, 255, 0.95);
+}
+
+.demo-path-card small,
+.advanced-summary small,
+.entry-guide-card small {
+  display: block;
+  color: var(--admin-text-soft);
+  font-size: 12px;
+}
+
+.demo-path-flow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.demo-path-flow span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(56, 134, 217, 0.12);
+  color: var(--admin-primary-deep);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.entry-guide-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 4px;
+}
+
+.entry-guide-card,
+.advanced-summary {
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(243, 249, 255, 0.95);
+}
+
+.entry-guide-card strong,
+.advanced-summary strong {
+  display: block;
+  margin-top: 6px;
+  color: var(--admin-text);
+}
+
+.entry-guide-card p {
+  margin: 8px 0 0;
+  color: var(--admin-text-soft);
+  line-height: 1.6;
+}
+
+.advanced-summary {
+  border: 1px dashed rgba(56, 134, 217, 0.2);
+}
+
+.advanced-summary strong {
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.advanced-fields {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding-top: 4px;
 }
 
 .draft-banner {
@@ -2037,8 +2259,8 @@ textarea {
     width: 100%;
   }
 
-  .submit-actions button {
-    flex: 1;
+  .submit-actions :deep(.primary-action-group) {
+    width: 100%;
   }
 }
 
@@ -2053,7 +2275,9 @@ textarea {
   .batch-summary,
   .todo-meta,
   .image-row,
-  .image-grid {
+  .image-grid,
+  .entry-guide-grid,
+  .advanced-fields {
     grid-template-columns: 1fr;
   }
 

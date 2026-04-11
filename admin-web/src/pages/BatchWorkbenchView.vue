@@ -22,6 +22,7 @@ import {
   splitHighlightsInput,
   stageOptions
 } from '../utils/traceWorkflow'
+import { canBatchStatusTransition, resolvePublishBlockState } from '../utils/batchStatusFlow'
 import { resolveQrStatusText, resolveRiskStatusText, resolveTaskStatusText, resolveTodayStatusText } from '../utils/statusPresentation'
 import { canManageAdminBatch, isRegulator } from '../utils/access'
 
@@ -49,6 +50,7 @@ const traceForm = ref(createTraceForm())
 const qualityForm = ref(createQualityForm())
 const riskForm = ref(createRiskForm())
 const statusForm = ref(createStatusForm())
+const dialogSubmitting = ref(false)
 
 const traceUploading = ref(false)
 const qualityUploading = ref(false)
@@ -117,10 +119,17 @@ const publishAction = computed(() => actionOf('PUBLISH'))
 const resumeAction = computed(() => actionOf('RESUME'))
 const freezeAction = computed(() => actionOf('FREEZE'))
 const recallAction = computed(() => actionOf('RECALL'))
+const hasTraceRecord = computed(() => recentRecords.value.length > 0)
 const publishReady = computed(() => publishAction.value.enabled || resumeAction.value.enabled)
 const qualityUploaded = computed(() => Number(detail.value?.quality?.reportCount || 0) > 0)
 const qualityResultCode = computed(() => String(latestQualityReport.value?.result || '').toUpperCase())
 const qualityAllowsPublish = computed(() => qualityUploaded.value && qualityResultCode.value !== 'FAIL')
+const publishGate = computed(() => resolvePublishBlockState({
+  status: detail.value?.status?.code,
+  qualityStatusCode: qualityResultCode.value || 'PENDING',
+  qrStatus: detail.value?.qr?.generated ? 'READY' : 'NOT_GENERATED',
+  canResume: Boolean(detail.value?.riskHandling?.canResume)
+}))
 const riskStageCode = computed(() => String(detail.value?.riskHandling?.currentStage || detail.value?.risk?.status || '').toUpperCase())
 const riskStageText = computed(() => resolveRiskStatusText(detail.value?.risk, detail.value?.riskHandling))
 const batchStatusText = computed(() => detail.value?.status?.label || '状态待确认')
@@ -231,7 +240,7 @@ const todoItems = computed(() => {
     items.push({
       key: 'publish',
       title: readOnly ? (publishReady.value ? '已满足发布条件' : '尚未满足发布条件') : (publishReady.value ? '发布批次' : '满足发布条件'),
-      detail: readOnly ? (publishReady.value ? '当前资料已满足发布条件，但监管账号仅保留查看。' : (publishAction.value.hint || '当前仍缺少发布前关键资料。')) : (publishReady.value ? '条件已满足，可直接发布。' : (publishAction.value.hint || '先补齐发布前条件。'))
+      detail: readOnly ? (publishReady.value ? '当前资料已满足发布条件，但监管账号仅保留查看。' : publishGate.value.reason) : (publishReady.value ? '条件已满足，可直接发布。' : publishGate.value.reason)
     })
   }
   if (canHandleRisk.value) {
@@ -259,7 +268,7 @@ const quickActions = computed(() => {
       primaryClass: 'primary',
       primaryAction: openTraceDialog,
       disabled: !traceAction.value.enabled,
-      secondaryText: '现场作业页',
+      secondaryText: '现场录入',
       secondaryAction: openFieldEntry,
       secondaryDisabled: false
     },
@@ -296,13 +305,13 @@ const quickActions = computed(() => {
       key: 'publish',
       title: resumeAction.value.enabled ? '恢复发布' : '发布批次',
       status: publishReady.value ? '可以发布' : '暂不可发布',
-      desc: publishReady.value ? '当前页可直接完成发布。' : (publishAction.value.hint || resumeAction.value.hint || '当前还不满足发布条件。'),
+      desc: publishReady.value ? '当前页可直接完成发布。' : publishGate.value.reason,
       available: publishReady.value,
       primaryText: resumeAction.value.enabled ? '恢复发布' : '发布批次',
       primaryClass: publishReady.value ? 'success' : 'ghost',
       primaryAction: () => openStatusDialog('PUBLISHED'),
       disabled: !publishReady.value,
-      secondaryText: publicAction.value.enabled ? '公开页入口' : '',
+      secondaryText: publicAction.value.enabled ? '查看公开页' : '',
       secondaryAction: openPublicPreview,
       secondaryDisabled: !publicAction.value.enabled
     },
@@ -325,6 +334,75 @@ const quickActions = computed(() => {
   ]
 })
 
+const primaryQuickAction = computed(() => {
+  if (readOnlyBatchView.value || !quickActions.value.length) {
+    return null
+  }
+  return quickActions.value.find((item) => item.available && !item.disabled) ?? quickActions.value[0]
+})
+
+const secondaryQuickActions = computed(() => {
+  if (!primaryQuickAction.value) {
+    return quickActions.value
+  }
+  return quickActions.value.filter((item) => item.key !== primaryQuickAction.value.key)
+})
+
+const readinessItems = computed(() => [
+  {
+    key: 'trace',
+    label: '追溯记录',
+    done: hasTraceRecord.value,
+    detail: hasTraceRecord.value ? `最近记录：${latestRecord.value?.title || '已补录'}` : '还没有关键追溯记录'
+  },
+  {
+    key: 'quality',
+    label: '质检摘要',
+    done: qualityUploaded.value && qualityAllowsPublish.value,
+    detail: !qualityUploaded.value
+      ? '还没有质检摘要'
+      : (qualityResultCode.value === 'FAIL' ? '当前质检结论不允许发布' : `当前结论：${detail.value?.quality?.label || '可发布'}`)
+  },
+  {
+    key: 'qr',
+    label: '二维码',
+    done: Boolean(detail.value?.qr?.generated),
+    detail: detail.value?.qr?.generated ? `公开标识：${detail.value?.qr?.token || '已生成'}` : '还没有公开二维码'
+  }
+])
+
+const readinessSummaryText = computed(() => {
+  const total = readinessItems.value.length
+  const done = readinessItems.value.filter((item) => item.done).length
+  if (publishReady.value) {
+    return `发布前资料已齐（${done}/${total}）`
+  }
+  return `发布前还差 ${Math.max(total - done, 0)} 项`
+})
+
+const demoFlowSteps = computed(() => [
+  {
+    key: 'trace',
+    label: hasTraceRecord.value ? '现场记录已齐' : '补现场记录',
+    done: hasTraceRecord.value
+  },
+  {
+    key: 'quality',
+    label: qualityUploaded.value ? '质检已齐' : '上传质检',
+    done: qualityUploaded.value
+  },
+  {
+    key: 'qr',
+    label: detail.value?.qr?.generated ? '二维码已齐' : '生成二维码',
+    done: Boolean(detail.value?.qr?.generated)
+  },
+  {
+    key: 'public',
+    label: canPreviewPublic.value ? '查看公开页' : '核对公开入口',
+    done: canPreviewPublic.value
+  }
+])
+
 const publishChecks = computed(() => [
   {
     key: 'quality-uploaded',
@@ -345,8 +423,76 @@ const publishChecks = computed(() => [
     label: '已生成二维码',
     done: Boolean(detail.value?.qr?.generated),
     detail: detail.value?.qr?.generated ? `二维码标识：${detail.value?.qr?.token || '已生成'}` : '先生成二维码'
+  },
+  {
+    key: 'risk-cleared',
+    label: '风险链路允许发布',
+    done: detail.value?.status?.code !== 'FROZEN' || Boolean(detail.value?.riskHandling?.canResume),
+    detail: detail.value?.status?.code === 'FROZEN'
+      ? (detail.value?.riskHandling?.canResume ? '整改与复核已完成' : '请先补充处理意见并标记整改完成')
+      : '当前没有冻结风险阻塞'
   }
 ])
+
+const statusTargetOptions = computed(() => {
+  const currentStatus = detail.value?.status?.code
+  return [
+    { value: 'PUBLISHED', label: '发布' },
+    { value: 'FROZEN', label: '冻结' },
+    { value: 'RECALLED', label: '召回' }
+  ].map((option) => {
+    const allowed = canBatchStatusTransition(currentStatus, option.value)
+    return {
+      ...option,
+      allowed,
+      hint: allowed ? '' : statusTransitionBlockedHint(currentStatus, option.value)
+    }
+  })
+})
+
+const dialogValidationError = computed(() => {
+  if (!dialog.value.visible || readOnlyBatchView.value) {
+    return ''
+  }
+  if (dialog.value.type === 'trace') {
+    if (!traceForm.value.eventTime) return '请补充记录时间。'
+    if (!traceForm.value.operatorName?.trim()) return '请补充操作人。'
+    if (!traceForm.value.location?.trim()) return '请补充地点信息。'
+    if (!traceForm.value.summary?.trim()) return '请填写现场说明。'
+    if (traceUploading.value) return '现场图片仍在上传中，请等待上传完成后再提交。'
+    return ''
+  }
+  if (dialog.value.type === 'quality') {
+    if (!qualityForm.value.reportNo?.trim()) return '请填写报告编号。'
+    if (!qualityForm.value.agency?.trim()) return '请填写检测机构。'
+    if (!qualityForm.value.reportTime) return '请填写检测时间。'
+    if (!splitHighlightsInput(qualityForm.value.highlightsText).length) return '请至少填写一条质检摘要。'
+    if (qualityUploading.value) return '质检附件仍在上传中，请等待上传完成后再提交。'
+    return ''
+  }
+  if (dialog.value.type === 'risk') {
+    if (!riskForm.value.operatorName?.trim()) return '请填写处理人。'
+    if (['PROCESSING', 'RECTIFIED'].includes(riskForm.value.actionType) && !riskForm.value.reason?.trim()) {
+      return '当前处理类型必须填写处理原因。'
+    }
+    if (['COMMENT', 'RECTIFICATION'].includes(riskForm.value.actionType) && !riskForm.value.comment?.trim()) {
+      return '当前处理类型必须填写处理说明。'
+    }
+    return ''
+  }
+  if (dialog.value.type === 'status') {
+    if (!statusForm.value.targetStatus) return '请先选择目标状态。'
+    if (statusForm.value.targetStatus === 'PUBLISHED' && !publishGate.value.allowed) {
+      return publishGate.value.reason
+    }
+    if (!canBatchStatusTransition(detail.value?.status?.code, statusForm.value.targetStatus)) {
+      return statusTransitionBlockedHint(detail.value?.status?.code, statusForm.value.targetStatus)
+    }
+    if (!statusForm.value.operatorName?.trim()) return '请填写处理人。'
+    if (!statusForm.value.reason?.trim()) return '请填写处理原因。'
+  }
+  return ''
+})
 
 function createRiskForm(actionType = 'COMMENT') {
   return { actionType, reason: '', comment: '', operatorName: '监管人员' }
@@ -375,6 +521,36 @@ function actionOf(code) {
 
 function statusClass(status) {
   return { DRAFT: 'draft', PUBLISHED: 'published', FROZEN: 'frozen', RECALLED: 'recalled' }[status] ?? 'draft'
+}
+
+function statusTransitionBlockedHint(currentStatus, targetStatus) {
+  const current = String(currentStatus || '').toUpperCase()
+  const target = String(targetStatus || '').toUpperCase()
+  if (!target) {
+    return '目标状态不能为空。'
+  }
+  if (!current) {
+    return '当前状态缺失，暂不允许变更。'
+  }
+  if (current === target) {
+    return '当前状态与目标状态一致，无需重复提交。'
+  }
+  if (target === 'DRAFT') {
+    return '不支持回退到草稿状态。'
+  }
+  if (current === 'RECALLED') {
+    return '召回状态不允许继续变更。'
+  }
+  if (current === 'DRAFT') {
+    return '草稿状态仅支持发布。'
+  }
+  if (current === 'PUBLISHED') {
+    return '已发布状态仅支持冻结或召回。'
+  }
+  if (current === 'FROZEN') {
+    return '冻结状态仅支持恢复发布或召回。'
+  }
+  return `状态 ${current} 暂不支持变更到 ${target}。`
 }
 
 function batchStatusSummary(status) {
@@ -503,11 +679,17 @@ function openRiskDialog(actionType = 'COMMENT') {
 }
 
 function openStatusDialog(targetStatus = 'PUBLISHED') {
-  statusForm.value = createStatusForm(targetStatus)
+  const nextTargetStatus = canBatchStatusTransition(detail.value?.status?.code, targetStatus)
+    ? targetStatus
+    : (statusTargetOptions.value.find((item) => item.allowed)?.value ?? targetStatus)
+  statusForm.value = createStatusForm(nextTargetStatus)
   dialog.value = { visible: true, type: 'status' }
 }
 
-function closeDialog() {
+function closeDialog(force = false) {
+  if (dialogSubmitting.value && !force) {
+    return
+  }
   dialog.value = { visible: false, type: '' }
 }
 
@@ -638,7 +820,38 @@ async function loadDetail(id) {
 }
 
 async function submitDialog(options = {}) {
+  if (dialogSubmitting.value) {
+    return
+  }
+  if (dialogValidationError.value) {
+    showMessage(dialogValidationError.value, 'error')
+    return
+  }
   const { keepOpen = false } = options
+  if (dialog.value.type === 'quality' && String(qualityForm.value.result || '').toUpperCase() === 'FAIL') {
+    const confirmedFail = window.confirm('当前质检结论为“不合格”，提交后会直接影响发布流程，确认继续吗？')
+    if (!confirmedFail) {
+      return
+    }
+  }
+  if (dialog.value.type === 'risk') {
+    const riskActionLabel = riskActionOptions.find((item) => item.value === riskForm.value.actionType)?.label || riskForm.value.actionType
+    const confirmedRisk = window.confirm(`确认提交“${riskActionLabel}”风险动作吗？`)
+    if (!confirmedRisk) {
+      return
+    }
+  }
+  if (dialog.value.type === 'status') {
+    const actionLabel = statusForm.value.targetStatus === 'PUBLISHED'
+      ? '发布/恢复发布'
+      : (statusForm.value.targetStatus === 'FROZEN' ? '冻结' : '召回')
+    const confirmedStatus = window.confirm(`确认执行“${actionLabel}”状态操作吗？`)
+    if (!confirmedStatus) {
+      return
+    }
+  }
+
+  dialogSubmitting.value = true
   try {
     let response
     if (dialog.value.type === 'trace') {
@@ -684,9 +897,11 @@ async function submitDialog(options = {}) {
       syncAssignmentForm()
       showMessage('批次状态已更新。', 'success')
     }
-    closeDialog()
+    closeDialog(true)
   } catch (error) {
     showMessage(error?.response?.data?.message || error?.message || '操作未完成，请稍后再试。', 'error')
+  } finally {
+    dialogSubmitting.value = false
   }
 }
 
@@ -783,8 +998,8 @@ onMounted(async () => {
         <div class="manage-page-actions">
           <button class="ghost" @click="router.push('/batches')">返回批次列表</button>
           <button v-if="canManageBatch" class="ghost" data-testid="workbench-copy-batch-button" @click="openCopyBatch">复制为新批次</button>
-          <button v-if="canManageBatch" class="ghost" data-testid="workbench-field-entry-button" @click="openFieldEntry">现场作业页</button>
-          <button class="ghost" :disabled="!canPreviewPublic" @click="openPublicPreview">公开页预览</button>
+          <button v-if="canManageBatch" class="ghost" data-testid="workbench-field-entry-button" @click="openFieldEntry">现场录入</button>
+          <button class="ghost" :disabled="!canPreviewPublic" @click="openPublicPreview">查看公开页</button>
         </div>
       </section>
 
@@ -812,8 +1027,59 @@ onMounted(async () => {
       </section>
 
       <section class="top-grid" data-testid="workbench-top-grid">
-        <article class="summary-card" data-testid="workbench-next-step-card">
-          <span class="card-label">批次当前状态</span>
+        <article class="summary-card summary-card--featured" data-testid="workbench-next-step-card">
+          <span class="card-label">{{ readOnlyBatchView ? '监管焦点' : '推荐下一步' }}</span>
+          <div class="summary-card-headline">
+            <div>
+              <p class="card-title">
+                {{ readOnlyBatchView ? (todoItems[0]?.title || '当前关键资料已齐') : (primaryQuickAction?.title || '当前批次可继续回查') }}
+              </p>
+              <p class="card-copy">
+                {{ readOnlyBatchView ? (todoItems[0]?.detail || todoEmptyText) : (primaryQuickAction?.desc || '当前没有阻塞动作，可直接继续讲解工作台和公开页表现。') }}
+              </p>
+            </div>
+            <span
+              class="availability-badge"
+              :class="{ ok: readOnlyBatchView || (primaryQuickAction?.available && !primaryQuickAction?.disabled), blocked: !readOnlyBatchView && (!primaryQuickAction?.available || primaryQuickAction?.disabled) }"
+            >
+              {{ readOnlyBatchView ? '只读查看' : ((primaryQuickAction?.available && !primaryQuickAction?.disabled) ? '可直接处理' : '需先补前置条件') }}
+            </span>
+          </div>
+          <div class="summary-meta-list compact featured-meta">
+            <div>
+              <span>当前状态</span>
+              <strong>{{ batchStatusText }}</strong>
+            </div>
+            <div>
+              <span>任务状态</span>
+              <strong>{{ taskStatusText }}</strong>
+            </div>
+          </div>
+          <div v-if="!readOnlyBatchView && primaryQuickAction" class="action-buttons featured-actions">
+            <button :class="primaryQuickAction.primaryClass" :disabled="primaryQuickAction.disabled" @click="primaryQuickAction.primaryAction">
+              {{ primaryQuickAction.primaryText }}
+            </button>
+            <button
+              v-if="primaryQuickAction.secondaryText"
+              class="ghost"
+              :disabled="primaryQuickAction.secondaryDisabled"
+              @click="primaryQuickAction.secondaryAction"
+            >
+              {{ primaryQuickAction.secondaryText }}
+            </button>
+          </div>
+          <div v-if="!readOnlyBatchView" class="demo-flow">
+            <small>演示顺序</small>
+            <div class="demo-flow-list">
+              <span v-for="item in demoFlowSteps" :key="item.key" :class="{ done: item.done }">
+                {{ item.label }}
+              </span>
+            </div>
+          </div>
+        </article>
+
+        <article class="summary-card">
+          <span class="card-label">批次状态</span>
           <div class="card-head">
             <strong class="status-badge" :class="statusClass(detail.status.code)">{{ batchStatusText }}</strong>
             <small>{{ detail.status.changedAt || '暂无时间' }}</small>
@@ -823,9 +1089,25 @@ onMounted(async () => {
         </article>
 
         <article class="summary-card">
+          <span class="card-label">发布准备度</span>
+          <p class="card-title">{{ readinessSummaryText }}</p>
+          <div class="progress-strip readiness-strip">
+            <span
+              v-for="item in readinessItems"
+              :key="item.key"
+              class="progress-pill"
+              :class="{ done: item.done }"
+            >
+              {{ item.label }}
+            </span>
+          </div>
+          <p class="card-copy">{{ publishReady ? '当前已经满足发布动作所需的关键资料。' : '建议先按追溯、质检、二维码的顺序补齐后再发布。' }}</p>
+        </article>
+
+        <article class="summary-card">
           <span class="card-label">任务执行</span>
           <p class="card-title">{{ detail.task?.assigneeName || '未分配操作员' }}</p>
-          <div class="summary-meta-list">
+          <div class="summary-meta-list compact">
             <div>
               <span>任务状态</span>
               <strong>{{ taskStatusText }}</strong>
@@ -839,17 +1121,6 @@ onMounted(async () => {
             {{ assignmentDraftText }}
             <template v-if="detail.task?.draftUpdatedAt"> · 最近保存 {{ detail.task.draftUpdatedAt }}</template>
           </p>
-        </article>
-
-        <article class="summary-card">
-          <span class="card-label">{{ todoSectionLabel }}</span>
-          <ul v-if="todoItems.length" class="mini-list">
-            <li v-for="item in todoItems" :key="item.key">
-              <strong>{{ item.title }}</strong>
-              <small>{{ item.detail }}</small>
-            </li>
-          </ul>
-          <p v-else class="empty-copy">{{ todoEmptyText }}</p>
         </article>
 
         <article class="summary-card">
@@ -867,72 +1138,78 @@ onMounted(async () => {
             </div>
           </div>
         </article>
-
-        <article class="summary-card">
-          <span class="card-label">最近一次关键记录</span>
-          <template v-if="latestRecord">
-            <div class="summary-record-head">
-              <div>
-                <p class="card-title">{{ latestRecord.title }}</p>
-                <small>{{ formatStageLabel(latestRecord.stageCode) }} · {{ latestRecord.operatorName }}</small>
-              </div>
-              <small>{{ latestRecord.eventTime }}</small>
-            </div>
-            <p class="card-copy">{{ latestRecord.summary }}</p>
-            <small>{{ latestRecord.location || '暂无地点' }}</small>
-            <div v-if="latestRecordImages.length" class="summary-image-strip">
-              <article v-for="asset in latestRecordImages" :key="asset.id" class="summary-image-frame">
-                <img class="summary-image" :src="asset.fileUrl" :alt="asset.fileName">
-              </article>
-            </div>
-          </template>
-          <p v-else class="empty-copy">{{ recordEmptyText }}</p>
-        </article>
       </section>
 
       <section class="action-panel">
         <div class="section-head">
           <div>
-            <h2>{{ readOnlyBatchView ? '监管摘要' : '业务动作' }}</h2>
-            <p>{{ readOnlyBatchView ? '保留质检、二维码、发布条件和公开入口，便于直接判断批次是否具备对外展示条件。' : '直接判断下一步能做什么。' }}</p>
+            <h2>{{ readOnlyBatchView ? '监管摘要' : '主动作与配套动作' }}</h2>
+            <p>{{ readOnlyBatchView ? '保留质检、二维码、发布条件和公开入口，便于直接判断批次是否具备对外展示条件。' : '把主链路动作和辅助入口拆开，讲解时更容易一步一步往下走。' }}</p>
           </div>
         </div>
         <div class="action-hub">
-          <div v-if="!readOnlyBatchView" class="action-grid" data-testid="workbench-action-groups">
-            <article
-              v-for="item in quickActions"
-              :key="item.key"
-              class="action-card"
-              :class="{ unavailable: !item.available && item.disabled !== false }"
-            >
+          <div v-if="!readOnlyBatchView" class="action-primary-stack">
+            <article v-if="primaryQuickAction" class="recommended-action-card">
               <div class="action-card-head">
-                <span class="card-label">{{ item.title }}</span>
-                <span class="availability-badge" :class="{ ok: item.available && !item.disabled, blocked: item.disabled || !item.available }">
-                  {{ item.available && !item.disabled ? '当前可做' : '暂不可做' }}
+                <span class="card-label">主动作</span>
+                <span class="availability-badge" :class="{ ok: primaryQuickAction.available && !primaryQuickAction.disabled, blocked: primaryQuickAction.disabled || !primaryQuickAction.available }">
+                  {{ primaryQuickAction.available && !primaryQuickAction.disabled ? '建议优先演示' : '需要先补条件' }}
                 </span>
               </div>
-              <h3>{{ item.title }}</h3>
-              <strong class="action-status">{{ item.status }}</strong>
-              <p>{{ item.disabled && item.desc ? `原因：${item.desc}` : item.desc }}</p>
+              <h3>{{ primaryQuickAction.title }}</h3>
+              <strong class="action-status">{{ primaryQuickAction.status }}</strong>
+              <p>{{ primaryQuickAction.desc }}</p>
               <div class="action-buttons">
-                <button :class="item.primaryClass" :disabled="item.disabled" @click="item.primaryAction">{{ item.primaryText }}</button>
+                <button :class="primaryQuickAction.primaryClass" :disabled="primaryQuickAction.disabled" @click="primaryQuickAction.primaryAction">
+                  {{ primaryQuickAction.primaryText }}
+                </button>
                 <button
-                  v-if="item.secondaryText"
+                  v-if="primaryQuickAction.secondaryText"
                   class="ghost"
-                  :disabled="item.secondaryDisabled"
-                  @click="item.secondaryAction"
+                  :disabled="primaryQuickAction.secondaryDisabled"
+                  @click="primaryQuickAction.secondaryAction"
                 >
-                  {{ item.secondaryText }}
+                  {{ primaryQuickAction.secondaryText }}
                 </button>
               </div>
             </article>
+
+            <div class="action-grid" data-testid="workbench-action-groups">
+              <article
+                v-for="item in secondaryQuickActions"
+                :key="item.key"
+                class="action-card"
+                :class="{ unavailable: !item.available && item.disabled !== false }"
+              >
+                <div class="action-card-head">
+                  <span class="card-label">{{ item.title }}</span>
+                  <span class="availability-badge" :class="{ ok: item.available && !item.disabled, blocked: item.disabled || !item.available }">
+                    {{ item.available && !item.disabled ? '当前可做' : '暂不可做' }}
+                  </span>
+                </div>
+                <h3>{{ item.title }}</h3>
+                <strong class="action-status">{{ item.status }}</strong>
+                <p>{{ item.disabled && item.desc ? `原因：${item.desc}` : item.desc }}</p>
+                <div class="action-buttons">
+                  <button :class="item.primaryClass" :disabled="item.disabled" @click="item.primaryAction">{{ item.primaryText }}</button>
+                  <button
+                    v-if="item.secondaryText"
+                    class="ghost"
+                    :disabled="item.secondaryDisabled"
+                    @click="item.secondaryAction"
+                  >
+                    {{ item.secondaryText }}
+                  </button>
+                </div>
+              </article>
+            </div>
           </div>
 
           <div v-else class="summary-card release-readonly-card" data-testid="workbench-release-readonly">
             <span class="card-label">监管提示</span>
             <p class="card-title">{{ publishReady ? '已满足发布条件' : '仍需继续补齐资料' }}</p>
             <p class="card-copy">
-              {{ publishReady ? '当前批次已经具备发布条件，但监管账号仅保留查看。' : (publishAction.hint || resumeAction.hint || '当前仍需继续关注质检、二维码或风险整改情况。') }}
+              {{ publishReady ? '当前批次已经具备发布条件，但监管账号仅保留查看。' : publishGate.reason }}
             </p>
             <div class="summary-meta-list compact">
               <div>
@@ -950,7 +1227,7 @@ onMounted(async () => {
             <div class="section-head">
               <div>
                 <h2>质检 / 二维码 / 发布</h2>
-                <p>发布前条件和公开入口都在这里。</p>
+                <p>发布前的关键条件和公开入口都集中在这里，适合答辩时顺着闭环直接讲。</p>
               </div>
             </div>
 
@@ -961,7 +1238,7 @@ onMounted(async () => {
                     <span class="card-label">质检</span>
                     <strong>{{ detail.quality.label }}</strong>
                   </div>
-                  <button v-if="canManageBatch" class="ghost" @click="openQualityDialog">上传质检</button>
+                  <button v-if="canManageBatch" class="ghost" data-testid="workbench-open-quality-dialog" @click="openQualityDialog">上传质检</button>
                 </div>
                 <p class="panel-copy">{{ latestQualityReport ? `最近质检：${latestQualityReport.reportNo} · ${latestQualityReport.agency}` : '当前还没有质检摘要。' }}</p>
                 <div class="compact-grid">
@@ -1034,7 +1311,7 @@ onMounted(async () => {
                   target="_blank"
                   rel="noreferrer"
                 >
-                  打开公开页
+                  查看公开页
                 </a>
               </article>
             </div>
@@ -1048,11 +1325,11 @@ onMounted(async () => {
             </div>
 
             <div v-if="canManageBatch" class="release-actions">
-              <button class="success" :disabled="!publishReady" @click="openStatusDialog('PUBLISHED')">
+              <button class="success" data-testid="workbench-publish-action" :disabled="!publishReady" @click="openStatusDialog('PUBLISHED')">
                 {{ resumeAction.enabled ? '恢复发布' : '发布批次' }}
               </button>
               <span class="release-tip">
-                {{ publishReady ? '条件已满足。' : (publishAction.hint || resumeAction.hint || '发布前需先补齐合格质检和二维码。') }}
+                {{ publishReady ? '条件已满足。' : publishGate.reason }}
               </span>
             </div>
           </article>
@@ -1275,7 +1552,7 @@ onMounted(async () => {
               <h2 v-else-if="dialog.type === 'status'">状态处理</h2>
               <p>{{ detail.batch.batchCode }} · {{ detail.product.name }}</p>
             </div>
-            <button class="ghost" @click="closeDialog">关闭</button>
+            <button class="ghost" :disabled="dialogSubmitting" @click="closeDialog">关闭</button>
           </div>
           <div v-if="dialog.type === 'trace'" class="form-grid" data-testid="workbench-trace-dialog">
             <label>
@@ -1355,19 +1632,48 @@ onMounted(async () => {
             <label>
               <span>目标状态</span>
               <select v-model="statusForm.targetStatus">
-                <option value="PUBLISHED">发布</option>
-                <option value="FROZEN">冻结</option>
-                <option value="RECALLED">召回</option>
+                <option
+                  v-for="item in statusTargetOptions"
+                  :key="item.value"
+                  :value="item.value"
+                  :disabled="!item.allowed"
+                >
+                  {{ item.allowed ? item.label : `${item.label}（当前不可用）` }}
+                </option>
               </select>
+              <small v-if="statusForm.targetStatus === 'PUBLISHED' && !publishGate.allowed" class="field-inline-hint">
+                {{ publishGate.reason }}
+              </small>
+              <small v-if="!canBatchStatusTransition(detail?.status?.code, statusForm.targetStatus)" class="field-inline-hint">
+                {{ statusTransitionBlockedHint(detail?.status?.code, statusForm.targetStatus) }}
+              </small>
             </label>
             <label><span>处理人</span><input v-model.trim="statusForm.operatorName" type="text"></label>
             <label class="full-width"><span>处理原因</span><textarea v-model.trim="statusForm.reason" rows="4"></textarea></label>
           </div>
 
+          <p v-if="dialogValidationError" class="form-error">{{ dialogValidationError }}</p>
+
           <div class="dialog-actions">
-            <button class="ghost" @click="closeDialog">取消</button>
-            <button v-if="dialog.type === 'trace' && !readOnlyBatchView" class="ghost" @click="submitDialog({ keepOpen: true })">保存并继续</button>
-            <button v-if="!readOnlyBatchView" class="primary" @click="submitDialog()">确认保存</button>
+            <button class="ghost" :disabled="dialogSubmitting" @click="closeDialog">取消</button>
+            <button
+              v-if="dialog.type === 'trace' && !readOnlyBatchView"
+              class="ghost"
+              data-testid="workbench-dialog-save-continue"
+              :disabled="dialogSubmitting || Boolean(dialogValidationError)"
+              @click="submitDialog({ keepOpen: true })"
+            >
+              {{ dialogSubmitting ? '正在保存...' : '保存并继续' }}
+            </button>
+            <button
+              v-if="!readOnlyBatchView"
+              class="primary"
+              data-testid="workbench-dialog-submit"
+              :disabled="dialogSubmitting || Boolean(dialogValidationError)"
+              @click="submitDialog()"
+            >
+              {{ dialogSubmitting ? '正在提交...' : '确认保存' }}
+            </button>
           </div>
         </section>
       </div>
@@ -1390,11 +1696,37 @@ onMounted(async () => {
 .loading-card { display: flex; align-items: center; justify-content: center; min-height: 220px; color: var(--admin-text-soft); }
 .top-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-top: 18px; }
 .summary-card { padding: 20px; }
+.summary-card--featured {
+  background: linear-gradient(145deg, #f7fbff 0%, #eef6ff 100%);
+  border-color: rgba(48, 149, 246, 0.22);
+}
 .card-label { display: block; color: var(--admin-text-soft); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
 .card-head small,.summary-card small { color: var(--admin-text-soft); font-size: 12px; }
 .card-title { margin: 14px 0 8px; color: var(--admin-text); font-size: 18px; font-weight: 700; }
 .card-copy,.panel-copy,.action-card p,.history-card p { margin: 0; color: #4a6b90; line-height: 1.7; }
+.summary-card-headline { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-top: 12px; }
+.featured-meta { margin-top: 16px; }
+.featured-actions { margin-top: 18px; }
+.demo-flow { margin-top: 16px; }
+.demo-flow small { display: block; color: var(--admin-text-soft); font-size: 12px; }
+.demo-flow-list { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+.demo-flow-list span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(48, 149, 246, 0.1);
+  color: var(--admin-primary-deep);
+  font-size: 12px;
+  font-weight: 700;
+}
+.demo-flow-list span.done {
+  background: rgba(46, 166, 106, 0.12);
+  color: #1e7d50;
+}
+.readiness-strip { margin-top: 14px; }
 .task-draft-copy { margin: 10px 0 0; color: #a35f17; font-size: 13px; font-weight: 600; }
 .empty-copy { margin: 14px 0 0; color: var(--admin-text-soft); line-height: 1.7; }
 .mini-list { margin: 12px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; }
@@ -1408,6 +1740,13 @@ onMounted(async () => {
 .action-card h3 { margin: 10px 0 8px; color: var(--admin-text); font-size: 18px; }
 .action-buttons,.inline-actions,.dialog-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .action-buttons { margin-top: 16px; }
+.action-primary-stack { display: grid; gap: 16px; }
+.recommended-action-card {
+  padding: 20px;
+  border: 1px solid rgba(48, 149, 246, 0.2);
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(48, 149, 246, 0.12), rgba(255, 255, 255, 0.98));
+}
 .assignment-panel { margin-top: 18px; }
 .assignment-grid { display: grid; grid-template-columns: 1.2fr .9fr; gap: 16px; margin-top: 16px; }
 .assignment-overview,
@@ -1528,6 +1867,18 @@ button.ghost.danger { border-color: rgba(224, 73, 73, 0.2); color: #a33030; }
   background: #fff;
 }
 .checkbox-field input { width: 18px; min-height: 18px; margin: 0; }
+.field-inline-hint {
+  display: block;
+  margin-top: 8px;
+  color: #b96b16;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.form-error {
+  margin: 12px 0 0;
+  color: #b63f3f;
+  line-height: 1.7;
+}
 .full-width { grid-column: 1 / -1; }
 .top-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .summary-card.slim { padding: 18px; }
@@ -1617,6 +1968,7 @@ button.ghost.danger { border-color: rgba(224, 73, 73, 0.2); color: #a33030; }
   .action-panel .section-head,
   .panel .section-head,
   .fresh-batch-banner,
+  .summary-card-headline,
   .record-head,
   .card-head,
   .summary-record-head,

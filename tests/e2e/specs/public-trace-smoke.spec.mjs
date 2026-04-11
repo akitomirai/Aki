@@ -25,3 +25,13 @@ test('public trace page shows risk state for recall demo data', async ({ page })
   await expect(page.getByTestId('public-product-name')).toContainText('优质大米')
   await saveNamedScreenshot(page, 'round8-public-trace-recall')
 })
+
+test('public trace page shows friendly error state for invalid token', async ({ page }) => {
+  await page.goto(`${traceBaseUrl}/t/invalid-demo-token-2026`)
+
+  await expect(page.getByTestId('public-error-state')).toBeVisible()
+  await expect(page.getByTestId('public-error-title')).toContainText('暂时无法查询')
+  await expect(page.getByTestId('public-error-copy')).toContainText('可能是追溯码输入有误')
+  await expect(page.getByTestId('public-error-tips')).toContainText('重新扫码')
+  await saveNamedScreenshot(page, 'round12-public-trace-invalid')
+})

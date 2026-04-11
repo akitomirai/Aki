@@ -15,26 +15,19 @@ if (-not (Test-Path $runnerPath)) {
     throw "Local service runner was not found: $runnerPath"
 }
 
-$portIssues = @()
-foreach ($serviceName in @('backend', 'adminWeb', 'traceWeb')) {
-    $config = Get-ServiceConfig -Name $serviceName
-    $listeners = Get-PortListenerRecords -Port $config.Port
-    foreach ($listener in $listeners) {
-        $portIssues += [pscustomobject]@{
-            Service = $config.DisplayName
-            Port = $config.Port
-            Pid = $listener.Pid
-            ProcessName = $listener.ProcessName
-            CommandLine = $listener.CommandLine
-        }
+try {
+    $stoppedPortRecords = Resolve-RequiredPortConflicts -Ports @(8080, 5174, 5173) -AutoStopWorkspaceProcesses
+    if ($stoppedPortRecords.Count -gt 0) {
+        Write-Host 'Stopped existing workspace/demo listeners before local start:' -ForegroundColor Yellow
+        $stoppedPortRecords | Select-Object Port, Pid, ProcessName | Format-Table -AutoSize
+        Write-Host ''
     }
 }
-
-if ($portIssues.Count -gt 0) {
+catch {
     Write-Host 'One or more required ports are already in use.' -ForegroundColor Red
-    $portIssues | Format-Table -AutoSize
+    Write-Host $_.Exception.Message -ForegroundColor Red
     Write-Host ''
-    Write-Host "Run scripts\stop-local.ps1 if these services belong to this workspace." -ForegroundColor Yellow
+    Write-Host "If those listeners belong to this workspace, run scripts\stop-local.ps1 and try again." -ForegroundColor Yellow
     exit 1
 }
 

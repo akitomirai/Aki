@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { changeBatchStatus, generateBatchQr, getBatchDetail, getBatchList } from '../api/batch'
 import { useAuthStore } from '../stores/auth'
 import { getFriendlyErrorMessage } from '../utils/batchExperience'
+import { resolvePublishBlockState } from '../utils/batchStatusFlow'
 import { openPrintPreviewWindow, renderQrPrintPreview } from '../utils/exportTools'
 import { resolveQrStatusText } from '../utils/statusPresentation'
 
@@ -52,6 +53,27 @@ const tabCounts = computed(() => {
     acc[tab.value] = rows.value.filter((item) => matchesTab(item, tab.value)).length
     return acc
   }, {})
+})
+
+const publishDialogError = computed(() => {
+  if (!publishDialog.value.visible) {
+    return ''
+  }
+  const batch = publishDialog.value.batch
+  if (!batch?.id) {
+    return '未找到要发布的批次。'
+  }
+  const gate = publishGate(batch)
+  if (!gate.allowed) {
+    return gate.reason
+  }
+  if (!canPublish(batch)) {
+    return gate.reason || publishHint(batch)
+  }
+  if (!String(publishDialog.value.reason || '').trim()) {
+    return '请填写处理说明。'
+  }
+  return ''
 })
 
 onMounted(async () => {
@@ -156,8 +178,13 @@ function riskAllowsPublish(item) {
   return !['FROZEN', 'PROCESSING', 'RISK_PENDING', 'RECALLED'].includes(riskStatus)
 }
 
+function publishGate(item) {
+  return resolvePublishBlockState(item)
+}
+
 function canPublish(item) {
-  return Boolean(actionOf(item, 'PUBLISH').enabled || actionOf(item, 'RESUME').enabled || item.publishReady)
+  const gate = publishGate(item)
+  return gate.allowed && Boolean(actionOf(item, 'PUBLISH').enabled || actionOf(item, 'RESUME').enabled || item.publishReady)
 }
 
 function publishActionLabel(item) {
@@ -215,6 +242,10 @@ function publishHint(item) {
   const batchStatus = String(item.status || '').toUpperCase()
   if (batchStatus === 'PUBLISHED') {
     return '二维码和公开页已经生效，可以直接核对扫码入口和工作台状态。'
+  }
+  const gate = publishGate(item)
+  if (!gate.allowed) {
+    return gate.reason
   }
   if (canPublish(item)) {
     return actionOf(item, 'RESUME').enabled
@@ -473,14 +504,26 @@ function closePublishDialog() {
 }
 
 async function submitPublish() {
+  if (publishSubmitting.value) {
+    return
+  }
   if (!publishDialog.value.batch?.id) {
+    return
+  }
+  if (publishDialogError.value) {
+    showMessage(publishDialogError.value, 'error')
+    return
+  }
+  const actionLabel = publishActionLabel(publishDialog.value.batch || {})
+  const confirmed = window.confirm(`确认${actionLabel}批次 ${publishDialog.value.batch.batchCode} 吗？`)
+  if (!confirmed) {
     return
   }
   publishSubmitting.value = true
   try {
     await changeBatchStatus(publishDialog.value.batch.id, {
       targetStatus: 'PUBLISHED',
-      reason: publishDialog.value.reason,
+      reason: publishDialog.value.reason.trim(),
       operatorName: authStore.user?.realName || authStore.user?.username || '平台管理员'
     })
     await fetchRows()
@@ -499,7 +542,7 @@ async function submitPublish() {
     <section class="manage-page-header">
       <div>
         <h1 class="manage-page-title">二维码与发布管理</h1>
-        <p class="manage-page-subtitle">集中处理二维码生成、公开入口预览、发布前检查和批次发布，不必逐个进入工作台再核对。</p>
+      <p class="manage-page-subtitle">集中处理二维码生成、公开入口预览、发布前检查和批次发布，不必逐个回工作台再核对。</p>
       </div>
       <div class="manage-page-actions">
         <button class="ghost" data-testid="qr-refresh-button" :disabled="loading" @click="fetchRows">刷新</button>
@@ -663,7 +706,7 @@ async function submitPublish() {
 
           <div class="row-meta qr-entry-panel">
             <strong>{{ item.qrToken || '暂无公开标识' }}</strong>
-            <small>{{ hasQr(item) ? '二维码入口已准备' : '先生成二维码，再预览或打开公开页' }}</small>
+            <small>{{ hasQr(item) ? '二维码入口已准备' : '先生成二维码，再查看公开页' }}</small>
             <small v-if="item.marketDate">公开时间：{{ item.marketDate }}</small>
           </div>
 
@@ -689,7 +732,7 @@ async function submitPublish() {
               :data-testid="`qr-workbench-${item.id}`"
               @click="openWorkbench(item)"
             >
-              进入工作台
+              查看工作台
             </button>
             <div class="inline-actions">
               <button
@@ -714,7 +757,7 @@ async function submitPublish() {
                 :data-testid="`qr-public-${item.id}`"
                 @click="openPublicPage(item)"
               >
-                打开公开页
+                查看公开页
               </button>
             </div>
           </div>
@@ -758,12 +801,12 @@ async function submitPublish() {
 
           <div class="inline-link-group">
             <a class="preview-link" :href="previewDialog.qr?.imageUrl" target="_blank" rel="noreferrer">查看原图</a>
-            <a class="preview-link" :href="previewDialog.qr?.publicUrl" target="_blank" rel="noreferrer">打开公开页</a>
+            <a class="preview-link" :href="previewDialog.qr?.publicUrl" target="_blank" rel="noreferrer">查看公开页</a>
           </div>
 
           <div class="dialog-actions" style="margin-top: 18px;">
             <button class="ghost" @click="downloadQr(previewDialog.batch)">下载二维码</button>
-            <button class="primary" @click="openWorkbench(previewDialog.batch)">进入工作台</button>
+          <button class="primary" @click="openWorkbench(previewDialog.batch)">查看工作台</button>
           </div>
         </template>
       </section>
@@ -800,14 +843,16 @@ async function submitPublish() {
           />
         </label>
 
-        <p class="hint-note" style="margin-top: 14px;">不可发布时，先回列表查看阻塞项或进入工作台补齐质检、二维码和风险处理。</p>
+        <p v-if="publishDialogError" class="form-error">{{ publishDialogError }}</p>
+
+          <p class="hint-note" style="margin-top: 14px;">不可发布时，先回列表查看阻塞项或回工作台补齐质检、二维码和风险处理。</p>
 
         <div class="dialog-actions" style="margin-top: 18px;">
           <button class="ghost" :disabled="publishSubmitting" @click="closePublishDialog">取消</button>
           <button
             class="success"
             data-testid="qr-publish-submit"
-            :disabled="publishSubmitting || !canPublish(publishDialog.batch || {})"
+            :disabled="publishSubmitting || !canPublish(publishDialog.batch || {}) || Boolean(publishDialogError)"
             @click="submitPublish"
           >
             {{ publishSubmitting ? '正在提交...' : publishActionLabel(publishDialog.batch || {}) }}
@@ -874,6 +919,12 @@ async function submitPublish() {
 .pending {
   background: rgba(129, 154, 184, 0.14);
   color: #57718e;
+}
+
+.form-error {
+  margin: 12px 0 0;
+  color: #b63f3f;
+  line-height: 1.6;
 }
 
 @media (max-width: 760px) {
