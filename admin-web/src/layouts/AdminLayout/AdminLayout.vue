@@ -1,44 +1,57 @@
 <template>
   <div class="layout" data-testid="admin-layout">
     <aside class="sidebar">
-      <div class="brand">
-        <h1>农产品追溯后台</h1>
-      </div>
+      <div class="sidebar-shell">
+        <div class="brand">
+          <h1>农产品追溯后台</h1>
+        </div>
 
-      <nav class="nav-groups" aria-label="后台菜单">
-        <section
-          v-for="section in menuSections"
-          :key="section.title"
-          class="nav-group"
-          :class="{ 'nav-group--account': section.type === 'account' }"
-        >
-          <p class="nav-group-title">{{ section.title }}</p>
+        <nav class="nav-groups" aria-label="后台菜单">
+          <section
+            v-for="section in sidebarMenuSections"
+            :key="section.title"
+            class="nav-group"
+          >
+            <p class="nav-group-title">{{ section.title }}</p>
+            <RouterLink
+              v-for="item in section.items"
+              :key="item.key"
+              :to="item.to"
+              class="nav-link"
+              :class="{ active: activeMenu === item.key }"
+            >
+              {{ item.label }}
+            </RouterLink>
+          </section>
+        </nav>
+
+        <section class="sidebar-account" data-testid="sidebar-account-section">
+          <p class="nav-group-title">{{ accountMenuSection?.title || '账号设置' }}</p>
           <RouterLink
-            v-for="item in section.items"
+            v-for="item in accountMenuSection?.items || []"
             :key="item.key"
             :to="item.to"
             class="nav-link"
             :class="{ active: activeMenu === item.key }"
+            data-testid="sidebar-profile-entry"
           >
             {{ item.label }}
           </RouterLink>
+          <button
+            class="nav-link nav-link--button"
+            type="button"
+            data-testid="sidebar-logout-entry"
+            @click="logout"
+          >
+            退出登录
+          </button>
         </section>
-      </nav>
+      </div>
     </aside>
 
     <div class="main">
       <header class="header">
         <h2>{{ pageTitle }}</h2>
-        <div class="header-actions">
-          <div class="identity">
-            <strong>{{ displayName }}</strong>
-            <span>{{ roleName }}</span>
-          </div>
-          <RouterLink class="header-secondary-button" to="/profile">
-            个人资料
-          </RouterLink>
-          <button class="logout-button" type="button" @click="logout">退出登录</button>
-        </div>
       </header>
 
       <main class="content">
@@ -49,9 +62,12 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { useAdminLayout } from '../../composables/useAdminLayout'
 
-const { activeMenu, displayName, logout, menuSections, pageTitle, roleName } = useAdminLayout()
+const { activeMenu, logout, menuSections, pageTitle } = useAdminLayout()
+const sidebarMenuSections = computed(() => menuSections.value.filter((section) => section.type !== 'account'))
+const accountMenuSection = computed(() => menuSections.value.find((section) => section.type === 'account'))
 </script>
 
 <style src="./admin-layout.css" scoped></style>

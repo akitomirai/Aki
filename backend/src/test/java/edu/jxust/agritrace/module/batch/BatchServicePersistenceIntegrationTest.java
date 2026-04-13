@@ -6,8 +6,12 @@ import edu.jxust.agritrace.module.batch.dto.BatchStatusActionRequest;
 import edu.jxust.agritrace.module.batch.dto.CompanySaveRequest;
 import edu.jxust.agritrace.module.batch.dto.ProductSaveRequest;
 import edu.jxust.agritrace.module.batch.dto.QualityReportCreateRequest;
+import edu.jxust.agritrace.module.batch.dto.TraceRecordCreateRequest;
 import edu.jxust.agritrace.module.batch.entity.BatchStatus;
 import edu.jxust.agritrace.module.batch.entity.RiskActionType;
+import edu.jxust.agritrace.module.batch.entity.TraceStage;
+import edu.jxust.agritrace.module.batch.mapper.TraceEventMapper;
+import edu.jxust.agritrace.module.batch.mapper.po.TraceEventPO;
 import edu.jxust.agritrace.module.batch.service.BatchService;
 import edu.jxust.agritrace.module.batch.service.MasterDataService;
 import edu.jxust.agritrace.module.publictrace.dto.PublicTraceAccessContext;
@@ -19,6 +23,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -31,6 +36,9 @@ class BatchServicePersistenceIntegrationTest extends AuthenticatedIntegrationTes
 
     @Autowired
     private MasterDataService masterDataService;
+
+    @Autowired
+    private TraceEventMapper traceEventMapper;
 
     @Test
     void shouldPersistBatchStatusTransitionsWithRiskClosure() {
@@ -144,6 +152,58 @@ class BatchServicePersistenceIntegrationTest extends AuthenticatedIntegrationTes
         assertEquals(first.qr().token(), second.qr().token());
         assertEquals(first.qr().imageUrl(), second.qr().imageUrl());
         assertNotNull(second.qr().publicUrl());
+    }
+
+    @Test
+    void shouldPassTraceHashChainAndDetectTampering() {
+        Long batchId = batchService.createBatch(new BatchCreateRequest(
+                "BATCH-HASH-ROUND7",
+                1L,
+                1L,
+                "Jiangxi Ganzhou Xinfeng Orchard",
+                "2026-03-24",
+                "hash chain demo",
+                "test"
+        )).batch().id();
+
+        batchService.addTraceRecord(batchId, new TraceRecordCreateRequest(
+                TraceStage.PRODUCE,
+                "采收建档",
+                "2026-03-24T09:10",
+                "trace tester",
+                "A区果园",
+                "完成首条采收记录留痕。",
+                null,
+                List.of(),
+                true
+        ));
+        batchService.addTraceRecord(batchId, new TraceRecordCreateRequest(
+                TraceStage.TRANSPORT,
+                "冷链发运",
+                "2026-03-24T11:30",
+                "trace tester",
+                "赣州发运点",
+                "完成第二条运输记录留痕。",
+                null,
+                List.of(),
+                true
+        ));
+
+        var passed = batchService.verifyTraceChain(batchId);
+        assertTrue(passed.passed());
+        assertEquals("校验通过", passed.statusLabel());
+        assertEquals(2, passed.totalRecords());
+        assertNotNull(passed.latestHash());
+
+        TraceEventPO tampered = traceEventMapper.selectById(batchService.getBatchEntityById(batchId).getTraceRecords().get(0).id());
+        tampered.setContentJson("{\"summary\":\"该记录已被人为篡改\"}");
+        traceEventMapper.updateById(tampered);
+
+        var failed = batchService.verifyTraceChain(batchId);
+        assertFalse(failed.passed());
+        assertEquals("校验失败", failed.statusLabel());
+        assertEquals(tampered.getId(), failed.failedRecordId());
+        assertTrue(failed.message().contains("第 1 条记录"));
     }
 
     @Test

@@ -1,0 +1,52 @@
+{
+  "verifiedAt": "2026-03-30T13:00:39.979Z",
+  "operatorLogin": "operator_support",
+  "runtime": {
+    "backend": "http://127.0.0.1:8080",
+    "adminWeb": "http://127.0.0.1:5174",
+    "traceWeb": "http://127.0.0.1:5173"
+  },
+  "actions": {
+    "qualityReportNo": "WB-QA-20260330130028",
+    "qrGeneratedNow": true,
+    "publishActionTaken": true
+  },
+  "initialState": {
+    "batchStatus": "草稿",
+    "assigneeName": "Field Operator B",
+    "taskStatus": "待处理",
+    "todayCompleted": false,
+    "qrGenerated": false,
+    "qualityLabel": "待上传"
+  },
+  "finalState": {
+    "batchStatus": "已发布",
+    "assigneeName": "Field Operator B",
+    "taskStatus": "今日已完成",
+    "todayCompleted": true,
+    "latestRecordTitle": "工作台回归现场记录 20260330130028",
+    "latestRecordOperator": "Field Operator B",
+    "latestRecordImages": [
+      "workbench-field-1-20260330130028.png",
+      "workbench-field-2-20260330130028.png"
+    ],
+    "publicUrl": "http://127.0.0.1:5173/t/orange-202603-d1"
+  },
+  "uiChecks": {
+    "latestImageOrder": [
+      "workbench-field-1-20260330130028.png",
+      "workbench-field-2-20260330130028.png"
+    ],
+    "latestImageOrderMatchesUploadOrder": true,
+    "consoleErrors": []
+  },
+  "screenshots": [
+    "D:\\Users\\Lenovo\\Desktop\\traceability-system\\output\\playwright\\71-workbench-overview.png",
+    "D:\\Users\\Lenovo\\Desktop\\traceability-system\\output\\playwright\\72-workbench-quality-uploaded.png",
+    "D:\\Users\\Lenovo\\Desktop\\traceability-system\\output\\playwright\\73-workbench-qr-ready.png",
+    "D:\\Users\\Lenovo\\Desktop\\traceability-system\\output\\playwright\\74-workbench-operator-submit-success.png",
+    "D:\\Users\\Lenovo\\Desktop\\traceability-system\\output\\playwright\\75-workbench-record-synced.png",
+    "D:\\Users\\Lenovo\\Desktop\\traceability-system\\output\\playwright\\76-workbench-published.png",
+    "D:\\Users\\Lenovo\\Desktop\\traceability-system\\output\\playwright\\77-public-trace-page.png"
+  ]
+}

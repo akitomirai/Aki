@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { changeBatchStatus, createRiskAction, getBatchDetail, getBatchList } from '../api/batch'
 import PrimaryActionGroup from '../components/PrimaryActionGroup.vue'
@@ -11,9 +11,11 @@ import { canManageAdminBatch, isRegulator } from '../utils/access'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const DEFAULT_PAGE_SIZE = 10
 
 const loading = ref(false)
 const rows = ref([])
+const allRows = ref([])
 const message = ref('')
 const messageType = ref('info')
 const activeTab = ref('FROZEN')
@@ -22,6 +24,14 @@ const riskSubmitting = ref(false)
 const resumeSubmitting = ref(false)
 const riskDialog = ref(createRiskDialogState())
 const resumeDialog = ref(createResumeDialogState())
+const page = ref(1)
+const pageSize = ref(DEFAULT_PAGE_SIZE)
+const pageSizeOptions = [
+  { value: 10, label: '10 条 / 页' },
+  { value: 20, label: '20 条 / 页' },
+  { value: 50, label: '50 条 / 页' },
+  { value: 100, label: '100 条 / 页' }
+]
 const roleCode = computed(() => authStore.user?.roleCode || '')
 const canManageRisk = computed(() => canManageAdminBatch(roleCode.value))
 const readOnlyRiskView = computed(() => isRegulator(roleCode.value))
@@ -50,13 +60,16 @@ const statusOptions = [
   { value: 'DRAFT', label: '草稿' }
 ]
 
+const filteredRows = computed(() => rows.value.filter((item) => matchesKeyword(item) && matchesCompany(item) && matchesTab(item)))
+const pageCount = computed(() => Math.max(1, Math.ceil(Number(filteredRows.value.length || 0) / Number(pageSize.value || DEFAULT_PAGE_SIZE))))
 const visibleRows = computed(() => {
-  return rows.value.filter((item) => matchesKeyword(item) && matchesCompany(item) && matchesTab(item))
+  const fromIndex = (page.value - 1) * pageSize.value
+  return filteredRows.value.slice(fromIndex, fromIndex + pageSize.value)
 })
 
 const tabCounts = computed(() => {
   return riskTabs.reduce((acc, item) => {
-    acc[item.value] = rows.value.filter((row) => matchesTab(row, item.value)).length
+    acc[item.value] = allRows.value.filter((row) => matchesTab(row, item.value)).length
     return acc
   }, {})
 })
@@ -101,6 +114,14 @@ const boardLeadText = computed(() => {
     RECALLED: '召回批次重点讲清风险提示、处理范围和后续安排。'
   }[activeTab.value] ?? '优先处理最接近恢复发布的风险批次。'
 })
+const listSummary = computed(() => {
+  if (!filteredRows.value.length) {
+    return '暂无批次。'
+  }
+  const from = (page.value - 1) * pageSize.value + 1
+  const to = Math.min(filteredRows.value.length, page.value * pageSize.value)
+  return `共 ${filteredRows.value.length} 个批次，当前显示 ${from}-${to} 个。`
+})
 
 const riskDialogError = computed(() => {
   if (!riskDialog.value.visible) {
@@ -134,6 +155,10 @@ const resumeDialogError = computed(() => {
 onMounted(async () => {
   await fetchRows()
 })
+
+watch([activeTab, filters], () => {
+  page.value = 1
+}, { deep: true })
 
 function createFilterState() {
   return {
@@ -497,10 +522,14 @@ function matchesTab(item, tabValue = activeTab.value) {
 async function fetchRows() {
   loading.value = true
   try {
-    const response = await getBatchList(cleanObject({
-      status: filters.value.status || undefined
-    }))
+    const [response, summaryResponse] = await Promise.all([
+      getBatchList(cleanObject({
+        status: filters.value.status || undefined
+      })),
+      getBatchList()
+    ])
     rows.value = response.data ?? []
+    allRows.value = summaryResponse.data ?? []
   } catch (error) {
     showMessage(getFriendlyErrorMessage(error, '风险批次加载失败，请稍后再试。'), 'error')
   } finally {
@@ -510,7 +539,31 @@ async function fetchRows() {
 
 function resetFilters() {
   filters.value = createFilterState()
+  page.value = 1
+  pageSize.value = DEFAULT_PAGE_SIZE
   fetchRows()
+}
+
+function handleSearch() {
+  page.value = 1
+  fetchRows()
+}
+
+function handlePageSizeChange(value) {
+  const nextPageSize = Number(value || DEFAULT_PAGE_SIZE)
+  if (nextPageSize === pageSize.value) return
+  pageSize.value = nextPageSize
+  page.value = 1
+}
+
+function goPrevPage() {
+  if (loading.value || page.value <= 1) return
+  page.value -= 1
+}
+
+function goNextPage() {
+  if (loading.value || page.value >= pageCount.value) return
+  page.value += 1
 }
 
 function openWorkbench(item) {
@@ -627,46 +680,35 @@ async function openWorkbenchAfterRefresh(item) {
 
 <template>
   <div class="page-shell" data-testid="risk-page">
-    <section class="manage-page-header">
-      <div>
-        <h1 class="manage-page-title">{{ pageTitle }}</h1>
-        <p class="manage-page-subtitle">{{ pageSubtitle }}</p>
-      </div>
-      <div class="manage-page-actions">
-        <button class="ghost" data-testid="risk-refresh-button" :disabled="loading" @click="fetchRows">刷新</button>
-      </div>
-    </section>
-
+    <div class="manage-page risk-manage">
     <section v-if="readOnlyRiskView" class="panel readonly-banner" data-testid="risk-readonly-banner">
       <strong>监管查看模式</strong>
       <span>{{ readOnlyBannerText }}</span>
     </section>
 
-    <section class="overview-cards">
-      <article
-        v-for="(card, index) in riskOverviewCards"
-        :key="riskTabs[index].value"
-        class="overview-card"
-        :class="{ 'is-active': activeTab === riskTabs[index].value }"
-        :data-testid="`risk-tab-${riskTabs[index].value}`"
-        @click="activeTab = riskTabs[index].value"
-      >
-        <span class="overview-card__icon" />
-        <div class="overview-card__body">
-          <span class="overview-card__label">{{ card.label }}</span>
-          <strong class="overview-card__value">{{ card.value }}</strong>
-        </div>
-      </article>
-    </section>
-
-    <section class="panel">
-      <div class="panel-heading">
-        <div>
-          <h2 class="panel-heading__title">筛选条件</h2>
-        </div>
+    <div class="manage-summary-row">
+      <div class="manage-summary">
+        <button
+          v-for="(card, index) in riskOverviewCards"
+          :key="riskTabs[index].value"
+          type="button"
+          class="manage-summary-chip manage-summary-chip--interactive"
+          :class="{ 'is-active': activeTab === riskTabs[index].value }"
+          :data-testid="`risk-tab-${riskTabs[index].value}`"
+          @click="activeTab = riskTabs[index].value"
+        >
+          <span>{{ card.label }}</span>
+          <strong>{{ card.value }}</strong>
+        </button>
       </div>
 
-      <div class="filter-grid">
+      <div class="manage-summary-actions">
+        <button class="ghost" data-testid="risk-refresh-button" :disabled="loading" @click="fetchRows">刷新</button>
+      </div>
+    </div>
+
+    <section class="panel manage-filter-card risk-filter-panel">
+      <div class="manage-filter-grid risk-filter-grid">
         <label>
           <span>批次名称 / 编号</span>
           <input v-model.trim="filters.keyword" data-testid="risk-filter-keyword" type="text" placeholder="输入批次编号或产品名称">
@@ -681,14 +723,20 @@ async function openWorkbenchAfterRefresh(item) {
             <option v-for="item in statusOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
           </select>
         </label>
-      </div>
-
-      <div class="toolbar">
-        <span class="list-summary">当前看板为“{{ activeTabMeta.label }}”，共 {{ rows.length }} 个批次，当前显示 {{ visibleRows.length }} 个。</span>
-        <div class="toolbar-actions">
-          <button class="primary" data-testid="risk-search-button" :disabled="loading" @click="fetchRows">查询</button>
+        <div class="risk-page-size-control">
+          <span class="manage-muted">每页显示</span>
+          <select v-model="pageSize" data-testid="risk-page-size" class="risk-page-size-select" @change="handlePageSizeChange($event.target.value)">
+            <option v-for="item in pageSizeOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+          </select>
+        </div>
+        <div class="toolbar-actions risk-filter-actions">
+          <button class="primary" data-testid="risk-search-button" :disabled="loading" @click="handleSearch">查询</button>
           <button class="ghost" data-testid="risk-reset-button" :disabled="loading" @click="resetFilters">重置</button>
         </div>
+      </div>
+
+      <div class="toolbar risk-filter-meta">
+        <span class="list-summary">{{ listSummary }}</span>
       </div>
     </section>
 
@@ -697,66 +745,62 @@ async function openWorkbenchAfterRefresh(item) {
     <section v-if="loading" class="panel empty-state">
       <div>
         <h3>正在同步风险看板...</h3>
-        <p class="empty-copy">请稍等，正在汇总风险状态、整改进展和恢复发布条件。</p>
       </div>
     </section>
 
     <section v-else-if="!visibleRows.length" class="panel empty-state">
       <div>
         <h3>当前看板下还没有风险任务</h3>
-        <p class="empty-copy">可以切换看板或调整筛选条件后再看。</p>
       </div>
     </section>
 
-    <section v-else class="panel">
+    <section v-else class="panel ledger-panel risk-ledger-panel">
       <div class="panel-heading">
         <div>
           <h2 class="panel-heading__title">风险处置台账</h2>
         </div>
       </div>
 
-      <div class="todo-table-head risk-head">
-        <span>批次概况</span>
-        <span>当前判断</span>
-        <span>处置进展</span>
-        <span>推荐动作</span>
-      </div>
+      <div class="table-scroll-shell ledger-table-shell risk-table-shell" style="--table-min-width: 1320px;">
+        <div class="ledger-table-head risk-head">
+          <span>批次与产品</span>
+          <span>企业 / 更新时间</span>
+          <span>状态概览</span>
+          <span>当前判断</span>
+          <span>处置进展</span>
+          <span>动作</span>
+        </div>
 
-      <div class="todo-row-list">
+        <div class="ledger-row-list">
         <article
           v-for="item in visibleRows"
           :key="item.id"
-          class="todo-row risk-row"
+          class="ledger-row risk-row"
           :data-testid="`risk-row-${item.id}`"
         >
           <div class="row-main risk-main">
-            <div class="row-title-line">
-              <strong>{{ item.productName }}</strong>
-              <span>{{ item.batchCode }}</span>
+            <strong>{{ item.productName }}</strong>
+            <span>{{ item.batchCode }}</span>
+          </div>
+
+          <div class="row-meta risk-company">
+            <strong>{{ item.companyName }}</strong>
+            <small>最近更新：{{ latestUpdatedText(item) }}</small>
+          </div>
+
+          <div class="row-status risk-overview">
+            <div class="status-chip-row">
+              <span class="status-chip" :class="statusClass(item.status)">{{ item.statusLabel }}</span>
+              <span class="status-chip" :class="riskToneClass(item)">{{ item.riskStatusLabel }}</span>
             </div>
-            <div class="row-chip-group">
-              <StatusTag :text="item.statusLabel" :tone="statusClass(item.status)" />
-              <StatusTag :text="item.riskStatusLabel" :tone="riskToneClass(item)" />
-            </div>
-            <small>{{ item.companyName }} · {{ item.currentNode || '待确认环节' }} · {{ item.originPlace || '产地待补充' }}</small>
           </div>
 
           <div class="row-meta risk-focus">
-            <span class="row-label">当前判断</span>
             <strong>{{ riskPriorityText(item) }}</strong>
-            <small>{{ riskPriorityHint(item) }}</small>
-            <span class="priority-chip" :class="riskPriorityTone(item)">{{ canResume(item) ? '可继续处理' : '建议优先处理' }}</span>
           </div>
 
-          <div class="status-stack risk-progress">
-            <span class="row-label">处置进展</span>
+          <div class="row-status risk-progress">
             <strong>{{ canResume(item) ? '已满足恢复发布条件' : latestRiskActionText(item) }}</strong>
-            <small>{{ canResume(item) ? '整改和复核链路已基本完成。' : `整改结果：${rectificationText(item)}` }}</small>
-            <div class="meta-inline">
-              <span>恢复发布：{{ resumeText(item) }}</span>
-              <span>最近更新：{{ latestUpdatedText(item) }}</span>
-              <span>{{ item.marketDate ? `公开时间：${item.marketDate}` : '还没有公开时间' }}</span>
-            </div>
           </div>
 
           <div class="row-actions risk-actions">
@@ -775,13 +819,22 @@ async function openWorkbenchAfterRefresh(item) {
                       : (recommendedRiskActionCode(item) === 'rectified'
                         ? `risk-rectified-${item.id}`
                         : `risk-open-workbench-${item.id}`))))"
-              :primary-hint="riskPriorityHint(item)"
+              primary-hint=""
               :secondary-actions="riskSecondaryActions(item)"
               @primary-click="handleRecommendedRiskAction(item)"
               @secondary-click="(code) => handleSecondaryRiskAction(item, code)"
             />
           </div>
         </article>
+        </div>
+      </div>
+
+      <div class="toolbar risk-pagination">
+        <span class="list-summary">第 {{ page }} / {{ pageCount }} 页</span>
+        <div class="toolbar-actions">
+          <button class="ghost" data-testid="risk-prev-page" :disabled="loading || page <= 1" @click="goPrevPage">上一页</button>
+          <button class="ghost" data-testid="risk-next-page" :disabled="loading || page >= pageCount" @click="goNextPage">下一页</button>
+        </div>
       </div>
     </section>
 
@@ -905,9 +958,10 @@ async function openWorkbenchAfterRefresh(item) {
             {{ resumeSubmitting ? '正在恢复...' : '确认恢复发布' }}
           </button>
         </div>
-      </section>
+        </section>
+      </div>
     </div>
-  </div>
+    </div>
 </template>
 
 <style src="../assets/styles/admin-task-pages.css" scoped></style>
@@ -916,103 +970,181 @@ async function openWorkbenchAfterRefresh(item) {
 .risk-head,
 .risk-row {
   grid-template-columns:
-    minmax(0, 1fr)
+    minmax(0, 1.05fr)
+    minmax(0, 0.95fr)
+    minmax(0, 0.9fr)
     minmax(0, 0.95fr)
     minmax(0, 0.95fr)
     minmax(0, 1.2fr);
 }
 
-.board-panel,
-.board-head,
-.board-grid,
-.row-chip-group,
-.secondary-actions,
-.meta-inline {
+.risk-filter-grid {
+  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) minmax(180px, 0.9fr) minmax(188px, max-content) auto;
+  align-items: end;
+}
+
+.risk-filter-grid label {
   display: grid;
-  gap: 12px;
+  gap: 8px;
 }
 
-.board-head {
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
+.risk-filter-grid label > span,
+.risk-page-size-control .manage-muted {
+  color: var(--admin-text-mid);
+  font-size: 13px;
+  font-weight: 600;
 }
 
-.board-head h2 {
-  margin: 6px 0 0;
+.risk-filter-grid input,
+.risk-filter-grid select,
+.risk-page-size-select {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid var(--admin-border);
+  border-radius: 10px;
+  background: #fff;
   color: var(--admin-text);
-  font-size: 22px;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
-.board-copy {
-  margin: 10px 0 0;
-  color: var(--admin-text-soft);
-  line-height: 1.7;
+.risk-filter-grid input:focus,
+.risk-filter-grid select:focus,
+.risk-page-size-select:focus {
+  border-color: rgba(48, 149, 246, 0.26);
+  box-shadow: 0 0 0 3px rgba(48, 149, 246, 0.08);
+  outline: none;
 }
 
-.board-badge,
-.priority-chip {
+.risk-page-size-control {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  min-height: 32px;
-  width: fit-content;
-  padding: 0 12px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
+  gap: 10px;
+  min-width: 188px;
 }
 
-.board-badge {
-  background: rgba(48, 149, 246, 0.12);
-  color: var(--admin-primary-deep);
+.risk-page-size-select {
+  width: 128px;
 }
 
-.board-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin-top: 16px;
+.risk-filter-actions {
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  min-width: 170px;
 }
 
-.board-card {
-  padding: 16px;
-  border: 1px solid rgba(194, 212, 230, 0.72);
-  border-radius: 20px;
-  background: var(--admin-surface-soft);
+.risk-filter-meta,
+.risk-pagination {
+  margin-top: 18px;
 }
 
-.board-card small,
-.board-card p {
-  color: var(--admin-text-soft);
+.risk-pagination {
+  padding: 0 28px;
 }
 
-.board-card strong {
-  display: block;
-  margin-top: 8px;
-  color: var(--admin-text);
-  font-size: 24px;
+.risk-table-shell .ledger-table-head,
+.risk-table-shell .ledger-row-list {
+  width: 100%;
+  min-width: 0;
 }
 
-.board-card p {
-  margin: 10px 0 0;
-  line-height: 1.6;
-}
-
-.risk-main,
+.risk-company,
 .risk-focus,
 .risk-progress,
+.risk-overview,
 .risk-actions {
-  align-self: stretch;
+  min-width: 0;
 }
 
-.row-title-line {
+.risk-overview,
+.risk-progress {
   display: grid;
-  gap: 4px;
+  gap: 8px;
 }
 
-.row-label {
-  color: var(--admin-text-soft);
+.risk-overview .status-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid transparent;
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.risk-actions :deep(.primary-action-group) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.risk-actions :deep(.action-hint) {
+  display: none;
+}
+
+.risk-actions :deep(.action-primary) {
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 13px;
+  box-shadow: none;
+}
+
+.risk-actions :deep(.secondary-menu) {
+  border: none;
+  background: transparent;
+}
+
+.risk-actions :deep(.secondary-menu > summary) {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(56, 134, 217, 0.16);
+  border-radius: 999px;
+  background: #fff;
+}
+
+.risk-actions :deep(.secondary-menu[open] > summary) {
+  border-bottom: 1px solid rgba(56, 134, 217, 0.16);
+}
+
+.risk-actions :deep(.secondary-list) {
+  position: absolute;
+  z-index: 5;
+  min-width: 160px;
+  padding: 10px;
+  border: 1px solid rgba(194, 212, 230, 0.72);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: var(--admin-shadow);
+}
+
+.risk-actions :deep(.secondary-button) {
+  min-height: 34px;
+  font-size: 12px;
+}
+
+.risk-filter-grid {
+  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) minmax(180px, 0.9fr) minmax(188px, max-content) auto;
+  align-items: end;
+}
+
+.risk-filter-grid label {
+  display: grid;
+  gap: 8px;
+}
+
+.risk-page-size-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 188px;
+}
+
+.risk-page-size-select {
+  width: 128px;
 }
 
 .priority-chip.primary {
@@ -1035,27 +1167,37 @@ async function openWorkbenchAfterRefresh(item) {
   color: #b63f3f;
 }
 
-.risk-progress {
-  gap: 10px;
+.risk-filter-actions {
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  min-width: 170px;
 }
 
-.meta-inline span {
-  color: var(--admin-text-soft);
-  font-size: 12px;
+.risk-filter-meta,
+.risk-pagination {
+  margin-top: 18px;
+}
+
+.risk-pagination {
+  padding: 0 28px;
 }
 
 .risk-actions {
   align-content: start;
+  min-width: 0;
 }
 
-.action-copy {
-  margin: 0;
-  color: var(--admin-text-soft);
-  line-height: 1.7;
+.risk-company,
+.risk-focus,
+.risk-progress,
+.risk-overview {
+  min-width: 0;
 }
 
-.secondary-actions {
-  grid-template-columns: repeat(auto-fit, minmax(120px, max-content));
+.risk-overview,
+.risk-progress {
+  display: grid;
+  gap: 8px;
 }
 
 .processing {
@@ -1077,6 +1219,64 @@ async function openWorkbenchAfterRefresh(item) {
 .pending {
   background: rgba(129, 154, 184, 0.14);
   color: #57718e;
+}
+
+.risk-table-shell .ledger-table-head,
+.risk-table-shell .ledger-row-list {
+  width: 100%;
+  min-width: 0;
+}
+
+.risk-actions :deep(.primary-action-group) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.risk-actions :deep(.action-hint) {
+  display: none;
+}
+
+.risk-actions :deep(.action-primary) {
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 13px;
+  box-shadow: none;
+}
+
+.risk-actions :deep(.secondary-menu) {
+  border: none;
+  background: transparent;
+}
+
+.risk-actions :deep(.secondary-menu > summary) {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(56, 134, 217, 0.16);
+  border-radius: 999px;
+  background: #fff;
+}
+
+.risk-actions :deep(.secondary-menu[open] > summary) {
+  border-bottom: 1px solid rgba(56, 134, 217, 0.16);
+}
+
+.risk-actions :deep(.secondary-list) {
+  position: absolute;
+  z-index: 5;
+  min-width: 160px;
+  padding: 10px;
+  border: 1px solid rgba(194, 212, 230, 0.72);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: var(--admin-shadow);
+}
+
+.risk-actions :deep(.secondary-button) {
+  min-height: 34px;
+  font-size: 12px;
 }
 
 .primary-text {
@@ -1110,6 +1310,10 @@ async function openWorkbenchAfterRefresh(item) {
 }
 
 @media (max-width: 760px) {
+  .risk-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
   .risk-row {
     grid-template-columns: 1fr;
   }

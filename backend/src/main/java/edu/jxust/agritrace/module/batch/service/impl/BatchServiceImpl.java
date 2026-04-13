@@ -90,6 +90,7 @@ import edu.jxust.agritrace.module.batch.vo.RiskHandlingSectionVO;
 import edu.jxust.agritrace.module.batch.vo.ScanRecordVO;
 import edu.jxust.agritrace.module.batch.vo.ScanStatsSectionVO;
 import edu.jxust.agritrace.module.batch.vo.ScanTrendPointVO;
+import edu.jxust.agritrace.module.batch.vo.TraceChainVerificationVO;
 import edu.jxust.agritrace.module.batch.vo.TraceRecordVO;
 import edu.jxust.agritrace.module.batch.vo.TraceSectionVO;
 import edu.jxust.agritrace.module.log.dto.OperationLogRecord;
@@ -101,6 +102,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -116,6 +120,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.HexFormat;
 
 @Service
 @Transactional(readOnly = true)
@@ -123,6 +128,8 @@ public class BatchServiceImpl implements BatchService {
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+    private static final DateTimeFormatter TRACE_HASH_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final HexFormat HEX_FORMAT = HexFormat.of();
 
     private final TraceBatchMapper traceBatchMapper;
     private final BaseProductMapper baseProductMapper;
@@ -428,8 +435,13 @@ public class BatchServiceImpl implements BatchService {
         ensureTraceWriter(currentUser, batchPO);
         LocalDateTime eventTime = parseFlexibleDateTime(request.eventTime(), LocalDateTime.now());
         TraceStage stage = request.stage() == null ? TraceStage.PRODUCE : request.stage();
+        backfillMissingTraceHashes(batchId);
+        TraceEventPO previousEvent = findLatestTraceEvent(batchId);
+        String previousHash = previousEvent == null ? null : normalizeHash(previousEvent.getHash());
         List<BizAttachmentPO> attachments = claimAttachments(request.attachmentIds(), AttachmentBusinessType.TRACE_IMAGE, null);
         String resolvedImageUrl = firstAttachmentUrl(attachments, request.imageUrl());
+        String contentJson = writeTraceContent(request.summary(), resolvedImageUrl);
+        String attachmentsJson = writeAttachments(attachments, resolvedImageUrl);
 
         TraceEventPO eventPO = new TraceEventPO();
         eventPO.setBatchId(batchId);
@@ -440,8 +452,10 @@ public class BatchServiceImpl implements BatchService {
         eventPO.setOperatorName(request.operatorName().trim());
         eventPO.setLocation(request.location().trim());
         eventPO.setIsPublic(request.visibleToConsumer());
-        eventPO.setContentJson(writeTraceContent(request.summary(), resolvedImageUrl));
-        eventPO.setAttachmentsJson(writeAttachments(attachments, resolvedImageUrl));
+        eventPO.setContentJson(contentJson);
+        eventPO.setAttachmentsJson(attachmentsJson);
+        eventPO.setPrevHash(previousHash);
+        eventPO.setHash(buildTraceHash(eventPO, previousHash));
         traceEventMapper.insert(eventPO);
         bindAttachmentsToBusiness(attachments, eventPO.getId());
         markTaskCompleted(batchPO, currentUser);
@@ -457,6 +471,71 @@ public class BatchServiceImpl implements BatchService {
         );
 
         return toWorkbench(getBatchEntityById(batchId));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public TraceChainVerificationVO verifyTraceChain(Long batchId) {
+        findBatchPO(batchId);
+        backfillMissingTraceHashes(batchId);
+        List<TraceEventPO> events = listTraceEvents(batchId);
+        LocalDateTime checkedAt = LocalDateTime.now();
+
+        if (events.isEmpty()) {
+            return new TraceChainVerificationVO(
+                    true,
+                    "校验通过",
+                    "当前批次暂无追溯记录，首条记录写入后会自动生成 Hash 链。",
+                    0,
+                    null,
+                    null,
+                    formatDateTime(checkedAt)
+            );
+        }
+
+        String previousHash = null;
+        for (int index = 0; index < events.size(); index++) {
+            TraceEventPO event = events.get(index);
+            String storedPrevHash = normalizeHash(event.getPrevHash());
+            String storedHash = normalizeHash(event.getHash());
+
+            if (!Objects.equals(blankToEmpty(storedPrevHash), blankToEmpty(previousHash))) {
+                return new TraceChainVerificationVO(
+                        false,
+                        "校验失败",
+                        "第 " + (index + 1) + " 条记录的前序哈希与上一条记录不一致。",
+                        events.size(),
+                        event.getId(),
+                        normalizeHash(events.get(events.size() - 1).getHash()),
+                        formatDateTime(checkedAt)
+                );
+            }
+
+            String expectedHash = buildTraceHash(event, previousHash);
+            if (!Objects.equals(storedHash, expectedHash)) {
+                return new TraceChainVerificationVO(
+                        false,
+                        "校验失败",
+                        "第 " + (index + 1) + " 条记录的内容摘要与存储哈希不一致，记录可能已被改动。",
+                        events.size(),
+                        event.getId(),
+                        normalizeHash(events.get(events.size() - 1).getHash()),
+                        formatDateTime(checkedAt)
+                );
+            }
+
+            previousHash = storedHash;
+        }
+
+        return new TraceChainVerificationVO(
+                true,
+                "校验通过",
+                "已按时间顺序完成 " + events.size() + " 条追溯记录的 Hash 链校验。",
+                events.size(),
+                null,
+                previousHash,
+                formatDateTime(checkedAt)
+        );
     }
 
     @Override
@@ -754,6 +833,57 @@ public class BatchServiceImpl implements BatchService {
         return qrCodePO;
     }
 
+    private TraceEventPO findLatestTraceEvent(Long batchId) {
+        return traceEventMapper.selectOne(new LambdaQueryWrapper<TraceEventPO>()
+                .eq(TraceEventPO::getBatchId, batchId)
+                .orderByDesc(TraceEventPO::getEventTime)
+                .orderByDesc(TraceEventPO::getId)
+                .last("limit 1"));
+    }
+
+    private List<TraceEventPO> listTraceEvents(Long batchId) {
+        return traceEventMapper.selectList(new LambdaQueryWrapper<TraceEventPO>()
+                .eq(TraceEventPO::getBatchId, batchId)
+                .orderByAsc(TraceEventPO::getEventTime)
+                .orderByAsc(TraceEventPO::getId));
+    }
+
+    private void backfillMissingTraceHashes(Long batchId) {
+        String previousHash = null;
+        for (TraceEventPO event : listTraceEvents(batchId)) {
+            String storedPrevHash = normalizeHash(event.getPrevHash());
+            String storedHash = normalizeHash(event.getHash());
+            boolean changed = false;
+
+            if (storedPrevHash == null && previousHash != null && storedHash != null) {
+                String expectedHash = buildTraceHash(event, previousHash);
+                if (Objects.equals(storedHash, expectedHash)) {
+                    storedPrevHash = previousHash;
+                    event.setPrevHash(previousHash);
+                    changed = true;
+                }
+            }
+
+            if (storedPrevHash == null && storedHash == null) {
+                storedPrevHash = previousHash;
+                storedHash = buildTraceHash(event, previousHash);
+                event.setPrevHash(previousHash);
+                event.setHash(storedHash);
+                changed = true;
+            } else if (storedHash == null) {
+                storedHash = buildTraceHash(event, storedPrevHash);
+                event.setHash(storedHash);
+                changed = true;
+            }
+
+            if (changed) {
+                traceEventMapper.updateById(event);
+            }
+
+            previousHash = storedHash;
+        }
+    }
+
     private BatchEntity loadBatchEntity(TraceBatchPO batchPO) {
         BaseProductPO productPO = baseProductMapper.selectById(batchPO.getProductId());
         OrgCompanyPO companyPO = orgCompanyMapper.selectById(batchPO.getCompanyId());
@@ -762,10 +892,7 @@ public class BatchServiceImpl implements BatchService {
             throw new IllegalArgumentException("批次关联的产品或企业信息缺失");
         }
 
-        List<TraceRecordEntity> traceRecords = traceEventMapper.selectList(new LambdaQueryWrapper<TraceEventPO>()
-                        .eq(TraceEventPO::getBatchId, batchPO.getId())
-                        .orderByAsc(TraceEventPO::getEventTime)
-                        .orderByAsc(TraceEventPO::getId))
+        List<TraceRecordEntity> traceRecords = listTraceEvents(batchPO.getId())
                 .stream()
                 .map(this::toTraceRecordEntity)
                 .toList();
@@ -2489,6 +2616,39 @@ public class BatchServiceImpl implements BatchService {
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("JSON 序列化失败", exception);
         }
+    }
+
+    private String buildTraceHash(TraceEventPO eventPO, String prevHash) {
+        String payload = String.join("|",
+                "batchId=" + defaultLong(eventPO.getBatchId()),
+                "stage=" + defaultValue(eventPO.getStage(), ""),
+                "title=" + defaultValue(eventPO.getTitle(), ""),
+                "eventTime=" + formatTraceHashTime(eventPO.getEventTime()),
+                "operatorName=" + defaultValue(eventPO.getOperatorName(), ""),
+                "location=" + defaultValue(eventPO.getLocation(), ""),
+                "isPublic=" + (Boolean.TRUE.equals(eventPO.getIsPublic()) ? "1" : "0"),
+                "contentJson=" + defaultValue(eventPO.getContentJson(), ""),
+                "attachmentsJson=" + defaultValue(eventPO.getAttachmentsJson(), ""),
+                "prevHash=" + defaultValue(prevHash, "")
+        );
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HEX_FORMAT.formatHex(digest.digest(payload.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 不可用", exception);
+        }
+    }
+
+    private String normalizeHash(String value) {
+        return notBlank(value) ? value.trim().toLowerCase(Locale.ROOT) : null;
+    }
+
+    private String blankToEmpty(String value) {
+        return value == null ? "" : value;
+    }
+
+    private String formatTraceHashTime(LocalDateTime value) {
+        return value == null ? "" : TRACE_HASH_TIME_FORMATTER.format(value);
     }
 
     private String visitorKey(QrQueryLogPO logPO) {

@@ -1,0 +1,28 @@
+[42532] 01 Apr 18:33:50.554 # oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo
+[42532] 01 Apr 18:33:50.554 # Redis version=5.0.14.1, bits=64, commit=ec77f72d, modified=0, pid=42532, just started
+[42532] 01 Apr 18:33:50.555 # Configuration loaded
+                _._                                                  
+           _.-``__ ''-._                                             
+      _.-``    `.  `_.  ''-._           Redis 5.0.14.1 (ec77f72d/0) 64 bit
+  .-`` .-```.  ```\/    _.,_ ''-._                                   
+ (    '      ,       .-`  | `,    )     Running in standalone mode
+ |`-._`-...-` __...-.``-._|'` _.-'|     Port: 6379
+ |    `-._   `._    /     _.-'    |     PID: 42532
+  `-._    `-._  `-./  _.-'    _.-'                                   
+ |`-._`-._    `-.__.-'    _.-'_.-'|                                  
+ |    `-._`-._        _.-'_.-'    |           http://redis.io        
+  `-._    `-._`-.__.-'_.-'    _.-'                                   
+ |`-._`-._    `-.__.-'    _.-'_.-'|                                  
+ |    `-._`-._        _.-'_.-'    |                                  
+  `-._    `-._`-.__.-'_.-'    _.-'                                   
+      `-._    `-.__.-'    _.-'                                       
+          `-._        _.-'                                           
+              `-.__.-'                                               
+
+[42532] 01 Apr 18:33:50.560 # Server initialized
+[42532] 01 Apr 18:33:50.561 * DB loaded from disk: 0.001 seconds
+[42532] 01 Apr 18:33:50.561 * Ready to accept connections
+[42532] 01 Apr 21:25:49.614 # User requested shutdown...
+[42532] 01 Apr 21:25:49.627 * Saving the final RDB snapshot before exiting.
+[42532] 01 Apr 21:25:49.631 * DB saved on disk
+[42532] 01 Apr 21:25:49.631 # Redis is now ready to exit, bye bye...

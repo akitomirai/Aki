@@ -1,6 +1,7 @@
 ﻿<script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import BatchDetailPanel from '../components/BatchDetailPanel.vue'
 import {
   changeBatchStatus,
   createBatch,
@@ -30,8 +31,9 @@ import {
   stageOptions,
   todayString
 } from '../utils/batchExperience'
+import { buildTraceLink } from '../utils/display'
 import { downloadCsvFile } from '../utils/exportTools'
-import { resolveQrStatusText, resolveTaskStatusText, resolveTodayStatusText } from '../utils/statusPresentation'
+import { resolveQrStatusText, resolveTaskStatusText } from '../utils/statusPresentation'
 import { canManageAdminBatch, isRegulator } from '../utils/access'
 
 const route = useRoute()
@@ -42,10 +44,12 @@ const loading = ref(false)
 const message = ref('')
 const messageType = ref('info')
 const batches = ref([])
+const allBatches = ref([])
 
 const filters = ref(createFilterState())
 const listMode = ref('ACTION')
 const dialog = ref(createDialogState())
+const detailDrawer = ref(createBatchDetailDrawerState())
 const assignmentDialog = ref(createAssignmentDialogState())
 const batchForm = ref(createBatchForm())
 const traceForm = ref(createTraceForm())
@@ -225,6 +229,20 @@ const batchCards = computed(() => {
         return right.insight.priority - left.insight.priority
       }
       return (right.item.id ?? 0) - (left.item.id ?? 0)
+      })
+  })
+
+const allBatchCards = computed(() => {
+  return allBatches.value
+    .map((item) => ({
+      item,
+      insight: buildBatchInsight(item)
+    }))
+    .sort((left, right) => {
+      if (right.insight.priority !== left.insight.priority) {
+        return right.insight.priority - left.insight.priority
+      }
+      return (right.item.id ?? 0) - (left.item.id ?? 0)
     })
 })
 
@@ -247,10 +265,10 @@ const visibleBatchCards = computed(() => {
 
 const listStats = computed(() => {
   return {
-    total: batchCards.value.length,
-    actionable: batchCards.value.filter((card) => card.insight.isActionable).length,
-    ready: batchCards.value.filter((card) => card.insight.readyToPublish).length,
-    risk: batchCards.value.filter((card) => card.insight.isRisk).length
+    total: allBatchCards.value.length,
+    actionable: allBatchCards.value.filter((card) => card.insight.isActionable).length,
+    ready: allBatchCards.value.filter((card) => card.insight.readyToPublish).length,
+    risk: allBatchCards.value.filter((card) => card.insight.isRisk).length
   }
 })
 
@@ -258,7 +276,7 @@ const modeCounts = computed(() => ({
   ACTION: listStats.value.actionable,
   READY: listStats.value.ready,
   RISK: listStats.value.risk,
-  LIVE: batchCards.value.filter((card) => card.item.status === 'PUBLISHED').length,
+  LIVE: allBatchCards.value.filter((card) => card.item.status === 'PUBLISHED').length,
   ALL: listStats.value.total
 }))
 
@@ -326,8 +344,12 @@ watch(
 async function fetchBatches() {
   loading.value = true
   try {
-    const response = await getBatchList(cleanObject(filters.value))
+    const [response, summaryResponse] = await Promise.all([
+      getBatchList(cleanObject(filters.value)),
+      getBatchList()
+    ])
     batches.value = response.data ?? []
+    allBatches.value = summaryResponse.data ?? []
   } catch (error) {
     showMessage(getFriendlyErrorMessage(error, '批次列表加载失败，请稍后再试。'), 'error')
   } finally {
@@ -376,6 +398,15 @@ function createDialogState() {
     batchName: '',
     sourceBatchCode: '',
     sourceProductName: ''
+  }
+}
+
+function createBatchDetailDrawerState() {
+  return {
+    visible: false,
+    batchId: null,
+    batchCode: '',
+    panel: ''
   }
 }
 
@@ -623,7 +654,7 @@ function latestRiskActionText(item) {
 }
 
 function openWorkbenchLabel() {
-  return readOnlyBatchView.value ? '查看详情' : '查看工作台'
+  return '详情'
 }
 
 function qualityStatusText(item) {
@@ -651,6 +682,76 @@ function riskTone(item) {
   return item.riskStatusLabel && item.riskStatusLabel !== '当前无风险' ? 'warning' : 'normal'
 }
 
+function normalizeBatchActionCode(code) {
+  return String(code || '').trim().toUpperCase()
+}
+
+function actionEnabled(item, code) {
+  return Boolean(actionOf(item, code).enabled)
+}
+
+function canOpenPublicTrace(item) {
+  return Boolean(item?.qrToken) && actionEnabled(item, 'VIEW_PUBLIC')
+}
+
+function openPublicTrace(item) {
+  if (!canOpenPublicTrace(item)) {
+    return false
+  }
+  window.open(buildTraceLink(item.qrToken), '_blank', 'noopener')
+  return true
+}
+
+function openBatchDetail(item, panel = '') {
+  const normalizedPanel = String(panel || '').trim().toLowerCase()
+  detailDrawer.value = {
+    visible: true,
+    batchId: item?.id ?? null,
+    batchCode: item?.batchCode || item?.productName || '',
+    panel: normalizedPanel
+  }
+}
+
+function closeBatchDetailDrawer() {
+  detailDrawer.value = createBatchDetailDrawerState()
+}
+
+function isRiskPanelActionCode(code) {
+  return ['RISK_COMMENT', 'RISK_RECTIFICATION', 'RISK_PROCESSING', 'RISK_RECTIFIED'].includes(normalizeBatchActionCode(code))
+}
+
+function resolveBackendRecommendedListAction(item, fallbackCode = '') {
+  const backendCode = normalizeBatchActionCode(item?.recommendedActionCode)
+  if (!backendCode) {
+    return fallbackCode
+  }
+  if (backendCode === 'ADD_TRACE' && actionEnabled(item, 'ADD_TRACE')) return 'ADD_TRACE'
+  if (backendCode === 'UPLOAD_QUALITY' && actionEnabled(item, 'UPLOAD_QUALITY')) return 'UPLOAD_QUALITY'
+  if (backendCode === 'GENERATE_QR' && actionEnabled(item, 'GENERATE_QR')) return 'GENERATE_QR'
+  if (backendCode === 'PUBLISH' && actionEnabled(item, 'PUBLISH')) return 'PUBLISH'
+  if (backendCode === 'RESUME' && actionEnabled(item, 'RESUME')) return 'RESUME'
+  if (backendCode === 'VIEW_PUBLIC' && canOpenPublicTrace(item)) return 'VIEW_PUBLIC'
+  if (isRiskPanelActionCode(backendCode)) return 'RISK_PANEL'
+  return fallbackCode
+}
+
+function fallbackActionLabel(code) {
+  return {
+    ADD_TRACE: '补录追溯',
+    UPLOAD_QUALITY: '上传质检',
+    GENERATE_QR: '生成二维码',
+    PUBLISH: '发布批次',
+    RESUME: '恢复发布',
+    VIEW_PUBLIC: '查看公开页',
+    RISK_PANEL: '风险处理',
+    WORKBENCH: openWorkbenchLabel()
+  }[code] ?? '继续处理'
+}
+
+function blockedActionHint(item, code) {
+  return actionOf(item, code).hint || '当前批次暂时不能执行这个操作。'
+}
+
 function missingSummary(card) {
   if (card.insight.missing.length) {
     return `仍需补齐：${card.insight.missing.map((item) => item.label.replace(/^待/, '')).join('、')}`
@@ -671,7 +772,10 @@ function recommendedActionClass(card) {
   if (card.insight.nextActionCode === 'PUBLISH' || card.insight.nextActionCode === 'RESUME') {
     return 'success'
   }
-  if (card.insight.isRisk) {
+  if (card.insight.nextActionCode === 'VIEW_PUBLIC' || card.insight.nextActionCode === 'WORKBENCH') {
+    return 'ghost'
+  }
+  if (card.insight.nextActionCode === 'RISK_PANEL' || card.insight.isRisk) {
     return 'warning'
   }
   return 'primary'
@@ -1149,31 +1253,39 @@ function buildBatchInsight(item) {
   }
 
   let nextActionCode = 'WORKBENCH'
-  let nextLabel = '查看工作台'
-  let nextCopy = '打开批次工作台继续处理。'
+  let nextLabel = openWorkbenchLabel()
+  let nextCopy = '打开批次详情继续处理。'
   let priority = 100
+  let summaryTone = 'pending'
+  let summaryLabel = '资料待补'
 
   if (item.status === 'RECALLED') {
-    nextLabel = '查看召回处置'
+    nextLabel = '召回处置'
     nextCopy = '先看风险处理记录与公开页风险提示。'
     priority = 520
+    summaryTone = 'danger'
+    summaryLabel = '已召回'
   } else if (item.status === 'FROZEN') {
     if (actionOf(item, 'RESUME').enabled) {
       nextActionCode = 'RESUME'
       nextLabel = '恢复发布'
       nextCopy = '整改检查项已满足，可以恢复发布。'
       priority = 460
+      summaryTone = 'success'
+      summaryLabel = '可恢复'
     } else {
-      nextLabel = '补风险处理'
+      nextLabel = '补风险'
       nextCopy = '先补处理说明、整改记录，再考虑恢复。'
       priority = 430
+      summaryTone = 'warning'
+      summaryLabel = '处理中'
     }
   } else if (missing.length) {
     nextActionCode = missing[0].actionCode
     nextLabel = {
-      ADD_TRACE: '去补追溯',
-      UPLOAD_QUALITY: '去传质检',
-      GENERATE_QR: '去生成二维码',
+      ADD_TRACE: '补追溯',
+      UPLOAD_QUALITY: '传质检',
+      GENERATE_QR: '生成码',
       PUBLISH: '去发布'
     }[nextActionCode] ?? '继续处理'
     nextCopy = {
@@ -1183,10 +1295,24 @@ function buildBatchInsight(item) {
       PUBLISH: '资料已经齐全，可以直接完成对外发布。'
     }[nextActionCode] ?? '继续处理当前批次。'
     priority = item.status === 'DRAFT' ? 360 - missing.length * 10 : 220
+    summaryTone = qualityFailed ? 'danger' : 'pending'
+    summaryLabel = `待补${missing.length}项`
   } else if (item.status === 'PUBLISHED') {
-    nextLabel = '查看公开页表现'
-    nextCopy = '已发布，可回工作台查看二维码与扫码情况。'
+    nextLabel = '查看公开页'
+    nextCopy = '已发布，可直接核对公开页、二维码和扫码效果。'
     priority = 180
+    summaryTone = 'success'
+    summaryLabel = '已发布'
+  } else {
+    summaryTone = qualityFailed ? 'danger' : 'success'
+    summaryLabel = qualityFailed ? '需复核' : '资料齐全'
+  }
+
+  const backendRecommendedAction = resolveBackendRecommendedListAction(item, '')
+  if (backendRecommendedAction) {
+    nextActionCode = backendRecommendedAction
+    nextLabel = item.recommendedActionLabel || fallbackActionLabel(backendRecommendedAction)
+    nextCopy = item.recommendedActionHint || nextCopy
   }
 
   return {
@@ -1197,40 +1323,70 @@ function buildBatchInsight(item) {
     nextActionCode,
     nextLabel,
     nextCopy,
+    summaryTone,
+    summaryLabel,
     priority,
-    progress: [
-      { label: '追溯', done: !needsTrace },
-      { label: '质检', done: hasQuality },
-      { label: '二维码', done: hasQr },
-      { label: '发布', done: item.status === 'PUBLISHED' }
+    compactStatuses: [
+      { label: summaryLabel, tone: summaryTone },
+      { label: qualityStatusText(item), tone: qualityTone(item) },
+      { label: riskStatusText(item), tone: riskTone(item) }
     ]
   }
 }
 
 function runRecommendedAction(card) {
   if (readOnlyBatchView.value) {
-    router.push(`/batches/${card.item.id}`)
+    openBatchDetail(card.item)
     return
   }
   const { item, insight } = card
   switch (insight.nextActionCode) {
     case 'ADD_TRACE':
+      if (!actionEnabled(item, 'ADD_TRACE')) {
+        showMessage(blockedActionHint(item, 'ADD_TRACE'), 'info')
+        return
+      }
       openTraceDialog(item)
       return
     case 'UPLOAD_QUALITY':
+      if (!actionEnabled(item, 'UPLOAD_QUALITY')) {
+        showMessage(blockedActionHint(item, 'UPLOAD_QUALITY'), 'info')
+        return
+      }
       openQualityDialog(item)
       return
     case 'GENERATE_QR':
+      if (!actionEnabled(item, 'GENERATE_QR')) {
+        showMessage(blockedActionHint(item, 'GENERATE_QR'), 'info')
+        return
+      }
       handleGenerateQr(item)
       return
     case 'PUBLISH':
+      if (!actionEnabled(item, 'PUBLISH')) {
+        showMessage(blockedActionHint(item, 'PUBLISH'), 'info')
+        return
+      }
       openStatusDialog(item, 'PUBLISHED')
       return
     case 'RESUME':
+      if (!actionEnabled(item, 'RESUME')) {
+        showMessage(blockedActionHint(item, 'RESUME'), 'info')
+        return
+      }
       openStatusDialog(item, 'PUBLISHED')
       return
+    case 'VIEW_PUBLIC':
+      if (openPublicTrace(item)) {
+        return
+      }
+      openBatchDetail(item)
+      return
+    case 'RISK_PANEL':
+      openBatchDetail(item, 'risk')
+      return
     default:
-      router.push(`/batches/${item.id}`)
+      openBatchDetail(item)
   }
 }
 
@@ -1239,7 +1395,7 @@ function handleRowCommand(card, command) {
     return
   }
   if (command === 'assignment') {
-    openAssignmentDialog(card.item)
+    openBatchDetail(card.item, 'assignment')
     return
   }
   if (command === 'edit') {
@@ -1251,26 +1407,57 @@ function handleRowCommand(card, command) {
     return
   }
   if (command === 'trace') {
+    if (!actionEnabled(card.item, 'ADD_TRACE')) {
+      showMessage(blockedActionHint(card.item, 'ADD_TRACE'), 'info')
+      return
+    }
     openTraceDialog(card.item)
     return
   }
   if (command === 'quality') {
+    if (!actionEnabled(card.item, 'UPLOAD_QUALITY')) {
+      showMessage(blockedActionHint(card.item, 'UPLOAD_QUALITY'), 'info')
+      return
+    }
     openQualityDialog(card.item)
     return
   }
   if (command === 'qr') {
+    if (!actionEnabled(card.item, 'GENERATE_QR')) {
+      showMessage(blockedActionHint(card.item, 'GENERATE_QR'), 'info')
+      return
+    }
     handleGenerateQr(card.item)
     return
   }
+  if (command === 'public') {
+    if (openPublicTrace(card.item)) {
+      return
+    }
+    showMessage(blockedActionHint(card.item, 'VIEW_PUBLIC'), 'info')
+    return
+  }
   if (command === 'publish') {
+    if (!(actionEnabled(card.item, 'PUBLISH') || actionEnabled(card.item, 'RESUME'))) {
+      showMessage(blockedActionHint(card.item, actionEnabled(card.item, 'RESUME') ? 'RESUME' : 'PUBLISH'), 'info')
+      return
+    }
     openStatusDialog(card.item, 'PUBLISHED')
     return
   }
   if (command === 'freeze') {
+    if (!actionEnabled(card.item, 'FREEZE')) {
+      showMessage(blockedActionHint(card.item, 'FREEZE'), 'info')
+      return
+    }
     openStatusDialog(card.item, 'FROZEN')
     return
   }
   if (command === 'recall') {
+    if (!actionEnabled(card.item, 'RECALL')) {
+      showMessage(blockedActionHint(card.item, 'RECALL'), 'info')
+      return
+    }
     openStatusDialog(card.item, 'RECALLED')
   }
 }
@@ -1350,12 +1537,29 @@ function statusClass(status) {
 
 <template>
   <div class="page-shell" data-testid="batch-list-page">
-    <section class="manage-page-header">
-      <div>
-        <h1 class="manage-page-title">{{ pageTitle }}</h1>
-        <p class="manage-page-subtitle">{{ pageSubtitle }}</p>
+    <div class="manage-page batch-manage">
+    <section v-if="readOnlyBatchView" class="panel profile-banner" data-testid="batch-regulator-banner">
+      <strong>监管查看模式</strong>
+      <span>{{ readOnlyBannerText }}</span>
+    </section>
+
+    <div class="manage-summary-row batch-summary-row">
+      <div class="manage-summary batch-mode-summary">
+        <button
+          v-for="item in batchOverviewCards"
+          :key="item.value"
+          type="button"
+          class="manage-summary-chip manage-summary-chip--interactive"
+          :class="{ 'is-active': listMode === item.value }"
+          :data-testid="`batch-mode-${item.value}`"
+          @click="switchListMode(item.value)"
+        >
+          <span>{{ item.label }}</span>
+          <strong>{{ item.count }}</strong>
+        </button>
       </div>
-      <div class="manage-page-actions">
+
+      <div class="manage-summary-actions">
         <el-button :loading="loading" data-testid="batch-search-button" @click="fetchBatches">刷新</el-button>
         <el-button
           v-if="canManageBatch"
@@ -1366,38 +1570,10 @@ function statusClass(status) {
           新增批次
         </el-button>
       </div>
-    </section>
+    </div>
 
-    <section v-if="readOnlyBatchView" class="panel profile-banner" data-testid="batch-regulator-banner">
-      <strong>监管查看模式</strong>
-      <span>{{ readOnlyBannerText }}</span>
-    </section>
-
-    <section class="overview-cards overview-cards--five">
-      <article
-        v-for="item in batchOverviewCards"
-        :key="item.value"
-        class="overview-card"
-        :class="{ 'is-active': listMode === item.value }"
-        :data-testid="`batch-mode-${item.value}`"
-        @click="switchListMode(item.value)"
-      >
-        <span class="overview-card__icon" />
-        <div class="overview-card__body">
-          <span class="overview-card__label">{{ item.label }}</span>
-          <strong class="overview-card__value">{{ item.count }}</strong>
-        </div>
-      </article>
-    </section>
-
-    <section class="panel">
-      <div class="panel-heading">
-        <div>
-          <h2 class="panel-heading__title">筛选条件</h2>
-        </div>
-      </div>
-
-      <div class="filter-grid">
+    <section class="panel manage-filter-card batch-filter-panel">
+      <div class="filter-grid batch-filter-grid">
         <label>
           <span>批次号</span>
           <input v-model.trim="filters.batchCode" data-testid="batch-filter-code" type="text" placeholder="输入批次号">
@@ -1426,8 +1602,7 @@ function statusClass(status) {
         </label>
       </div>
 
-      <div class="toolbar">
-        <span class="list-summary">当前看板为“{{ listModeOptions.find((item) => item.value === listMode)?.label || '全部批次' }}”，当前显示 {{ visibleBatchCards.length }} 个批次。</span>
+      <div class="toolbar batch-filter-toolbar">
         <div class="toolbar-actions">
           <button class="ghost" data-testid="batch-export-ledger" :disabled="loading || !visibleBatchCards.length" @click="exportCurrentLedger">
             导出台账
@@ -1443,13 +1618,14 @@ function statusClass(status) {
     </section>
 
     <section v-if="loading" class="panel empty-state">
-      正在加载批次列表...
+      <div>
+        <h3>正在加载批次列表...</h3>
+      </div>
     </section>
 
     <section v-else-if="!visibleBatchCards.length" class="panel empty-state">
       <div>
         <h3>当前条件下没有批次数据</h3>
-        <p>{{ canManageBatch ? '请调整筛选条件，或直接新增批次。' : '请调整筛选条件后重新查看。' }}</p>
         <div class="toolbar-actions">
           <button v-if="canManageBatch" class="primary" @click="openCreateDialog">新增批次</button>
           <button class="ghost" @click="switchListMode('ALL')">查看全部</button>
@@ -1457,23 +1633,24 @@ function statusClass(status) {
       </div>
     </section>
 
-    <section v-else class="panel">
+    <section v-else class="panel ledger-panel batch-ledger-panel">
       <div class="panel-heading">
         <div>
           <h2 class="panel-heading__title">批次台账</h2>
         </div>
       </div>
 
-      <div class="batch-table-head">
-        <span>批次与产品</span>
-        <span>现场与企业</span>
-        <span>状态概览</span>
-        <span>下一步</span>
-        <span>任务执行</span>
-        <span>{{ readOnlyBatchView ? '查看' : '动作' }}</span>
-      </div>
+      <div class="table-scroll-shell batch-table-shell">
+        <div class="batch-table-head">
+          <span>批次与产品</span>
+          <span>企业</span>
+          <span>状态概览</span>
+          <span>下一步</span>
+          <span>任务执行</span>
+          <span>{{ readOnlyBatchView ? '查看' : '动作' }}</span>
+        </div>
 
-      <div class="batch-row-list">
+        <div class="batch-row-list">
         <article
           v-for="card in visibleBatchCards"
           :key="card.item.id"
@@ -1483,28 +1660,20 @@ function statusClass(status) {
           <div class="row-main">
             <strong>{{ card.item.batchCode }}</strong>
             <span>{{ card.item.productName }}</span>
-            <small>{{ localizeVisibleText(card.item.originPlace) || '产地待补充' }}</small>
           </div>
 
           <div class="row-meta row-meta--flow">
             <strong>{{ card.item.companyName }}</strong>
-            <span>{{ card.item.currentNode || '等待补录关键节点' }}</span>
             <small>最近更新：{{ latestUpdatedText(card.item) }}</small>
           </div>
 
           <div class="row-health">
-            <div class="status-chip-row">
-              <span class="status-chip" :class="qualityTone(card.item)">{{ qualityStatusText(card.item) }}</span>
-              <span class="status-chip" :class="qrTone(card.item)">{{ qrStatusText(card.item) }}</span>
-              <span class="status-chip" :class="riskTone(card.item)" data-testid="batch-risk-status">{{ riskStatusText(card.item) }}</span>
-            </div>
-            <small>{{ missingSummary(card) }}</small>
-            <div class="progress-strip compact-progress">
+            <div class="row-health-scroll">
               <span
-                v-for="item in card.insight.progress"
+                v-for="item in card.insight.compactStatuses"
                 :key="item.label"
                 class="progress-pill"
-                :class="{ done: item.done }"
+                :class="[item.tone, { done: item.tone === 'success' }]"
               >
                 {{ item.label }}
               </span>
@@ -1514,13 +1683,10 @@ function statusClass(status) {
           <div class="row-status row-next">
             <span class="status-badge" :class="statusClass(card.item.status)">{{ card.item.statusLabel }}</span>
             <strong class="row-next-title" :data-testid="`batch-next-${card.item.id}`">{{ card.insight.nextLabel }}</strong>
-            <small>{{ card.insight.nextCopy }}</small>
-            <small v-if="card.insight.isRisk">{{ latestRiskActionText(card.item) }}</small>
           </div>
 
           <div class="row-task" :data-testid="`batch-task-block-${card.item.id}`">
             <strong :data-testid="`batch-task-assignee-${card.item.id}`">{{ card.item.assigneeName || '未分配操作员' }}</strong>
-            <span :data-testid="`batch-task-assigned-at-${card.item.id}`">{{ card.item.assignedAt || '暂无分配时间' }}</span>
             <div class="task-pill-row">
               <span
                 class="task-state-badge"
@@ -1528,13 +1694,6 @@ function statusClass(status) {
                 :data-testid="`batch-task-status-${card.item.id}`"
               >
                 {{ resolveTaskStatusText(card.item) }}
-              </span>
-              <span
-                class="task-flag"
-                :class="{ done: card.item.todayCompleted }"
-                :data-testid="`batch-task-today-${card.item.id}`"
-              >
-                {{ resolveTodayStatusText(card.item.todayCompleted) }}
               </span>
               <span
                 class="task-flag"
@@ -1547,19 +1706,19 @@ function statusClass(status) {
           </div>
 
           <div class="row-actions">
-            <button
-              :class="recommendedActionClass(card)"
-              class="action-primary-button"
-              :data-testid="readOnlyBatchView ? null : `batch-recommend-${card.item.id}`"
-              @click="runRecommendedAction(card)"
-            >
-              {{ readOnlyBatchView ? '查看详情' : card.insight.nextLabel }}
-            </button>
-            <div class="action-link-row">
+            <div class="row-actions-scroll">
+              <button
+                :class="recommendedActionClass(card)"
+                class="action-primary-button"
+                :data-testid="readOnlyBatchView ? null : `batch-recommend-${card.item.id}`"
+                @click="runRecommendedAction(card)"
+              >
+                {{ readOnlyBatchView ? '查看详情' : card.insight.nextLabel }}
+              </button>
               <button
                 class="text-button primary-text"
                 :data-testid="`batch-open-workbench-${card.item.id}`"
-                @click="router.push(`/batches/${card.item.id}`)"
+                @click="openBatchDetail(card.item)"
               >
                 {{ openWorkbenchLabel() }}
               </button>
@@ -1567,34 +1726,36 @@ function statusClass(status) {
                 v-if="canManageAssignment"
                 class="text-button"
                 :data-testid="`batch-assignment-open-${card.item.id}`"
-                @click="openAssignmentDialog(card.item)"
+                @click="openBatchDetail(card.item, 'assignment')"
               >
                 分配
               </button>
+              <el-dropdown v-if="!readOnlyBatchView" @command="(command) => handleRowCommand(card, command)">
+                <button type="button" class="text-button">更多</button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item v-if="canManageAssignment" command="assignment">任务分配</el-dropdown-item>
+                    <el-dropdown-item command="copy">复制为新批次</el-dropdown-item>
+                    <el-dropdown-item command="edit">编辑资料</el-dropdown-item>
+                    <el-dropdown-item command="trace" :disabled="!actionEnabled(card.item, 'ADD_TRACE')">补录追溯</el-dropdown-item>
+                    <el-dropdown-item command="quality" :disabled="!actionEnabled(card.item, 'UPLOAD_QUALITY')">上传质检</el-dropdown-item>
+                    <el-dropdown-item command="qr" :disabled="!actionEnabled(card.item, 'GENERATE_QR')">生成二维码</el-dropdown-item>
+                    <el-dropdown-item v-if="canOpenPublicTrace(card.item)" command="public">查看公开页</el-dropdown-item>
+                    <el-dropdown-item
+                      command="publish"
+                      :disabled="!(actionEnabled(card.item, 'PUBLISH') || actionEnabled(card.item, 'RESUME'))"
+                    >
+                      {{ actionEnabled(card.item, 'RESUME') ? '恢复发布' : '发布' }}
+                    </el-dropdown-item>
+                    <el-dropdown-item command="freeze" :disabled="!actionEnabled(card.item, 'FREEZE')">冻结</el-dropdown-item>
+                    <el-dropdown-item command="recall" :disabled="!actionEnabled(card.item, 'RECALL')">召回</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
             </div>
-            <el-dropdown v-if="!readOnlyBatchView" @command="(command) => handleRowCommand(card, command)">
-              <button type="button" class="text-button">更多</button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item v-if="canManageAssignment" command="assignment">任务分配</el-dropdown-item>
-                  <el-dropdown-item command="copy">复制为新批次</el-dropdown-item>
-                  <el-dropdown-item command="edit">编辑资料</el-dropdown-item>
-                  <el-dropdown-item command="trace">补录追溯</el-dropdown-item>
-                  <el-dropdown-item command="quality">上传质检</el-dropdown-item>
-                  <el-dropdown-item command="qr">生成二维码</el-dropdown-item>
-                  <el-dropdown-item
-                    command="publish"
-                    :disabled="!(actionOf(card.item, 'PUBLISH').enabled || actionOf(card.item, 'RESUME').enabled)"
-                  >
-                    {{ actionOf(card.item, 'RESUME').enabled ? '恢复发布' : '发布' }}
-                  </el-dropdown-item>
-                  <el-dropdown-item command="freeze" :disabled="!actionOf(card.item, 'FREEZE').enabled">冻结</el-dropdown-item>
-                  <el-dropdown-item command="recall" :disabled="!actionOf(card.item, 'RECALL').enabled">召回</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
           </div>
         </article>
+        </div>
       </div>
     </section>
 
@@ -1944,6 +2105,24 @@ function statusClass(status) {
       </section>
     </div>
 
+    <el-drawer
+      v-model="detailDrawer.visible"
+      direction="rtl"
+      size="min(460px, 92vw)"
+      append-to-body
+      destroy-on-close
+      :with-header="false"
+      class="batch-detail-drawer"
+    >
+      <BatchDetailPanel
+        v-if="detailDrawer.visible && detailDrawer.batchId"
+        :batch-id="detailDrawer.batchId"
+        :panel="detailDrawer.panel"
+        embedded
+        @close="closeBatchDetailDrawer"
+      />
+    </el-drawer>
+
     <div v-if="assignmentDialog.visible" class="dialog-mask" @click.self="closeAssignmentDialog">
       <section class="dialog-card assignment-dialog-card" data-testid="batch-assignment-dialog">
         <div class="dialog-head">
@@ -2032,18 +2211,61 @@ function statusClass(status) {
             {{ assignmentActionLabel }}
           </button>
         </div>
-      </section>
+        </section>
+      </div>
     </div>
-  </div>
+    </div>
 </template>
 
 <style src="../assets/styles/admin-task-pages.css" scoped></style>
 
 <style scoped>
 .page-shell {
-  max-width: 1320px;
-  margin: 0 auto;
-  padding: 28px 22px 48px;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: var(--admin-page-shell-padding);
+}
+
+.batch-mode-summary {
+  margin-top: 0;
+}
+
+.batch-summary-row {
+  margin-top: 0;
+}
+
+.batch-mode-summary .manage-summary-chip {
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid var(--admin-border);
+  border-radius: 999px;
+  background: var(--admin-surface-soft);
+  color: var(--admin-text-mid);
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.batch-mode-summary .manage-summary-chip strong {
+  color: var(--admin-text-strong);
+  font-weight: 700;
+}
+
+.batch-mode-summary .manage-summary-chip--interactive:hover {
+  border-color: rgba(48, 149, 246, 0.28);
+  background: rgba(48, 149, 246, 0.08);
+}
+
+.batch-mode-summary .manage-summary-chip.is-active {
+  border-color: rgba(48, 149, 246, 0.3);
+  background: rgba(48, 149, 246, 0.14);
+  box-shadow: 0 10px 20px rgba(48, 149, 246, 0.1);
+}
+
+.batch-mode-summary .manage-summary-chip.is-active,
+.batch-mode-summary .manage-summary-chip.is-active strong {
+  color: var(--admin-primary-deep);
 }
 
 .batch-tabs-panel {
@@ -2093,7 +2315,6 @@ function statusClass(status) {
 }
 
 .hero-card,
-.panel,
 .stat-card,
 .batch-card,
 .dialog-card,
@@ -2125,15 +2346,15 @@ function statusClass(status) {
   text-transform: uppercase;
 }
 
-h1,
-h2,
-h3,
-h4,
-p {
+.hero-card h1,
+.hero-card h2,
+.hero-card h3,
+.hero-card h4,
+.hero-card p {
   margin-top: 0;
 }
 
-h1 {
+.hero-card h1 {
   margin-bottom: 12px;
   font-size: 38px;
 }
@@ -2193,7 +2414,6 @@ h1 {
 }
 
 .stat-card,
-.panel,
 .batch-card,
 .dialog-card,
 .message-bar {
@@ -2217,10 +2437,6 @@ h1 {
   color: var(--admin-danger-text);
 }
 
-.panel {
-  margin-top: 18px;
-}
-
 .profile-banner {
   display: flex;
   flex-direction: column;
@@ -2241,6 +2457,10 @@ h1 {
 .toolbar {
   align-items: center;
   justify-content: space-between;
+}
+
+.batch-filter-toolbar {
+  justify-content: flex-end;
 }
 
 .toolbar-actions {
@@ -2489,7 +2709,7 @@ textarea {
   margin-top: 18px;
 }
 
-button,
+button:not(.manage-summary-chip),
 .preview-link {
   display: inline-flex;
   align-items: center;
@@ -2503,12 +2723,12 @@ button,
   transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
-button:hover,
+button:not(.manage-summary-chip):hover,
 .preview-link:hover {
   transform: translateY(-1px);
 }
 
-button:disabled {
+button:not(.manage-summary-chip):disabled {
   opacity: 0.45;
   cursor: not-allowed;
   transform: none;
@@ -2589,12 +2809,22 @@ button:disabled {
 
 .batch-table-head {
   display: grid;
-  grid-template-columns: 1.1fr 0.95fr 0.85fr 0.85fr 1.15fr 1.25fr;
+  grid-template-columns:
+    minmax(220px, 1fr)
+    minmax(190px, 0.9fr)
+    minmax(280px, max-content)
+    minmax(230px, max-content)
+    minmax(230px, max-content)
+    minmax(360px, max-content);
   gap: 16px;
-  padding: 0 12px 14px;
-  color: #5f7ea3;
+  padding: 0 18px 14px;
+  color: #54708d;
   font-size: 13px;
   font-weight: 700;
+}
+
+.batch-filter-grid {
+  grid-template-columns: minmax(140px, 0.72fr) minmax(180px, 0.92fr) minmax(120px, 0.58fr) minmax(150px, 0.78fr);
 }
 
 .batch-row-list {
@@ -2608,8 +2838,14 @@ button:disabled {
 
 .batch-row {
   display: grid;
-  grid-template-columns: 1.1fr 0.95fr 0.85fr 0.85fr 1.15fr 1.25fr;
-  gap: 16px;
+  grid-template-columns:
+    minmax(220px, 1fr)
+    minmax(190px, 0.9fr)
+    minmax(280px, max-content)
+    minmax(230px, max-content)
+    minmax(230px, max-content)
+    minmax(360px, max-content);
+  gap: 14px;
   align-items: center;
   padding: 20px 18px;
   border-top: 1px solid rgba(56, 134, 217, 0.1);
@@ -2632,12 +2868,20 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 0;
 }
 
 .row-main strong,
 .row-meta strong {
   color: var(--admin-text);
-  font-size: 14px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.row-main strong {
+  color: var(--admin-text-strong);
+  font-size: 17px;
+  font-weight: 800;
 }
 
 .row-main span,
@@ -2647,8 +2891,9 @@ button:disabled {
 .row-status small,
 .row-task span {
   color: var(--admin-text-soft);
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: 13px;
+  line-height: 1.55;
+  font-weight: 500;
 }
 
 .row-status {
@@ -2658,7 +2903,7 @@ button:disabled {
 .row-health {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
 }
 
 .status-chip-row,
@@ -2671,6 +2916,7 @@ button:disabled {
 .status-chip {
   display: inline-flex;
   align-items: center;
+  flex: 0 0 auto;
   min-height: 30px;
   padding: 0 12px;
   border-radius: 999px;
@@ -2678,6 +2924,7 @@ button:disabled {
   color: #5f7b9e;
   font-size: 12px;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .status-chip.success {
@@ -2710,31 +2957,67 @@ button:disabled {
   margin-top: 0;
 }
 
+.row-health-scroll,
+.row-actions-scroll {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  overflow: visible;
+  width: max-content;
+}
+
+.batch-row .row-status .status-badge {
+  margin-left: -14px;
+}
+
+.batch-row .row-actions .row-actions-scroll {
+  margin-left: -10px;
+}
+
+.row-health-scroll::-webkit-scrollbar,
+.row-actions-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 .row-next-title {
   color: var(--admin-text);
-  font-size: 16px;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .row-task strong {
   color: var(--admin-text);
-  font-size: 14px;
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .task-pill-row {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
+  overflow: visible;
+  width: max-content;
 }
 
 .task-state-badge,
 .task-flag {
   display: inline-flex;
   align-items: center;
+  flex: 0 0 auto;
   min-height: 28px;
   padding: 0 10px;
   border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .task-state-badge.pending {
@@ -2761,28 +3044,42 @@ button:disabled {
 
 .row-actions {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: flex-start;
-  gap: 12px;
-  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
 }
 
 .action-primary-button {
-  min-width: 140px;
+  min-width: auto;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  min-height: 40px;
+  padding: 0 14px;
+  font-size: 13px;
 }
 
 .text-button {
-  min-height: auto;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--admin-text-soft);
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgba(56, 134, 217, 0.16);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--admin-primary-deep);
   box-shadow: none;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.batch-table-shell .batch-table-head,
+.batch-table-shell .batch-row-list {
+  width: max-content;
+  min-width: 100%;
 }
 
 .text-button:hover {
-  transform: none;
+  transform: translateY(-1px);
   color: var(--admin-primary-deep);
 }
 
@@ -2981,11 +3278,33 @@ button:disabled {
   background: rgba(120, 147, 180, 0.12);
   color: #5f7b9e;
   font-size: 13px;
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .progress-pill.done {
   background: var(--admin-success-bg);
   color: var(--admin-success-text);
+}
+
+.progress-pill.success {
+  background: var(--admin-success-bg);
+  color: var(--admin-success-text);
+}
+
+.progress-pill.warning {
+  background: rgba(242, 139, 34, 0.14);
+  color: #b96b16;
+}
+
+.progress-pill.danger {
+  background: rgba(221, 74, 74, 0.12);
+  color: #b63f3f;
+}
+
+.progress-pill.pending {
+  background: rgba(120, 147, 180, 0.12);
+  color: #5f7b9e;
 }
 
 .tag-row span {
@@ -3056,18 +3375,16 @@ button:disabled {
   .stats-grid,
   .mode-row,
   .meta-grid,
-  .filter-grid,
   .form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .batch-filter-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .template-grid {
     grid-template-columns: 1fr;
-  }
-
-  .batch-table-head,
-  .batch-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .assignment-overview {
@@ -3077,7 +3394,7 @@ button:disabled {
 
 @media (max-width: 820px) {
   .page-shell {
-    padding-inline: 14px;
+    padding: var(--admin-page-shell-padding-mobile);
   }
 
   .hero-card,
@@ -3132,15 +3449,18 @@ button:disabled {
 }
 
 @media (max-width: 640px) {
-  h1 {
+  .hero-card h1 {
     font-size: 30px;
   }
 
   .stats-grid,
   .mode-row,
   .meta-grid,
-  .filter-grid,
   .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .batch-filter-grid {
     grid-template-columns: 1fr;
   }
 

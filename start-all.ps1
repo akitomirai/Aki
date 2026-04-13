@@ -127,6 +127,7 @@ $backendCmd = @"
 `$host.UI.RawUI.WindowTitle = 'Backend'
 `$env:JAVA_HOME = '$javaHome'
 `$env:Path = '$javaHome\bin;' + `$env:Path
+`$env:SPRING_PROFILES_ACTIVE = 'demo'
 Set-Location '$root\backend'
 java -version
 mvn -version
@@ -171,6 +172,7 @@ Start-Process powershell -ArgumentList "-NoExit", "-ExecutionPolicy", "Bypass", 
 
 Write-Host ""
 Write-Host "All start commands have been launched." -ForegroundColor Green
+Write-Host "Backend profile -> demo (H2 seeded demo data)" -ForegroundColor Green
 Write-Host "Redis     -> 6379"
 Write-Host "Backend   -> 8080"
 Write-Host "Admin-Web -> 5174"
@@ -179,5 +181,5 @@ Write-Host ""
 Write-Host "URLs:" -ForegroundColor Cyan
 Write-Host "Swagger   : http://127.0.0.1:8080/swagger-ui.html"
 Write-Host "Admin Web : http://127.0.0.1:5174/login"
-Write-Host "Trace Web : http://127.0.0.1:5173/t/test-token-2026"
+Write-Host "Trace Web : http://127.0.0.1:5173/t/demo-normal-2026"
 Read-Host "Press Enter to exit"

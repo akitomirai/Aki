@@ -14,6 +14,7 @@ const summary = computed(() => detail.value?.summary ?? {})
 const company = computed(() => detail.value?.company ?? {})
 const quality = computed(() => detail.value?.quality ?? {})
 const risk = computed(() => detail.value?.risk ?? {})
+const verification = computed(() => detail.value?.verification ?? {})
 const timelineItems = computed(() => detail.value?.timeline ?? [])
 const latestTimelineItem = computed(() => {
   const timeline = timelineItems.value
@@ -25,6 +26,36 @@ const visibleTimeline = computed(() => {
 })
 
 const qualityHighlights = computed(() => quality.value.highlights ?? [])
+const verificationStatusText = computed(() => {
+  if (verification.value.statusLabel) {
+    return verification.value.statusLabel
+  }
+  return verification.value.passed ? '校验通过' : '校验失败'
+})
+
+const verificationHashText = computed(() => {
+  const latestHash = String(verification.value.latestHash || '').trim()
+  if (!latestHash) {
+    return '待生成'
+  }
+  return `${latestHash.slice(0, 16)}...${latestHash.slice(-12)}`
+})
+
+const verificationFacts = computed(() => [
+  {
+    label: '链上记录数',
+    value: `${Number(verification.value.totalRecords || 0)} 条`
+  },
+  {
+    label: '最近校验',
+    value: verification.value.checkedAt || '刚刚完成'
+  },
+  {
+    label: '链摘要',
+    value: verificationHashText.value,
+    fullValue: verification.value.latestHash || ''
+  }
+])
 
 const publicStatusText = computed(() => summary.value.statusLabel || '状态待确认')
 const publicQualityText = computed(() => quality.value.resultLabel || summary.value.qualityResult || '待补质检')
@@ -168,6 +199,13 @@ function riskClass(riskInfo) {
     warning: 'warning',
     danger: 'danger'
   }[riskInfo?.riskLevel] ?? 'warning'
+}
+
+function verificationClass(info) {
+  if (!Number(info?.totalRecords || 0)) {
+    return 'pending'
+  }
+  return info?.passed ? 'pass' : 'fail'
 }
 
 function localizeVisibleText(text) {
@@ -330,6 +368,41 @@ function shortSummary(text, length = 72) {
 
           <p class="address-copy">{{ localizeVisibleText(company.address) || '企业地址待补充。' }}</p>
         </article>
+      </section>
+
+      <section class="card verification-card" data-testid="public-trace-verification">
+        <div class="section-head">
+          <div>
+            <h2>溯源可信性校验</h2>
+            <p>系统会把每条追溯记录与上一条记录摘要一起做 SHA-256 链式加密存储与校验，中间内容一旦被改动，整条链都会暴露异常。</p>
+          </div>
+          <span>Hash链</span>
+        </div>
+
+        <div class="verification-layout">
+          <article class="verification-status" :class="verificationClass(verification)">
+            <span>校验结果</span>
+            <strong data-testid="public-trace-verification-status">{{ verificationStatusText }}</strong>
+            <p>{{ verification.message || '当前批次的链式摘要已经完成核验。' }}</p>
+          </article>
+
+          <div class="fact-grid verification-facts">
+            <div
+              v-for="item in verificationFacts"
+              :key="item.label"
+              class="fact-card fact-card--compact"
+            >
+              <span>{{ item.label }}</span>
+              <strong :title="item.fullValue || item.value" :class="{ 'hash-text': item.label === '链摘要' }">
+                {{ item.value }}
+              </strong>
+            </div>
+          </div>
+        </div>
+
+        <p class="verification-note">
+          答辩说明：这里不是重型区块链网络，而是把追溯记录按时间串成一条轻量 Hash 链，用更低成本展示“可校验、防篡改”的特色能力。
+        </p>
       </section>
 
       <section class="card timeline-card" data-testid="public-timeline">
@@ -627,6 +700,10 @@ function shortSummary(text, length = 72) {
   padding: 20px;
 }
 
+.verification-card {
+  margin-top: 14px;
+}
+
 .section-head,
 .timeline-top {
   display: flex;
@@ -660,6 +737,88 @@ function shortSummary(text, length = 72) {
 
 .address-copy {
   margin: 16px 0 0;
+}
+
+.verification-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.88fr) minmax(0, 1.12fr);
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.verification-status {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px;
+  border: 1px solid var(--trace-border);
+  border-radius: 22px;
+  background: var(--trace-surface-soft);
+}
+
+.verification-status span {
+  color: var(--trace-text-soft);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.verification-status strong {
+  color: var(--trace-text);
+  font-size: 30px;
+  line-height: 1.08;
+}
+
+.verification-status p,
+.verification-note {
+  margin: 0;
+  color: #4f6e8f;
+  line-height: 1.7;
+}
+
+.verification-status.pass {
+  background: linear-gradient(180deg, rgba(232, 247, 237, 0.98), rgba(244, 251, 246, 0.98));
+  border-color: rgba(73, 166, 111, 0.18);
+}
+
+.verification-status.pass strong {
+  color: #23784b;
+}
+
+.verification-status.fail {
+  background: linear-gradient(180deg, rgba(253, 236, 235, 0.98), rgba(255, 247, 246, 0.98));
+  border-color: rgba(190, 70, 58, 0.16);
+}
+
+.verification-status.fail strong {
+  color: #a0342c;
+}
+
+.verification-status.pending {
+  background: linear-gradient(180deg, rgba(238, 246, 255, 0.98), rgba(248, 252, 255, 0.98));
+  border-color: rgba(48, 149, 246, 0.16);
+}
+
+.verification-status.pending strong {
+  color: var(--trace-primary-deep);
+}
+
+.verification-facts {
+  margin-top: 0;
+}
+
+.fact-card--compact strong {
+  font-size: 16px;
+}
+
+.hash-text {
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 14px;
+  word-break: break-all;
+}
+
+.verification-note {
+  margin-top: 14px;
 }
 
 .timeline-card {
@@ -712,7 +871,8 @@ function shortSummary(text, length = 72) {
 
 @media (max-width: 820px) {
   .hero-card,
-  .detail-grid {
+  .detail-grid,
+  .verification-layout {
     grid-template-columns: 1fr;
   }
 

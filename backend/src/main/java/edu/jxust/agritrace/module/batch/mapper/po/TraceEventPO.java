@@ -23,6 +23,8 @@ public class TraceEventPO {
     private Boolean isPublic;
     private String contentJson;
     private String attachmentsJson;
+    private String prevHash;
+    private String hash;
     private LocalDateTime createdAt;
 
     public Long getId() {
@@ -111,6 +113,22 @@ public class TraceEventPO {
 
     public void setAttachmentsJson(String attachmentsJson) {
         this.attachmentsJson = attachmentsJson;
+    }
+
+    public String getPrevHash() {
+        return prevHash;
+    }
+
+    public void setPrevHash(String prevHash) {
+        this.prevHash = prevHash;
+    }
+
+    public String getHash() {
+        return hash;
+    }
+
+    public void setHash(String hash) {
+        this.hash = hash;
     }
 
     public LocalDateTime getCreatedAt() {

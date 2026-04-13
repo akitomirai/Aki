@@ -227,9 +227,12 @@ onMounted(() => {
 
 <style scoped>
 .dashboard-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--admin-page-section-gap);
   max-width: 1220px;
   margin: 0 auto;
-  padding: 24px 20px 40px;
+  padding: var(--admin-page-shell-padding);
 }
 
 .section-card,
@@ -427,7 +430,7 @@ onMounted(() => {
 
 @media (max-width: 820px) {
   .dashboard-page {
-    padding: 18px 14px 32px;
+    padding: var(--admin-page-shell-padding-mobile);
   }
 
   .dashboard-grid,

@@ -81,6 +81,8 @@ try {
     foreach ($service in $started) {
         $serviceReady = if ($service.Name -eq 'backend') {
             Wait-HttpOk -Url $service.ProbeUrl -TimeoutSeconds 120
+        } elseif ($service.Name -eq 'adminWeb' -or $service.Name -eq 'traceWeb') {
+            Wait-ViteReadyAndHttpOk -LogPath $service.LogPath -Url $service.ProbeUrl -TimeoutSeconds 90
         } else {
             Wait-PortListening -Port $service.Port -TimeoutSeconds 75
         }

@@ -5,6 +5,8 @@ import { getOperationLogs } from '../../api/log'
 import { useAuthStore } from '../../stores/auth'
 import { getFriendlyErrorMessage } from '../../utils/batchExperience'
 
+const DEFAULT_PAGE_SIZE = 10
+
 const authStore = useAuthStore()
 
 const loading = ref(false)
@@ -12,12 +14,19 @@ const companyLoading = ref(false)
 const message = ref('')
 const messageType = ref('info')
 const rows = ref([])
+const statsRows = ref([])
 const total = ref(0)
 const page = ref(1)
-const pageSize = ref(20)
+const pageSize = ref(DEFAULT_PAGE_SIZE)
 const companyOptions = ref([])
 const filters = ref(createFilters())
 const detailDialog = ref(createDetailDialogState())
+const pageSizeOptions = [
+  { value: 10, label: '10 条 / 页' },
+  { value: 20, label: '20 条 / 页' },
+  { value: 50, label: '50 条 / 页' },
+  { value: 100, label: '100 条 / 页' }
+]
 
 const isPlatformAdmin = computed(() => String(authStore.user?.roleCode || '').toUpperCase() === 'PLATFORM_ADMIN')
 const isEnterpriseAdmin = computed(() => String(authStore.user?.roleCode || '').toUpperCase() === 'ENTERPRISE_ADMIN')
@@ -31,7 +40,7 @@ const pageDesc = computed(() => {
   return '统一查看关键后台留痕，便于按时间、操作人和企业快速回看近期动作。'
 })
 const scopedModeHint = computed(() => `当前只展示 ${currentCompanyName.value} 的操作日志，所属企业范围已固定。`)
-const pageCount = computed(() => Math.max(1, Math.ceil(Number(total.value || 0) / Number(pageSize.value || 20))))
+const pageCount = computed(() => Math.max(1, Math.ceil(Number(total.value || 0) / Number(pageSize.value || DEFAULT_PAGE_SIZE))))
 const pageSummary = computed(() => {
   if (!total.value) {
     return '当前没有可展示的操作日志。'
@@ -40,6 +49,9 @@ const pageSummary = computed(() => {
   const to = Math.min(total.value, page.value * pageSize.value)
   return `共 ${total.value} 条日志，当前显示 ${from}-${to} 条。`
 })
+const successCount = computed(() => statsRows.value.filter((item) => String(item.result || '').toUpperCase() === 'SUCCESS').length)
+const failedCount = computed(() => statsRows.value.filter((item) => String(item.result || '').toUpperCase() === 'FAILED').length)
+const visibleCount = computed(() => rows.value.length)
 
 const actionOptions = [
   { value: '', label: '全部操作类型' },
@@ -143,22 +155,29 @@ async function fetchRows(targetPage = page.value) {
   loading.value = true
   clearMessage()
   try {
-    const response = await getOperationLogs(cleanObject({
-      actionType: filters.value.actionType || undefined,
-      operatorKeyword: filters.value.operatorKeyword || undefined,
-      roleCode: filters.value.roleCode || undefined,
-      companyId: companyFilterEnabled.value ? normalizeCompanyId(filters.value.companyId) : undefined,
-      result: filters.value.result || undefined,
-      dateFrom: filters.value.dateFrom || undefined,
-      dateTo: filters.value.dateTo || undefined,
-      page: targetPage,
-      pageSize: pageSize.value
-    }))
+    const [response, summaryResponse] = await Promise.all([
+      getOperationLogs(cleanObject({
+        actionType: filters.value.actionType || undefined,
+        operatorKeyword: filters.value.operatorKeyword || undefined,
+        roleCode: filters.value.roleCode || undefined,
+        companyId: companyFilterEnabled.value ? normalizeCompanyId(filters.value.companyId) : undefined,
+        result: filters.value.result || undefined,
+        dateFrom: filters.value.dateFrom || undefined,
+        dateTo: filters.value.dateTo || undefined,
+        page: targetPage,
+        pageSize: pageSize.value
+      })),
+      getOperationLogs({
+        page: 1,
+        pageSize: 1000
+      })
+    ])
     const payload = response.data ?? {}
     rows.value = payload.items ?? []
     total.value = Number(payload.total || 0)
     page.value = Number(payload.page || targetPage || 1)
-    pageSize.value = Number(payload.pageSize || pageSize.value || 20)
+    pageSize.value = Number(payload.pageSize || pageSize.value || DEFAULT_PAGE_SIZE)
+    statsRows.value = summaryResponse.data?.items ?? []
   } catch (error) {
     showMessage(getFriendlyErrorMessage(error, '操作日志加载失败，请稍后重试。'), 'error')
   } finally {
@@ -168,6 +187,14 @@ async function fetchRows(targetPage = page.value) {
 
 function resetFilters() {
   filters.value = createFilters()
+  pageSize.value = DEFAULT_PAGE_SIZE
+  fetchRows(1)
+}
+
+function handlePageSizeChange(value) {
+  const nextPageSize = Number(value || DEFAULT_PAGE_SIZE)
+  if (nextPageSize === pageSize.value) return
+  pageSize.value = nextPageSize
   fetchRows(1)
 }
 
@@ -226,157 +253,190 @@ function summaryPreview(item) {
 </script>
 
 <template>
+  <div class="page-shell">
   <div class="manage-page logs-manage" data-testid="logs-page">
-    <section class="manage-page-header">
-      <div>
-        <h1 class="manage-page-title">{{ pageTitle }}</h1>
-        <p class="manage-page-desc">{{ pageDesc }}</p>
-      </div>
-      <div class="manage-page-actions">
-        <el-button data-testid="logs-refresh-button" @click="fetchRows(page)" :loading="loading">刷新</el-button>
-      </div>
-    </section>
-
     <el-card v-if="isEnterpriseAdmin" shadow="never" class="profile-banner" data-testid="logs-self-mode">
       <strong>当前为本企业日志模式</strong>
       <span>{{ scopedModeHint }}</span>
     </el-card>
 
     <el-card shadow="never" class="manage-filter-card">
-      <div class="manage-filter-grid logs-filter-grid">
-        <el-select v-model="filters.actionType" class="manage-filter-item" data-testid="logs-filter-action" placeholder="操作类型">
-          <el-option v-for="item in actionOptions" :key="item.value" :label="item.label" :value="item.value" />
-        </el-select>
+      <div class="logs-filter-layout">
+        <div class="manage-filter-grid logs-filter-row logs-filter-row--primary">
+          <el-select v-model="filters.actionType" class="manage-filter-item" data-testid="logs-filter-action" placeholder="操作类型">
+            <el-option v-for="item in actionOptions" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
 
-        <el-input
-          v-model.trim="filters.operatorKeyword"
-          class="manage-filter-item"
-          data-testid="logs-filter-operator"
-          placeholder="输入操作人姓名"
-          @keyup.enter="fetchRows(1)"
-        />
+          <el-input
+            v-model.trim="filters.operatorKeyword"
+            class="manage-filter-item"
+            data-testid="logs-filter-operator"
+            placeholder="输入操作人姓名"
+            @keyup.enter="fetchRows(1)"
+          />
 
-        <el-select v-model="filters.roleCode" class="manage-filter-item" data-testid="logs-filter-role" placeholder="角色">
-          <el-option v-for="item in roleOptions" :key="item.value" :label="item.label" :value="item.value" />
-        </el-select>
+          <el-select v-model="filters.roleCode" class="manage-filter-item" data-testid="logs-filter-role" placeholder="角色">
+            <el-option v-for="item in roleOptions" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
 
-        <el-select
-          v-if="companyFilterEnabled"
-          v-model="filters.companyId"
-          class="manage-filter-item"
-          data-testid="logs-filter-company"
-          placeholder="所属企业"
-          :loading="companyLoading"
-          clearable
-          filterable
-        >
-          <el-option value="" label="全部企业" />
-          <el-option v-for="item in companyOptions" :key="item.id" :label="item.name" :value="item.id" />
-        </el-select>
+          <el-select
+            v-if="companyFilterEnabled"
+            v-model="filters.companyId"
+            class="manage-filter-item"
+            data-testid="logs-filter-company"
+            placeholder="所属企业"
+            :loading="companyLoading"
+            clearable
+            filterable
+          >
+            <el-option value="" label="全部企业" />
+            <el-option v-for="item in companyOptions" :key="item.id" :label="item.name" :value="item.id" />
+          </el-select>
 
-        <el-input
-          v-else
-          class="manage-filter-item"
-          :model-value="currentCompanyName"
-          data-testid="logs-company-fixed"
-          disabled
-        />
+          <el-input
+            v-else
+            class="manage-filter-item"
+            :model-value="currentCompanyName"
+            data-testid="logs-company-fixed"
+            disabled
+          />
 
-        <el-select v-model="filters.result" class="manage-filter-item" data-testid="logs-filter-result" placeholder="结果">
-          <el-option v-for="item in resultOptions" :key="item.value" :label="item.label" :value="item.value" />
-        </el-select>
-
-        <el-input v-model="filters.dateFrom" class="manage-filter-item" data-testid="logs-filter-date-from" type="date" />
-        <el-input v-model="filters.dateTo" class="manage-filter-item" data-testid="logs-filter-date-to" type="date" />
-
-        <div class="summary-slot">
-          <span class="manage-muted">{{ pageSummary }}</span>
+          <el-select v-model="filters.result" class="manage-filter-item" data-testid="logs-filter-result" placeholder="结果">
+            <el-option v-for="item in resultOptions" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
         </div>
 
-        <el-button type="primary" data-testid="logs-search-button" @click="fetchRows(1)">查询</el-button>
-        <el-button data-testid="logs-reset-button" @click="resetFilters">重置</el-button>
+        <div class="manage-filter-grid logs-filter-row logs-filter-row--secondary">
+          <el-input v-model="filters.dateFrom" class="manage-filter-item" data-testid="logs-filter-date-from" type="date" />
+          <el-input v-model="filters.dateTo" class="manage-filter-item" data-testid="logs-filter-date-to" type="date" />
+          <div class="logs-filter-trailing">
+            <el-button type="primary" class="logs-filter-button" data-testid="logs-search-button" @click="fetchRows(1)">查询</el-button>
+            <el-button class="logs-filter-button" data-testid="logs-reset-button" @click="resetFilters">重置</el-button>
+            <div class="logs-page-size-control">
+              <span class="manage-muted">每页显示</span>
+              <el-select
+                :model-value="pageSize"
+                class="logs-page-size-select"
+                data-testid="logs-page-size"
+                @change="handlePageSizeChange"
+              >
+                <el-option v-for="item in pageSizeOptions" :key="item.value" :label="item.label" :value="item.value" />
+              </el-select>
+            </div>
+            <div class="summary-slot logs-filter-summary">
+              <span class="manage-muted">{{ pageSummary }}</span>
+            </div>
+          </div>
+        </div>
       </div>
     </el-card>
 
+    <div class="manage-summary-row">
+      <div class="manage-summary">
+        <div class="manage-summary-chip">
+          <span>当前页日志</span>
+          <strong>{{ visibleCount }}</strong>
+        </div>
+        <button
+          type="button"
+          class="manage-summary-chip manage-summary-chip--interactive"
+          :class="{ 'is-active': filters.result === 'SUCCESS' }"
+          data-testid="logs-summary-success"
+          @click="filters.result = filters.result === 'SUCCESS' ? '' : 'SUCCESS'; fetchRows(1)"
+        >
+          <span>成功</span>
+          <strong>{{ successCount }}</strong>
+        </button>
+        <button
+          type="button"
+          class="manage-summary-chip manage-summary-chip--interactive"
+          :class="{ 'is-active': filters.result === 'FAILED' }"
+          data-testid="logs-summary-failed"
+          @click="filters.result = filters.result === 'FAILED' ? '' : 'FAILED'; fetchRows(1)"
+        >
+          <span>失败</span>
+          <strong>{{ failedCount }}</strong>
+        </button>
+      </div>
+
+      <div class="manage-summary-actions">
+        <el-button data-testid="logs-refresh-button" @click="fetchRows(page)" :loading="loading">刷新</el-button>
+      </div>
+    </div>
+
     <section v-if="message" class="message-bar" :class="messageType">{{ message }}</section>
 
-    <el-card shadow="never" class="manage-table-card">
-      <template #header>
-        <div class="manage-table-header">
-          <div>
-            <p class="manage-table-title">日志台账</p>
-            <p class="manage-table-tip">按时间、操作人、企业、操作类型和结果回看关键后台动作，内部编码不直接暴露在主列表中。</p>
-          </div>
+    <section class="panel ledger-panel logs-ledger-panel">
+      <div class="panel-heading">
+        <div>
+          <h2 class="panel-heading__title">日志台账</h2>
         </div>
-      </template>
+      </div>
 
-      <el-table
-        :data="rows"
-        v-loading="loading"
-        border
-        stripe
-        empty-text="当前筛选下没有日志"
-        data-testid="logs-table"
-      >
-        <el-table-column label="操作时间" min-width="170" show-overflow-tooltip>
-          <template #default="{ row }">
-            {{ row.createdAt || '暂无时间' }}
-          </template>
-        </el-table-column>
+      <div v-if="loading" class="empty-state">
+        <div>
+          <h3>正在加载操作日志...</h3>
+        </div>
+      </div>
 
-        <el-table-column label="操作人" min-width="140" show-overflow-tooltip>
-          <template #default="{ row }">
-            {{ row.operatorName || '系统用户' }}
-          </template>
-        </el-table-column>
+      <div v-else-if="!rows.length" class="empty-state">
+        <div>
+          <h3>当前筛选下没有日志</h3>
+        </div>
+      </div>
 
-        <el-table-column label="角色" min-width="130" show-overflow-tooltip>
-          <template #default="{ row }">
-            <el-tag effect="plain" size="small" class="manage-status-tag" :class="roleTone(row.roleCode)">
-              {{ row.roleName || '系统用户' }}
-            </el-tag>
-          </template>
-        </el-table-column>
+      <div v-else class="table-scroll-shell ledger-table-shell logs-table-shell">
+        <div class="ledger-table-head logs-table-head">
+          <span>操作人 / 时间</span>
+          <span>角色 / 企业</span>
+          <span>操作类型</span>
+          <span>操作对象</span>
+          <span>结果</span>
+          <span>摘要 / 查看</span>
+        </div>
 
-        <el-table-column label="所属企业" min-width="170" show-overflow-tooltip>
-          <template #default="{ row }">
-            {{ companyText(row) }}
-          </template>
-        </el-table-column>
-
-        <el-table-column label="操作类型" min-width="180" show-overflow-tooltip>
-          <template #default="{ row }">
-            <el-tag effect="plain" size="small" class="manage-status-tag" :class="actionTone(row.actionType)">
-              {{ row.actionTypeLabel || '系统操作' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="操作对象" min-width="170" show-overflow-tooltip>
-          <template #default="{ row }">
-            {{ row.targetDisplay || '系统对象' }}
-          </template>
-        </el-table-column>
-
-        <el-table-column label="结果" width="110">
-          <template #default="{ row }">
-            <el-tag effect="plain" size="small" class="manage-status-tag" :class="resultTone(row.result)">
-              {{ row.resultLabel || '成功' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="摘要" min-width="280" show-overflow-tooltip>
-          <template #default="{ row }">
-            <div class="summary-cell">
-              <span>{{ summaryPreview(row) || '暂无摘要' }}</span>
-              <el-button type="primary" link class="table-action-link" :data-testid="`logs-detail-${row.id}`" @click="openDetailDialog(row)">
-                查看详情
-              </el-button>
+        <div class="ledger-row-list" data-testid="logs-table">
+          <article
+            v-for="row in rows"
+            :key="row.id"
+            class="ledger-row logs-row"
+          >
+            <div class="row-main">
+              <strong>{{ row.operatorName || '系统用户' }}</strong>
+              <span>{{ row.createdAt || '暂无时间' }}</span>
             </div>
-          </template>
-        </el-table-column>
-      </el-table>
+
+            <div class="row-meta">
+              <strong>{{ row.roleName || '系统用户' }}</strong>
+              <small>{{ companyText(row) }}</small>
+            </div>
+
+            <div class="row-status">
+              <span class="ledger-status-pill" :class="actionTone(row.actionType)">
+                {{ row.actionTypeLabel || '系统操作' }}
+              </span>
+            </div>
+
+            <div class="row-meta">
+              <strong>{{ row.targetDisplay || '系统对象' }}</strong>
+              <small>{{ row.targetTypeLabel || '系统对象' }}</small>
+            </div>
+
+            <div class="row-status">
+              <span class="ledger-status-pill" :class="resultTone(row.result)">
+                {{ row.resultLabel || '成功' }}
+              </span>
+            </div>
+
+            <div class="row-actions">
+              <div class="logs-summary-block">
+                <span>{{ summaryPreview(row) || '暂无摘要' }}</span>
+                <button class="text-button primary-text" :data-testid="`logs-detail-${row.id}`" @click="openDetailDialog(row)">查看详情</button>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
 
       <div class="toolbar logs-pagination">
         <span class="list-summary">第 {{ page }} / {{ pageCount }} 页</span>
@@ -385,7 +445,7 @@ function summaryPreview(item) {
           <el-button data-testid="logs-next-page" :disabled="loading || page >= pageCount" @click="goNextPage">下一页</el-button>
         </div>
       </div>
-    </el-card>
+    </section>
 
     <div v-if="detailDialog.visible" class="dialog-mask" @click.self="closeDetailDialog">
       <section class="dialog-card logs-detail-dialog" data-testid="logs-detail-dialog">
@@ -438,13 +498,10 @@ function summaryPreview(item) {
       </section>
     </div>
   </div>
+  </div>
 </template>
 
 <style scoped>
-.logs-manage {
-  padding: 20px;
-}
-
 .profile-banner {
   display: grid;
   gap: 8px;
@@ -463,36 +520,101 @@ function summaryPreview(item) {
   line-height: 1.7;
 }
 
-.logs-filter-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+.logs-filter-layout {
+  display: grid;
+  gap: 14px;
+}
+
+.logs-filter-row {
+  display: grid;
+  gap: 12px;
+}
+
+.logs-filter-row--primary {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.logs-filter-row--secondary {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: center;
+}
+
+.logs-filter-trailing {
+  grid-column: 3 / 6;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.logs-filter-button {
+  width: 120px;
+  margin: 0;
 }
 
 .summary-slot {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  padding-right: 8px;
+  min-height: 40px;
+  text-align: right;
 }
 
-.summary-cell {
-  display: flex;
+.logs-filter-summary {
+  margin-left: auto;
+  min-width: 0;
+}
+
+.logs-page-size-control {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 14px;
+  gap: 10px;
+  min-width: 188px;
 }
 
-.summary-cell span {
+.logs-page-size-select {
+  width: 128px;
+}
+
+.logs-ledger-panel {
+  margin-top: 0;
+}
+
+.logs-table-head,
+.logs-row {
+  grid-template-columns:
+    minmax(190px, 0.9fr)
+    minmax(220px, 1fr)
+    minmax(170px, 0.8fr)
+    minmax(220px, 1fr)
+    minmax(120px, 0.5fr)
+    minmax(300px, 1.2fr);
+}
+
+.logs-summary-block {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.logs-summary-block span {
   color: var(--admin-text);
   line-height: 1.6;
 }
 
-.table-action-link {
-  padding: 0;
-  font-weight: 600;
-}
-
 .logs-pagination {
   margin-top: 18px;
+  padding: 0 28px;
+}
+
+.logs-pagination .list-summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+}
+
+.logs-pagination .toolbar-actions {
+  align-items: center;
 }
 
 .logs-detail-dialog {
@@ -522,25 +644,52 @@ function summaryPreview(item) {
 }
 
 @media (max-width: 900px) {
-  .logs-filter-grid,
+  .logs-filter-row--primary,
+  .logs-filter-row--secondary,
   .logs-detail-grid {
     grid-template-columns: 1fr;
   }
 
+  .logs-filter-trailing {
+    grid-column: auto;
+    flex-wrap: wrap;
+  }
+
+  .logs-page-size-control {
+    min-width: 0;
+  }
+
   .summary-slot {
     justify-content: flex-start;
-    padding-right: 0;
+    text-align: left;
+  }
+
+  .logs-filter-button {
+    width: 100%;
   }
 }
 
 @media (max-width: 768px) {
-  .logs-manage {
-    padding: 14px;
+  .logs-filter-trailing {
+    flex-direction: column;
+    align-items: stretch;
   }
 
-  .summary-cell {
+  .logs-page-size-control {
+    justify-content: space-between;
+  }
+
+  .logs-page-size-select {
+    width: 100%;
+  }
+
+  .logs-filter-summary {
+    margin-left: 0;
+  }
+
+  .logs-summary-block {
     align-items: flex-start;
-    flex-direction: column;
   }
 }
 </style>
+<style src="../../assets/styles/admin-task-pages.css" scoped></style>

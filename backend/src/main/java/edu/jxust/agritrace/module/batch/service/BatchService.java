@@ -18,6 +18,7 @@ import edu.jxust.agritrace.module.batch.vo.FileAssetVO;
 import edu.jxust.agritrace.module.batch.vo.FieldDraftVO;
 import edu.jxust.agritrace.module.batch.vo.OperatorOptionVO;
 import edu.jxust.agritrace.module.batch.vo.ProductOptionVO;
+import edu.jxust.agritrace.module.batch.vo.TraceChainVerificationVO;
 import edu.jxust.agritrace.module.publictrace.dto.PublicTraceAccessContext;
 import org.springframework.core.io.Resource;
 import org.springframework.web.multipart.MultipartFile;
@@ -47,6 +48,8 @@ public interface BatchService {
     BatchWorkbenchVO changeStatus(Long batchId, BatchStatusActionRequest request);
 
     BatchWorkbenchVO addTraceRecord(Long batchId, TraceRecordCreateRequest request);
+
+    TraceChainVerificationVO verifyTraceChain(Long batchId);
 
     BatchWorkbenchVO assignBatchOperator(Long batchId, BatchAssignmentRequest request);
 

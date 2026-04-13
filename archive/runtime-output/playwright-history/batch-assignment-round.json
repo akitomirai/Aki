@@ -1,0 +1,153 @@
+{
+  "verifiedAt": "2026-03-30T10:51:23.085Z",
+  "users": {
+    "platform": {
+      "id": 1,
+      "username": "platform",
+      "realName": "Platform Admin",
+      "roleCode": "PLATFORM_ADMIN",
+      "roleName": "平台管理员",
+      "companyId": null
+    },
+    "operator": {
+      "id": 3,
+      "username": "operator",
+      "realName": "Field Operator",
+      "roleCode": "OPERATOR",
+      "roleName": "现场操作员",
+      "companyId": 1
+    },
+    "operatorSupport": {
+      "id": 5,
+      "username": "operator_support",
+      "realName": "Field Operator B",
+      "roleCode": "OPERATOR",
+      "roleName": "现场操作员",
+      "companyId": 1
+    }
+  },
+  "operatorOptions": [
+    {
+      "id": 3,
+      "username": "operator",
+      "realName": "Field Operator",
+      "roleCode": "OPERATOR",
+      "companyId": 1,
+      "companyName": "赣南果业种植有限公司"
+    },
+    {
+      "id": 5,
+      "username": "operator_support",
+      "realName": "Field Operator B",
+      "roleCode": "OPERATOR",
+      "companyId": 1,
+      "companyName": "赣南果业种植有限公司"
+    }
+  ],
+  "assignmentChecks": {
+    "resetToUnassigned": {
+      "operatorMineCodes": []
+    },
+    "assignToOperator": {
+      "operatorMineCodes": [
+        "ORANGE-202603-D1"
+      ]
+    },
+    "reassignToOperatorSupport": {
+      "operatorMineCodes": [],
+      "operatorSupportMineCodes": [
+        "ORANGE-202603-D1",
+        "ORANGE-202603-A1"
+      ]
+    },
+    "clearAssignment": {
+      "operatorMineCodes": [],
+      "operatorSupportMineCodes": [
+        "ORANGE-202603-A1"
+      ]
+    }
+  },
+  "draftReassignChecks": {
+    "operatorMineBeforeDraft": [
+      "ORANGE-202603-D1"
+    ],
+    "operatorDraftAfterSave": [
+      {
+        "id": 1,
+        "batchId": 2,
+        "batchCode": "ORANGE-202603-D1",
+        "productName": "赣南脐橙",
+        "companyName": "赣南果业种植有限公司",
+        "currentNode": "生产记录",
+        "stage": "PRODUCE",
+        "title": "记录生产关键节点",
+        "eventTime": "2026-03-30 18:51",
+        "operatorName": "Field Operator",
+        "location": "Cold chain assignment checkpoint",
+        "summary": "批次 ORANGE-202603-D1 的服务端草稿，用于验证强制改派清草稿。",
+        "imageUrl": "http://127.0.0.1:8080/api/public/files/1",
+        "attachmentIds": [
+          1
+        ],
+        "uploadedFiles": [
+          {
+            "id": 1,
+            "fileName": "assignment-draft-20260330105109.png",
+            "filePath": "trace-image/20260330/e698e152-8511-4092-93ae-892956d96c6a.png",
+            "fileUrl": "http://127.0.0.1:8080/api/public/files/1",
+            "contentType": "image/png",
+            "size": 68,
+            "businessType": "trace-image",
+            "businessId": null
+          }
+        ],
+        "visibleToConsumer": true,
+        "imageCount": 1,
+        "updatedAt": "2026-03-30 18:51"
+      }
+    ],
+    "operatorMineAfterForcedReassign": [],
+    "operatorSupportMineAfterForcedReassign": [
+      "ORANGE-202603-D1",
+      "ORANGE-202603-A1"
+    ],
+    "operatorDraftsAfterForce": [],
+    "operatorDraftRowCount": 0
+  },
+  "finalTask": {
+    "assigneeUserId": 5,
+    "assigneeName": "Field Operator B",
+    "assignedAt": "2026-03-30 18:51",
+    "taskStatus": "PENDING",
+    "taskStatusLabel": "待处理",
+    "taskCompletedAt": null,
+    "todayCompleted": false,
+    "draftPending": false,
+    "draftStatusLabel": "无草稿",
+    "draftUpdatedAt": null
+  },
+  "finalWorkbenchTask": {
+    "assigneeUserId": 5,
+    "assigneeName": "Field Operator B",
+    "assignedAt": "2026-03-30 18:51",
+    "taskStatus": "PENDING",
+    "taskStatusLabel": "待处理",
+    "taskCompletedAt": null,
+    "todayCompleted": false,
+    "draftPending": false,
+    "draftStatusLabel": "无草稿",
+    "draftUpdatedAt": null
+  },
+  "screenshots": [
+    "D:\\Users\\Lenovo\\Desktop\\traceability-system\\output\\playwright\\51-assignment-reset-operator-empty.png",
+    "D:\\Users\\Lenovo\\Desktop\\traceability-system\\output\\playwright\\52-assignment-platform-operator.png",
+    "D:\\Users\\Lenovo\\Desktop\\traceability-system\\output\\playwright\\53-assignment-operator-todo.png",
+    "D:\\Users\\Lenovo\\Desktop\\traceability-system\\output\\playwright\\54-reassign-platform-support.png",
+    "D:\\Users\\Lenovo\\Desktop\\traceability-system\\output\\playwright\\55-reassign-support-todo.png",
+    "D:\\Users\\Lenovo\\Desktop\\traceability-system\\output\\playwright\\56-clear-platform-unassigned.png",
+    "D:\\Users\\Lenovo\\Desktop\\traceability-system\\output\\playwright\\57-draft-blocked-reassign.png",
+    "D:\\Users\\Lenovo\\Desktop\\traceability-system\\output\\playwright\\58-final-workbench-assignment.png",
+    "D:\\Users\\Lenovo\\Desktop\\traceability-system\\output\\playwright\\59-force-reassign-support-todo.png",
+    "D:\\Users\\Lenovo\\Desktop\\traceability-system\\output\\playwright\\60-force-reassign-operator-drafts-empty.png"
+  ]
+}

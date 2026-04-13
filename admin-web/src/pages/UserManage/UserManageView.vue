@@ -6,6 +6,7 @@ import { useAuthStore } from '../../stores/auth'
 import { getFriendlyErrorMessage } from '../../utils/batchExperience'
 
 const authStore = useAuthStore()
+const DEFAULT_PAGE_SIZE = 10
 
 const loading = ref(false)
 const saving = ref(false)
@@ -14,13 +15,22 @@ const companyLoading = ref(false)
 const message = ref('')
 const messageType = ref('info')
 const rows = ref([])
+const allRows = ref([])
 const companyOptions = ref([])
 const activeRoleTab = ref('ALL')
+const page = ref(1)
+const pageSize = ref(DEFAULT_PAGE_SIZE)
 const filters = ref(createFilters())
 const isPlatformAdmin = computed(() => String(authStore.user?.roleCode || '').toUpperCase() === 'PLATFORM_ADMIN')
 const isEnterpriseAdmin = computed(() => String(authStore.user?.roleCode || '').toUpperCase() === 'ENTERPRISE_ADMIN')
 const dialog = ref(createDialogState())
 const resetDialog = ref(createResetDialogState())
+const pageSizeOptions = [
+  { value: 10, label: '10 条 / 页' },
+  { value: 20, label: '20 条 / 页' },
+  { value: 50, label: '50 条 / 页' },
+  { value: 100, label: '100 条 / 页' }
+]
 
 const roleTabs = computed(() => {
   const base = [{ value: 'ALL', label: '全部用户' }]
@@ -50,15 +60,22 @@ const formCompanyOptions = computed(() => {
   return companyOptions.value.filter((item) => Number(item.id) === currentCompanyId)
 })
 
-const visibleRows = computed(() => {
+const filteredRows = computed(() => {
   if (activeRoleTab.value === 'ALL') {
     return rows.value
   }
   return rows.value.filter((item) => item.roleCode === activeRoleTab.value)
 })
 
+const pageCount = computed(() => Math.max(1, Math.ceil(Number(filteredRows.value.length || 0) / Number(pageSize.value || DEFAULT_PAGE_SIZE))))
+
+const visibleRows = computed(() => {
+  const fromIndex = (page.value - 1) * pageSize.value
+  return filteredRows.value.slice(fromIndex, fromIndex + pageSize.value)
+})
+
 const roleCounts = computed(() => {
-  const counts = rows.value.reduce((acc, item) => {
+  const counts = allRows.value.reduce((acc, item) => {
     const key = String(item.roleCode || '')
     acc.ALL += 1
     acc[key] = (acc[key] || 0) + 1
@@ -71,18 +88,26 @@ const roleCounts = computed(() => {
   return counts
 })
 
-const enabledCount = computed(() => rows.value.filter((item) => Number(item.status) === 1).length)
-const disabledCount = computed(() => rows.value.filter((item) => Number(item.status) !== 1).length)
-const passwordPendingCount = computed(() => rows.value.filter((item) => item.needChangePassword).length)
+const enabledCount = computed(() => allRows.value.filter((item) => Number(item.status) === 1).length)
+const disabledCount = computed(() => allRows.value.filter((item) => Number(item.status) !== 1).length)
+const passwordPendingCount = computed(() => allRows.value.filter((item) => item.needChangePassword).length)
 const currentCompanyName = computed(() => authStore.user?.companyName || '当前企业')
 const companyFieldRequired = computed(() => roleNeedsCompany(dialog.value.form.roleCode))
 const companyFieldDisabled = computed(() => !companyFieldRequired.value || isEnterpriseAdmin.value)
+const usernameFieldDisabled = computed(() => (
+  dialog.value.mode === 'edit' && Number(dialog.value.editingId) === Number(authStore.user?.id)
+))
 
 const listSummary = computed(() => {
-  if (isPlatformAdmin.value) {
-    return `共 ${rows.value.length} 个用户，当前显示 ${visibleRows.value.length} 个。`
+  if (!filteredRows.value.length) {
+    return '当前没有可展示的用户。'
   }
-  return `当前仅展示本企业用户，共 ${rows.value.length} 个，当前显示 ${visibleRows.value.length} 个。`
+  const from = (page.value - 1) * pageSize.value + 1
+  const to = Math.min(filteredRows.value.length, page.value * pageSize.value)
+  if (isPlatformAdmin.value) {
+    return `共 ${filteredRows.value.length} 个用户，当前显示 ${from}-${to} 个。`
+  }
+  return `当前仅展示本企业用户，共 ${filteredRows.value.length} 个，当前显示 ${from}-${to} 个。`
 })
 
 onMounted(async () => {
@@ -101,6 +126,16 @@ watch(
     dialog.value.form.companyId = ''
   }
 )
+
+watch(activeRoleTab, () => {
+  page.value = 1
+})
+
+watch(filteredRows, () => {
+  if (page.value > pageCount.value) {
+    page.value = pageCount.value
+  }
+})
 
 function createFilters() {
   return {
@@ -182,18 +217,28 @@ function resolvePasswordTone(item) {
 }
 
 function companyText(item) {
-  return item.companyName || '平台主管账号'
+  return item.companyName || '平台主账号'
 }
 
 function handleStatusChipClick(status) {
   filters.value.status = filters.value.status === status ? '' : status
+  page.value = 1
   fetchRows()
 }
 
 function resetFilters() {
   filters.value = createFilters()
   activeRoleTab.value = 'ALL'
+  page.value = 1
+  pageSize.value = DEFAULT_PAGE_SIZE
   fetchRows()
+}
+
+function handlePageSizeChange(value) {
+  const nextPageSize = Number(value || DEFAULT_PAGE_SIZE)
+  if (nextPageSize === pageSize.value) return
+  pageSize.value = nextPageSize
+  page.value = 1
 }
 
 async function loadCompanyOptions() {
@@ -212,17 +257,31 @@ async function fetchRows() {
   loading.value = true
   clearMessage()
   try {
-    const response = await getUserList(cleanObject({
-      keyword: filters.value.keyword || undefined,
-      status: filters.value.status === '' ? undefined : Number(filters.value.status),
-      companyId: isPlatformAdmin.value ? normalizeCompanyId(filters.value.companyId) || undefined : undefined
-    }))
-    rows.value = response.data ?? []
+    const [listResponse, summaryResponse] = await Promise.all([
+      getUserList(cleanObject({
+        keyword: filters.value.keyword || undefined,
+        status: filters.value.status === '' ? undefined : Number(filters.value.status),
+        companyId: isPlatformAdmin.value ? normalizeCompanyId(filters.value.companyId) || undefined : undefined
+      })),
+      getUserList()
+    ])
+    rows.value = listResponse.data ?? []
+    allRows.value = summaryResponse.data ?? []
   } catch (error) {
     showMessage(getFriendlyErrorMessage(error, '用户列表加载失败，请稍后重试。'), 'error')
   } finally {
     loading.value = false
   }
+}
+
+function goPrevPage() {
+  if (loading.value || page.value <= 1) return
+  page.value -= 1
+}
+
+function goNextPage() {
+  if (loading.value || page.value >= pageCount.value) return
+  page.value += 1
 }
 
 function openCreateDialog() {
@@ -252,9 +311,7 @@ function openEditDialog(item) {
 }
 
 function closeDialog() {
-  if (saving.value) {
-    return
-  }
+  if (saving.value) return
   dialog.value = createDialogState()
 }
 
@@ -269,21 +326,19 @@ function openResetPasswordDialog(item) {
 }
 
 function closeResetPasswordDialog() {
-  if (resetSaving.value) {
-    return
-  }
+  if (resetSaving.value) return
   resetDialog.value = createResetDialogState()
 }
 
 function normalizeUserPayload() {
   const form = dialog.value.form
   const payload = {
+    username: String(form.username || '').trim(),
     realName: String(form.realName || '').trim(),
     roleCode: String(form.roleCode || '').trim(),
     companyId: companyFieldRequired.value ? normalizeCompanyId(form.companyId) : null
   }
   if (dialog.value.mode === 'create') {
-    payload.username = String(form.username || '').trim()
     payload.password = String(form.password || '').trim()
   }
   return payload
@@ -317,9 +372,7 @@ async function toggleUserStatus(item) {
   const nextStatus = Number(item.status) === 1 ? 0 : 1
   const nextLabel = nextStatus === 1 ? '启用' : '停用'
   const confirmed = window.confirm(`确认${nextLabel}用户“${item.realName || item.username}”吗？`)
-  if (!confirmed) {
-    return
-  }
+  if (!confirmed) return
 
   clearMessage()
   try {
@@ -350,57 +403,8 @@ async function submitResetPassword() {
 </script>
 
 <template>
+  <div class="page-shell">
   <div class="manage-page user-manage" data-testid="users-page">
-    <section class="manage-page-header">
-      <div>
-        <h1 class="manage-page-title">用户管理</h1>
-        <p class="manage-page-desc">统一维护平台管理员、企业管理员、现场操作员和监管人员账号，先筛选，再执行编辑、重置密码和启停。</p>
-      </div>
-      <div class="manage-page-actions">
-        <el-button data-testid="users-refresh-button" @click="fetchRows" :loading="loading">刷新</el-button>
-        <el-button type="primary" data-testid="users-open-create" @click="openCreateDialog">新增用户</el-button>
-      </div>
-    </section>
-
-    <div class="manage-summary">
-      <button
-        v-for="tab in roleTabs"
-        :key="tab.value"
-        type="button"
-        class="manage-summary-chip manage-summary-chip--interactive"
-        :class="{ 'is-active': activeRoleTab === tab.value }"
-        :data-testid="`users-tab-${tab.value}`"
-        @click="activeRoleTab = tab.value"
-      >
-        <span>{{ tab.label }}</span>
-        <strong>{{ roleCounts[tab.value] ?? 0 }}</strong>
-      </button>
-      <button
-        type="button"
-        class="manage-summary-chip manage-summary-chip--interactive"
-        :class="{ 'is-active': filters.status === '1' }"
-        data-testid="users-summary-enabled"
-        @click="handleStatusChipClick('1')"
-      >
-        <span>启用中</span>
-        <strong>{{ enabledCount }}</strong>
-      </button>
-      <button
-        type="button"
-        class="manage-summary-chip manage-summary-chip--interactive"
-        :class="{ 'is-active': filters.status === '0' }"
-        data-testid="users-summary-disabled"
-        @click="handleStatusChipClick('0')"
-      >
-        <span>已停用</span>
-        <strong>{{ disabledCount }}</strong>
-      </button>
-      <div class="manage-summary-chip">
-        <span>待改密码</span>
-        <strong>{{ passwordPendingCount }}</strong>
-      </div>
-    </div>
-
     <el-card shadow="never" class="manage-filter-card">
       <div class="manage-filter-grid user-filter-grid">
         <el-input
@@ -444,114 +448,175 @@ async function submitResetPassword() {
           <el-option value="0" label="停用" />
         </el-select>
 
+        <el-button type="primary" data-testid="users-search-button" @click="fetchRows">查询</el-button>
+        <el-button data-testid="users-reset-button" @click="resetFilters">重置</el-button>
+        <div class="user-page-size-control">
+          <span class="manage-muted">每页显示</span>
+          <el-select
+            :model-value="pageSize"
+            class="user-page-size-select"
+            data-testid="users-page-size"
+            @change="handlePageSizeChange"
+          >
+            <el-option v-for="item in pageSizeOptions" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
+        </div>
         <div class="summary-slot">
           <span class="manage-muted">{{ listSummary }}</span>
         </div>
-
-        <el-button type="primary" data-testid="users-search-button" @click="fetchRows">查询</el-button>
-        <el-button data-testid="users-reset-button" @click="resetFilters">重置</el-button>
       </div>
     </el-card>
 
+    <div class="manage-summary-row">
+      <div class="manage-summary">
+        <button
+          v-for="tab in roleTabs"
+          :key="tab.value"
+          type="button"
+          class="manage-summary-chip manage-summary-chip--interactive"
+          :class="{ 'is-active': activeRoleTab === tab.value }"
+          :data-testid="`users-tab-${tab.value}`"
+          @click="activeRoleTab = tab.value"
+        >
+          <span>{{ tab.label }}</span>
+          <strong>{{ roleCounts[tab.value] ?? 0 }}</strong>
+        </button>
+
+        <button
+          type="button"
+          class="manage-summary-chip manage-summary-chip--interactive"
+          :class="{ 'is-active': filters.status === '1' }"
+          data-testid="users-summary-enabled"
+          @click="handleStatusChipClick('1')"
+        >
+          <span>启用中</span>
+          <strong>{{ enabledCount }}</strong>
+        </button>
+
+        <button
+          type="button"
+          class="manage-summary-chip manage-summary-chip--interactive"
+          :class="{ 'is-active': filters.status === '0' }"
+          data-testid="users-summary-disabled"
+          @click="handleStatusChipClick('0')"
+        >
+          <span>已停用</span>
+          <strong>{{ disabledCount }}</strong>
+        </button>
+
+        <div class="manage-summary-chip">
+          <span>待改密码</span>
+          <strong>{{ passwordPendingCount }}</strong>
+        </div>
+      </div>
+
+      <div class="manage-summary-actions">
+        <el-button data-testid="users-refresh-button" :loading="loading" @click="fetchRows">刷新</el-button>
+        <el-button type="primary" data-testid="users-open-create" @click="openCreateDialog">新增用户</el-button>
+      </div>
+    </div>
+
     <section v-if="message" class="message-bar" :class="messageType">{{ message }}</section>
 
-    <el-card shadow="never" class="manage-table-card">
-      <template #header>
-        <div class="manage-table-header">
-          <div>
-            <p class="manage-table-title">用户台账</p>
-            <p class="manage-table-tip">列表按用户名、角色、企业和状态统一回看，右侧直接执行编辑、重置密码和启停。</p>
+    <section class="panel ledger-panel user-ledger-panel">
+      <div class="panel-heading">
+        <div>
+          <h2 class="panel-heading__title">用户台账</h2>
+        </div>
+      </div>
+
+      <div v-if="loading" class="empty-state">
+        <div>
+          <h3>正在加载用户列表...</h3>
+        </div>
+      </div>
+
+      <div v-else-if="!visibleRows.length" class="empty-state">
+        <div>
+          <h3>当前筛选下没有用户</h3>
+          <div class="toolbar-actions">
+            <button class="primary" @click="openCreateDialog">新增用户</button>
           </div>
         </div>
-      </template>
+      </div>
 
-      <el-table
-        :data="visibleRows"
-        v-loading="loading"
-        border
-        stripe
-        empty-text="当前筛选下没有用户"
-        data-testid="users-table"
-      >
-        <el-table-column label="用户名" min-width="150" show-overflow-tooltip>
-          <template #default="{ row }">
-            <div class="name-cell" :data-testid="`users-row-${row.id}`">
-              <strong>{{ row.username }}</strong>
+      <div v-else class="table-scroll-shell ledger-table-shell user-table-shell">
+        <div class="ledger-table-head user-table-head">
+          <span>用户</span>
+          <span>角色 / 企业</span>
+          <span>状态</span>
+          <span>密码状态</span>
+          <span>最近更新时间</span>
+          <span>操作</span>
+        </div>
+
+        <div class="ledger-row-list" data-testid="users-table">
+          <article
+            v-for="row in visibleRows"
+            :key="row.id"
+            class="ledger-row user-row"
+            :data-testid="`users-row-${row.id}`"
+          >
+            <div class="row-main">
+              <strong>{{ row.realName || row.username }}</strong>
+              <span class="ledger-code">{{ row.username }}</span>
             </div>
-          </template>
-        </el-table-column>
 
-        <el-table-column label="姓名" min-width="140" show-overflow-tooltip>
-          <template #default="{ row }">
-            {{ row.realName || '未填写' }}
-          </template>
-        </el-table-column>
-
-        <el-table-column label="角色" min-width="150" show-overflow-tooltip>
-          <template #default="{ row }">
-            <el-tag effect="plain" size="small" class="manage-status-tag" :class="resolveRoleTone(row.roleCode)">
-              {{ row.roleName }}
-            </el-tag>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="所属企业" min-width="180" show-overflow-tooltip>
-          <template #default="{ row }">
-            <strong>{{ companyText(row) }}</strong>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="状态" width="110">
-          <template #default="{ row }">
-            <el-tag effect="plain" size="small" class="manage-status-tag" :class="resolveStatusTone(row.status)">
-              {{ row.statusLabel }}
-            </el-tag>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="密码状态" min-width="130">
-          <template #default="{ row }">
-            <el-tag effect="plain" size="small" class="manage-status-tag" :class="resolvePasswordTone(row)">
-              {{ row.passwordStatusLabel }}
-            </el-tag>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="最近更新时间" min-width="160" show-overflow-tooltip>
-          <template #default="{ row }">
-            {{ row.updatedAt || '暂无更新' }}
-          </template>
-        </el-table-column>
-
-        <el-table-column label="操作" min-width="260" fixed="right">
-          <template #default="{ row }">
-            <div class="action-cell">
-              <el-button type="primary" link class="table-action-link" :data-testid="`user-edit-${row.id}`" @click="openEditDialog(row)">编辑</el-button>
-              <el-button
-                type="primary"
-                link
-                class="table-action-link"
-                :data-testid="`user-reset-password-${row.id}`"
-                :disabled="Number(authStore.user?.id) === Number(row.id)"
-                @click="openResetPasswordDialog(row)"
-              >
-                重置密码
-              </el-button>
-              <el-button
-                type="primary"
-                link
-                class="table-action-link"
-                :data-testid="`user-toggle-${row.id}`"
-                :disabled="Number(authStore.user?.id) === Number(row.id)"
-                @click="toggleUserStatus(row)"
-              >
-                {{ Number(row.status) === 1 ? '停用' : '启用' }}
-              </el-button>
+            <div class="row-meta">
+              <strong>{{ row.roleName }}</strong>
+              <small>{{ companyText(row) }}</small>
             </div>
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-card>
+
+            <div class="row-status">
+              <span class="ledger-status-pill" :class="resolveStatusTone(row.status)">
+                {{ row.statusLabel }}
+              </span>
+            </div>
+
+            <div class="row-status">
+              <span class="ledger-status-pill" :class="resolvePasswordTone(row)">
+                {{ row.passwordStatusLabel }}
+              </span>
+            </div>
+
+            <div class="row-meta">
+              <strong>{{ row.updatedAt || '暂无更新' }}</strong>
+              <small>{{ row.passwordUpdatedAt || '暂无改密记录' }}</small>
+            </div>
+
+            <div class="row-actions">
+              <div class="ledger-actions-scroll">
+                <button class="text-button primary-text" :data-testid="`user-edit-${row.id}`" @click="openEditDialog(row)">编辑</button>
+                <button
+                  class="text-button"
+                  :data-testid="`user-reset-password-${row.id}`"
+                  :disabled="Number(authStore.user?.id) === Number(row.id)"
+                  @click="openResetPasswordDialog(row)"
+                >
+                  重置密码
+                </button>
+                <button
+                  class="text-button"
+                  :data-testid="`user-toggle-${row.id}`"
+                  :disabled="Number(authStore.user?.id) === Number(row.id)"
+                  @click="toggleUserStatus(row)"
+                >
+                  {{ Number(row.status) === 1 ? '停用' : '启用' }}
+                </button>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+
+      <div class="toolbar user-pagination">
+        <span class="list-summary">第 {{ page }} / {{ pageCount }} 页</span>
+        <div class="toolbar-actions">
+          <el-button data-testid="users-prev-page" :disabled="loading || page <= 1" @click="goPrevPage">上一页</el-button>
+          <el-button data-testid="users-next-page" :disabled="loading || page >= pageCount" @click="goNextPage">下一页</el-button>
+        </div>
+      </div>
+    </section>
 
     <div v-if="dialog.visible" class="dialog-mask" @click.self="closeDialog">
       <section class="dialog-card user-dialog" data-testid="user-form-dialog">
@@ -559,28 +624,27 @@ async function submitResetPassword() {
           <div>
             <h3>{{ dialog.mode === 'create' ? '新增用户' : '编辑用户' }}</h3>
           </div>
-          <button class="ghost" :disabled="saving" @click="closeDialog">关闭</button>
+          <button class="dialog-close-button" type="button" aria-label="关闭" :disabled="saving" @click="closeDialog">×</button>
         </div>
 
-        <div class="form-grid">
+        <div class="form-grid user-form-grid">
           <label>
             <span>用户名</span>
             <input
               v-model.trim="dialog.form.username"
               data-testid="user-form-username"
               type="text"
-              :disabled="dialog.mode === 'edit'"
+              :disabled="usernameFieldDisabled"
               placeholder="例如 operator_d"
             >
           </label>
 
-          <label>
+          <label v-if="dialog.mode === 'create'">
             <span>{{ dialog.mode === 'create' ? '初始密码' : '密码' }}</span>
             <input
               v-model.trim="dialog.form.password"
               data-testid="user-form-password"
               type="password"
-              :disabled="dialog.mode === 'edit'"
               :placeholder="dialog.mode === 'create' ? '至少 6 位' : '请使用“重置密码”修改密码'"
             >
           </label>
@@ -602,7 +666,7 @@ async function submitResetPassword() {
             </select>
           </label>
 
-          <label class="full-width">
+          <label :class="{ 'full-width': dialog.mode === 'create' }">
             <span>所属企业</span>
             <select
               v-model="dialog.form.companyId"
@@ -616,8 +680,8 @@ async function submitResetPassword() {
         </div>
 
         <div class="dialog-actions" style="margin-top: 18px;">
-          <button class="ghost" data-testid="user-form-cancel" :disabled="saving" @click="closeDialog">取消</button>
-          <button class="primary" data-testid="user-form-submit" :disabled="saving" @click="submitDialog">
+          <button class="dialog-secondary-button" data-testid="user-form-cancel" :disabled="saving" @click="closeDialog">取消</button>
+          <button class="dialog-primary-button" data-testid="user-form-submit" :disabled="saving" @click="submitDialog">
             {{ saving ? '正在保存...' : dialog.mode === 'create' ? '确认创建' : '确认保存' }}
           </button>
         </div>
@@ -629,8 +693,9 @@ async function submitResetPassword() {
         <div class="dialog-head">
           <div>
             <h3>重置密码</h3>
+            <p>当前用户：{{ resetDialog.displayName }}</p>
           </div>
-          <button class="ghost" :disabled="resetSaving" @click="closeResetPasswordDialog">关闭</button>
+          <button class="dialog-close-button" type="button" aria-label="关闭" :disabled="resetSaving" @click="closeResetPasswordDialog">×</button>
         </div>
 
         <div class="form-grid">
@@ -646,23 +711,20 @@ async function submitResetPassword() {
         </div>
 
         <div class="dialog-actions" style="margin-top: 18px;">
-          <button class="ghost" data-testid="user-reset-password-cancel" :disabled="resetSaving" @click="closeResetPasswordDialog">取消</button>
-          <button class="primary" data-testid="user-reset-password-submit" :disabled="resetSaving" @click="submitResetPassword">
+          <button class="dialog-secondary-button" data-testid="user-reset-password-cancel" :disabled="resetSaving" @click="closeResetPasswordDialog">取消</button>
+          <button class="dialog-primary-button" data-testid="user-reset-password-submit" :disabled="resetSaving" @click="submitResetPassword">
             {{ resetSaving ? '正在重置...' : '确认重置' }}
           </button>
         </div>
       </section>
     </div>
   </div>
+  </div>
 </template>
 
 <style scoped>
-.user-manage {
-  padding: 20px;
-}
-
 .user-filter-grid {
-  grid-template-columns: minmax(0, 1.6fr) minmax(180px, 1fr) minmax(180px, 1fr) minmax(240px, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1.6fr) minmax(180px, 1fr) minmax(180px, 1fr) auto auto minmax(180px, max-content) minmax(240px, 1fr);
 }
 
 .summary-slot {
@@ -672,41 +734,87 @@ async function submitResetPassword() {
   padding-right: 8px;
 }
 
-.name-cell,
-.stack-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.name-cell strong,
-.stack-cell strong {
-  color: var(--admin-text);
-  font-size: 14px;
-}
-
-.name-cell span,
-.stack-cell span {
-  color: var(--admin-text-soft);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.action-cell {
-  display: flex;
+.user-page-size-control {
+  display: inline-flex;
   align-items: center;
-  gap: 14px;
-  white-space: nowrap;
+  gap: 10px;
+  min-width: 188px;
 }
 
-.table-action-link {
-  padding: 0;
-  font-weight: 600;
+.user-page-size-select {
+  width: 128px;
 }
 
-.user-dialog,
-.reset-password-dialog {
-  width: min(760px, 100%);
+.user-ledger-panel {
+  margin-top: 0;
+}
+
+.user-pagination {
+  margin-top: 18px;
+  padding: 0 28px;
+}
+
+.user-pagination .list-summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+}
+
+.user-pagination .toolbar-actions {
+  align-items: center;
+}
+
+.user-table-head,
+.user-row {
+  grid-template-columns:
+    minmax(220px, 1fr)
+    minmax(220px, 0.95fr)
+    minmax(120px, 0.52fr)
+    minmax(150px, 0.65fr)
+    minmax(180px, 0.8fr)
+    minmax(250px, max-content);
+}
+
+.dialog-card.user-dialog {
+  width: min(calc(100vw - 40px), 420px);
+  max-width: 420px;
+  padding: 20px 18px;
+}
+
+.dialog-card.reset-password-dialog {
+  width: min(calc(100vw - 40px), 400px);
+  max-width: 400px;
+}
+
+.dialog-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(12, 24, 43, 0.42);
+}
+
+.dialog-card {
+  width: min(calc(100vw - 40px), 760px);
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  padding: 20px 18px;
+  border: 1px solid rgba(56, 134, 217, 0.12);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow:
+    0 22px 54px rgba(45, 113, 194, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
 }
 
 .dialog-head h3 {
@@ -714,8 +822,94 @@ async function submitResetPassword() {
   color: var(--admin-text);
 }
 
+.dialog-head p {
+  margin: 6px 0 0;
+  color: var(--admin-text-soft);
+}
+
+.dialog-close-button,
+.dialog-primary-button,
+.dialog-secondary-button {
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
+}
+
+.dialog-close-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #8e9caf;
+  font-size: 26px;
+  line-height: 1;
+  box-shadow: none;
+}
+
+.dialog-primary-button {
+  min-height: 42px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(135deg, var(--admin-primary) 0%, var(--admin-primary-deep) 100%);
+  color: #fff;
+  box-shadow: 0 12px 22px rgba(48, 149, 246, 0.16);
+}
+
+.dialog-secondary-button {
+  min-height: 42px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(56, 134, 217, 0.16);
+  background: #fff;
+  color: var(--admin-primary-deep);
+}
+
+.dialog-close-button:hover:not(:disabled) {
+  color: var(--admin-text);
+  background: rgba(120, 146, 173, 0.1);
+  transform: none;
+}
+
+.dialog-primary-button:hover:not(:disabled),
+.dialog-secondary-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.dialog-close-button:disabled,
+.dialog-primary-button:disabled,
+.dialog-secondary-button:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
 .dialog-card label {
   display: block;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.dialog-card.user-dialog .user-form-grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
 }
 
 .dialog-card label span {
@@ -744,10 +938,14 @@ async function submitResetPassword() {
   .user-filter-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .user-page-size-control {
+    min-width: 0;
+  }
 }
 
 @media (max-width: 768px) {
-  .user-manage {
+  .dialog-mask {
     padding: 14px;
   }
 
@@ -756,8 +954,18 @@ async function submitResetPassword() {
     padding-right: 0;
   }
 
+  .user-page-size-control {
+    justify-content: space-between;
+  }
+
+  .user-page-size-select {
+    width: 100%;
+  }
+
+  .form-grid,
   .user-filter-grid {
     grid-template-columns: 1fr;
   }
 }
 </style>
+<style src="../../assets/styles/admin-task-pages.css" scoped></style>

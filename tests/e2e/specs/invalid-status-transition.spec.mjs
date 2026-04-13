@@ -18,10 +18,11 @@ test('frozen batch without completed rectification cannot resume publish in UI o
 
   await page.goto(`${adminBaseUrl}/batches/3`, { waitUntil: 'networkidle' })
   await expect(page.getByTestId('batch-workbench-page')).toBeVisible()
-  await expect(page.getByTestId('workbench-risk-panel')).toBeVisible()
-  await expect(page.getByTestId('workbench-risk-checklist')).toBeVisible()
-  await expect(page.getByTestId('workbench-publish-action')).toBeDisabled()
-  await expect(page.getByText('当前结论不允许发布')).toBeVisible()
+  const riskPanel = page.getByTestId('workbench-risk-panel')
+  const quickActions = page.getByTestId('workbench-simple-actions')
+  await expect(riskPanel).toBeVisible()
+  await expect(riskPanel).toContainText('未满足条件')
+  await expect(quickActions.getByRole('button', { name: '发布批次' })).toBeDisabled()
   await saveNamedScreenshot(page, 'round12-invalid-status-frozen')
 
   const login = await loginByApi(request, platformCredentials)

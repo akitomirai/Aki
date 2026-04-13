@@ -267,6 +267,16 @@ class BatchControllerIntegrationTest extends AuthenticatedIntegrationTestSupport
     }
 
     @Test
+    void shouldVerifyTraceHashChainForBatch() throws Exception {
+        mockMvc.perform(get("/api/batches/1/trace-chain/verify"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.passed").value(true))
+                .andExpect(jsonPath("$.data.statusLabel").value("校验通过"))
+                .andExpect(jsonPath("$.data.totalRecords").value(2))
+                .andExpect(jsonPath("$.data.latestHash").isNotEmpty());
+    }
+
+    @Test
     void shouldRejectRegulatorWriteOperationsAndRecordDeniedLogs() throws Exception {
         String batchCode = "REG-READONLY-" + System.nanoTime();
         long batchId = createDraftBatch(batchCode);

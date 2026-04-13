@@ -152,11 +152,15 @@ public class UserAdminServiceImpl implements UserAdminService {
         SysUserPO userPO = findUserRequired(userId);
         ensureManageableTarget(currentUser, userPO);
 
+        String username = trimRequired(request.username(), "用户名不能为空。");
         String realName = trimRequired(request.realName(), "姓名不能为空。");
         String roleCode = normalizeRoleCode(request.roleCode(), true);
         ensureRoleAllowedForManager(currentUser, roleCode);
         Long companyId = normalizeCompanyForRole(currentUser, roleCode, request.companyId());
 
+        if (Objects.equals(currentUser.userId(), userPO.getId()) && !Objects.equals(userPO.getUsername(), username)) {
+            throw new IllegalArgumentException("不能修改当前登录账号的用户名。");
+        }
         if (Objects.equals(currentUser.userId(), userPO.getId()) && !Objects.equals(userPO.getRoleCode(), roleCode)) {
             throw new IllegalArgumentException("不能修改当前登录账号的角色。");
         }
@@ -164,6 +168,8 @@ public class UserAdminServiceImpl implements UserAdminService {
             throw new IllegalArgumentException("不能修改当前登录账号的所属企业。");
         }
 
+        ensureUsernameUnique(username, userPO.getId());
+        userPO.setUsername(username);
         userPO.setRealName(realName);
         userPO.setRoleCode(roleCode);
         userPO.setCompanyId(companyId);

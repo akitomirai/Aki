@@ -1,0 +1,18 @@
+
+> admin-web@0.0.0 dev
+> vite --host 127.0.0.1 --port 5174
+
+
+  [32m[1mVITE[22m v8.0.0-beta.16[39m  [2mready in [0m[1m470[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://127.0.0.1:[1m5174[22m/[39m
+[2m23:17:53[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/BatchWorkbenchView.vue[22m
+[2m23:39:50[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/utils/access.js[22m
+[2m23:41:25[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/FieldEntryView.vue, /src/pages/FieldEntryView.vue?vue&type=style&index=0&scoped=94e93a1f&lang.css[22m
+[2m23:44:50[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/FieldEntryView.vue, /src/pages/FieldEntryView.vue?vue&type=style&index=0&scoped=94e93a1f&lang.css[22m
+[2m23:45:40[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/FieldEntryView.vue[22m
+[2m23:47:45[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/FieldEntryView.vue, /src/pages/FieldEntryView.vue?vue&type=style&index=0&scoped=94e93a1f&lang.css[22m
+[2m23:48:26[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/FieldEntryView.vue?vue&type=style&index=0&scoped=94e93a1f&lang.css[22m
+[2m23:49:03[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/BatchWorkbenchView.vue[22m
+[2m23:49:29[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/BatchWorkbenchView.vue[22m
+[2m23:49:48[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/BatchWorkbenchView.vue?vue&type=style&index=0&scoped=9e689a76&lang.css[22m

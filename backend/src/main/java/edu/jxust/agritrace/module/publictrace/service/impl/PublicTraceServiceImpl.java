@@ -7,6 +7,7 @@ import edu.jxust.agritrace.module.batch.entity.TraceRecordEntity;
 import edu.jxust.agritrace.module.batch.service.BatchService;
 import edu.jxust.agritrace.module.batch.service.support.BatchRiskResolver;
 import edu.jxust.agritrace.module.batch.service.support.TraceDisplayLabels;
+import edu.jxust.agritrace.module.batch.vo.TraceChainVerificationVO;
 import edu.jxust.agritrace.module.publictrace.dto.PublicTraceAccessContext;
 import edu.jxust.agritrace.module.publictrace.service.PublicTraceService;
 import edu.jxust.agritrace.module.publictrace.vo.PublicCompanyVO;
@@ -44,6 +45,7 @@ public class PublicTraceServiceImpl implements PublicTraceService {
                 .max(Comparator.comparing(QualityReportEntity::reportTime))
                 .orElse(null);
         BatchRiskResolver.RiskSnapshot risk = batchRiskResolver.resolve(batch);
+        TraceChainVerificationVO verification = batchService.verifyTraceChain(batch.getId());
 
         return new PublicTraceDetailVO(
                 token,
@@ -99,6 +101,7 @@ public class PublicTraceServiceImpl implements PublicTraceService {
                         formatDateTime(risk.updatedAt()),
                         risk.tip()
                 ),
+                verification,
                 List.of(
                         "先查看批次当前状态和质检结论。",
                         "如批次已暂停流通或召回，请先按风险提示处理。",

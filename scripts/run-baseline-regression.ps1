@@ -5,8 +5,41 @@ $jsonPath = Join-Path $root 'output\playwright\full-regression-baseline.json'
 $scriptPath = Join-Path $root 'output\playwright\full-regression-baseline.mjs'
 $screenshotDir = Join-Path $root 'output\playwright'
 $playwrightDir = Join-Path $root 'tests\e2e'
+$playwrightPackagePath = Join-Path $playwrightDir 'node_modules\@playwright\test'
+$browserInstallRoot = Join-Path $env:LOCALAPPDATA 'ms-playwright'
 $logPermissionSpec = 'specs/log-permission-smoke.spec.mjs'
 $regulatorReadonlySpec = 'specs/regulator-readonly-smoke.spec.mjs'
+
+function Ensure-PlaywrightDependencies {
+    if (-not (Test-Path $playwrightPackagePath)) {
+        Write-Host 'Installing Playwright test dependencies...' -ForegroundColor Cyan
+        Push-Location $playwrightDir
+        try {
+            npm install
+            if ($LASTEXITCODE -ne 0) {
+                throw 'npm install failed in tests/e2e.'
+            }
+        }
+        finally {
+            Pop-Location
+        }
+    }
+
+    $chromiumInstalled = Get-ChildItem $browserInstallRoot -Filter 'chromium-*' -ErrorAction SilentlyContinue
+    if (-not $chromiumInstalled) {
+        Write-Host 'Installing Playwright Chromium browser...' -ForegroundColor Cyan
+        Push-Location $playwrightDir
+        try {
+            npm run install:browsers
+            if ($LASTEXITCODE -ne 0) {
+                throw 'Playwright browser install failed.'
+            }
+        }
+        finally {
+            Pop-Location
+        }
+    }
+}
 
 function Wait-HttpOk {
     param(
@@ -86,6 +119,12 @@ function Invoke-PlaywrightSmoke {
 }
 
 Write-Host 'Checking runtime before baseline regression...' -ForegroundColor Cyan
+Ensure-PlaywrightDependencies
+
+if (-not (Test-Path $screenshotDir)) {
+    New-Item -ItemType Directory -Force -Path $screenshotDir | Out-Null
+}
+
 Ensure-Service -Name 'backend' -Url 'http://127.0.0.1:8080/actuator/health'
 Ensure-Service -Name 'admin-web' -Url 'http://127.0.0.1:5174/login'
 Ensure-Service -Name 'trace-web' -Url 'http://127.0.0.1:5173'

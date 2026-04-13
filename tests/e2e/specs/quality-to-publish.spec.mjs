@@ -15,10 +15,10 @@ test('quality to publish path stays stable for demo batches', async ({ page, req
 
   await page.goto(`${adminBaseUrl}/batches/${batchId}`, { waitUntil: 'networkidle' })
   await expect(page.getByTestId('batch-workbench-page')).toBeVisible()
-  await expect(page.getByTestId('workbench-next-step-card')).toBeVisible()
+  await expect(page.getByTestId('workbench-simple-actions')).toBeVisible()
 
   const reportNo = `QA-DEMO-${Date.now()}`
-  await page.getByTestId('workbench-open-quality-dialog').click()
+  await page.getByTestId('workbench-simple-actions').getByRole('button', { name: '上传质检' }).click()
   const qualityDialog = page.getByTestId('workbench-quality-dialog')
   await expect(qualityDialog).toBeVisible()
   await qualityDialog.locator('label').filter({ hasText: '报告编号' }).locator('input').fill(reportNo)
@@ -27,21 +27,23 @@ test('quality to publish path stays stable for demo batches', async ({ page, req
   await qualityDialog.locator('label').filter({ hasText: '质检摘要' }).locator('textarea').fill('答辩演示批次质检合格\n允许进入发布环节')
   await page.getByTestId('workbench-dialog-submit').click()
 
-  await expect(page.getByTestId('workbench-quality-panel')).toContainText(reportNo)
-  await expect(page.getByTestId('workbench-quality-panel')).toContainText('合格')
+  const qualitySection = page.locator('.simple-main-grid').getByText(reportNo).first()
+  await expect(qualitySection).toBeVisible()
+  await expect(page.locator('.simple-main-grid')).toContainText('合格')
 
-  await page.getByTestId('workbench-qr-action-0').click()
-  await expect(page.getByTestId('workbench-qr-status')).toContainText('已生成')
-  await expect(page.getByTestId('workbench-public-preview')).toBeVisible()
+  const quickActions = page.getByTestId('workbench-simple-actions')
+  await quickActions.getByRole('button', { name: '生成二维码' }).click()
+  await expect(quickActions.getByRole('button', { name: '二维码已生成' })).toBeVisible()
+  await expect(quickActions.getByRole('button', { name: '查看公开页' })).toBeVisible()
 
-  await page.getByTestId('workbench-publish-action').click()
+  await quickActions.getByRole('button', { name: '发布批次' }).click()
   await expect(page.getByTestId('workbench-status-dialog')).toBeVisible()
   page.once('dialog', (dialog) => dialog.accept())
   await page.getByTestId('workbench-dialog-submit').click()
 
   const statusBadge = page.locator('.status-badge.published').first()
   await expect(statusBadge).toContainText('已发布')
-  await expect(page.getByTestId('workbench-public-preview')).toBeVisible()
+  await expect(quickActions.getByRole('button', { name: '查看公开页' })).toBeVisible()
   await saveNamedScreenshot(page, 'round12-quality-to-publish-workbench')
 
   const workbenchPayload = await getBatchWorkbenchByApi(request, batchId)
@@ -49,7 +51,7 @@ test('quality to publish path stays stable for demo batches', async ({ page, req
   expect(workbenchPayload.data.qr.generated).toBe(true)
 
   const popupPromise = page.waitForEvent('popup')
-  await page.getByTestId('workbench-public-preview').click()
+  await quickActions.getByRole('button', { name: '查看公开页' }).click()
   const popup = await popupPromise
   await popup.waitForLoadState('networkidle')
   await expect(popup.getByTestId('public-trace-page')).toBeVisible()

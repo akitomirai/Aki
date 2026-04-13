@@ -19,6 +19,7 @@ import edu.jxust.agritrace.module.batch.vo.FieldDraftVO;
 import edu.jxust.agritrace.module.batch.vo.FileAssetVO;
 import edu.jxust.agritrace.module.batch.vo.OperatorOptionVO;
 import edu.jxust.agritrace.module.batch.vo.ProductOptionVO;
+import edu.jxust.agritrace.module.batch.vo.TraceChainVerificationVO;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -131,6 +132,11 @@ public class BatchController {
     @PostMapping("/{batchId}/records/quick")
     public ApiResponse<BatchWorkbenchVO> addQuickTraceRecord(@PathVariable Long batchId, @Valid @RequestBody TraceRecordCreateRequest request) {
         return ApiResponse.ok("追溯记录已补充。", batchService.addTraceRecord(batchId, request));
+    }
+
+    @GetMapping("/{batchId}/trace-chain/verify")
+    public ApiResponse<TraceChainVerificationVO> verifyTraceChain(@PathVariable Long batchId) {
+        return ApiResponse.ok("追溯链校验已完成。", batchService.verifyTraceChain(batchId));
     }
 
     @PostMapping("/{batchId}/assignment")

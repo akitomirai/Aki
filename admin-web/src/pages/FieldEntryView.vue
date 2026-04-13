@@ -196,6 +196,7 @@ const advancedFieldSummary = computed(() => {
   const operatorText = traceForm.value.operatorName || defaultOperatorName(currentProfile.value.defaultOperator)
   return `${timeText} · ${locationText} · ${operatorText} · ${traceForm.value.visibleToConsumer ? '会同步到追溯页' : '仅后台可见'}`
 })
+const fieldEntryAccountLabel = computed(() => authStore.user?.realName || authStore.user?.username || '当前账号')
 
 const demoFlowSteps = computed(() => {
   const steps = ['补现场记录']
@@ -649,6 +650,19 @@ function openBatchWorkbench(batchId = selectedBatchId.value) {
   router.push(`/batches/${batchId}`)
 }
 
+function handleLogout() {
+  const hasActiveEntry = Boolean(selectedBatchId.value)
+  if (hasActiveEntry) {
+    const confirmed = window.confirm('退出登录后会返回登录页，当前未提交内容请先保存草稿。确认退出吗？')
+    if (!confirmed) {
+      return
+    }
+  }
+  authStore.logout()
+  ElMessage.success('已退出登录')
+  router.replace('/login')
+}
+
 function setTaskFilter(value) {
   taskFilter.value = value
 }
@@ -1013,6 +1027,10 @@ async function submitFieldRecord() {
   <div class="field-page" data-testid="field-entry-page">
     <template v-if="!selectedBatchId">
       <header class="list-shell" data-testid="field-entry-todo-view">
+        <div class="list-shell-topbar">
+          <span class="meta-tag subtle-tag">{{ fieldEntryAccountLabel }}</span>
+          <button class="ghost-button compact" data-testid="field-entry-logout" @click="handleLogout">退出登录</button>
+        </div>
         <div class="shell-copy">
           <p class="eyebrow">操作员手机端</p>
           <h1>现场作业工作台</h1>
@@ -1163,7 +1181,10 @@ async function submitFieldRecord() {
 
     <template v-else>
       <header class="field-header">
-        <button class="back-button" @click="closeBatch()">返回{{ listViewMode === 'drafts' ? '我的草稿' : '待办批次' }}</button>
+        <div class="field-header-top">
+          <button class="back-button" @click="closeBatch()">返回{{ listViewMode === 'drafts' ? '我的草稿' : '待办批次' }}</button>
+          <button class="ghost-button compact" data-testid="field-entry-logout" @click="handleLogout">退出登录</button>
+        </div>
         <div class="field-header-body">
           <div class="field-header-copy">
             <p class="eyebrow">现场作业</p>
@@ -1583,10 +1604,17 @@ async function submitFieldRecord() {
 .task-actions,
 .task-flags,
 .image-actions,
-.header-pills {
+.header-pills,
+.field-header-top,
+.list-shell-topbar {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.list-shell-topbar {
+  align-items: center;
+  justify-content: space-between;
 }
 
 .mode-switch,
@@ -1934,6 +1962,11 @@ async function submitFieldRecord() {
   margin-bottom: 14px;
 }
 
+.field-header-top {
+  align-items: center;
+  justify-content: space-between;
+}
+
 .field-header-copy p:last-child {
   margin-top: 6px;
 }
@@ -1989,6 +2022,11 @@ async function submitFieldRecord() {
   color: var(--admin-primary-deep);
   font-size: 12px;
   font-weight: 700;
+}
+
+.subtle-tag {
+  background: rgba(15, 39, 68, 0.06);
+  color: var(--admin-text-soft);
 }
 
 .entry-guide-grid {
@@ -2287,6 +2325,12 @@ textarea {
   }
 
   .draft-banner {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .field-header-top,
+  .list-shell-topbar {
     align-items: flex-start;
     flex-direction: column;
   }

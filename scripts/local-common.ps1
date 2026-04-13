@@ -23,7 +23,7 @@ $script:ServiceCatalog = [ordered]@{
         DisplayName = 'trace-web'
         Port = 5173
         Url = 'http://127.0.0.1:5173'
-        ProbeUrl = 'http://127.0.0.1:5173/t/orange-202603-d1'
+        ProbeUrl = 'http://127.0.0.1:5173/'
         LogFileName = 'trace-web.log'
     }
 }
@@ -229,6 +229,103 @@ function Wait-PortListening {
     do {
         $records = Get-PortListenerRecords -Port $Port
         if ($records.Count -gt 0) {
+            return $true
+        }
+        Start-Sleep -Seconds 1
+    } while ((Get-Date) -lt $deadline)
+
+    return $false
+}
+
+function Get-NormalizedLogText {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    if (-not (Test-Path $Path)) {
+        return ''
+    }
+
+    try {
+        $bytes = [System.IO.File]::ReadAllBytes($Path)
+        if ($null -eq $bytes -or $bytes.Length -eq 0) {
+            return ''
+        }
+
+        $filteredBytes = New-Object System.Collections.Generic.List[byte]
+        foreach ($byte in $bytes) {
+            if ($byte -ne 0) {
+                [void]$filteredBytes.Add($byte)
+            }
+        }
+
+        $text = [System.Text.Encoding]::UTF8.GetString($filteredBytes.ToArray())
+        $ansiPattern = [string]([char]27) + '\[[0-9;?]*[ -/]*[@-~]'
+        return [regex]::Replace($text, $ansiPattern, '')
+    }
+    catch {
+        return ''
+    }
+}
+
+function Test-ViteReadyLog {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+        [Parameter(Mandatory = $true)]
+        [string]$Url
+    )
+
+    $text = Get-NormalizedLogText -Path $Path
+    if ([string]::IsNullOrWhiteSpace($text)) {
+        return $false
+    }
+
+    $uri = [System.Uri]$Url
+    $urlPattern = [regex]::Escape($uri.AbsoluteUri)
+    $portPattern = [regex]::Escape(":$($uri.Port)/")
+
+    return (
+        ($text -match 'vite\s+v' -or $text -match 'VITE\s+v') -and
+        $text -match 'ready in' -and
+        (
+            $text -match $urlPattern -or
+            ($text -match 'Local' -and $text -match $portPattern)
+        )
+    )
+}
+
+function Wait-ViteReadyAndHttpOk {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$LogPath,
+        [Parameter(Mandatory = $true)]
+        [string]$Url,
+        [int]$TimeoutSeconds = 30
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    $sawReadyLog = $false
+    $httpSuccessCount = 0
+    do {
+        $sawReadyLog = $sawReadyLog -or (Test-ViteReadyLog -Path $LogPath -Url $Url)
+        $httpReady = (Get-HttpResult -Url $Url).Ok
+
+        if ($httpReady) {
+            $httpSuccessCount += 1
+        }
+        else {
+            $httpSuccessCount = 0
+        }
+
+        if ($sawReadyLog -and $httpReady) {
+            return $true
+        }
+
+        # Vite running behind a hidden runner can flush "ready" logs late.
+        # Once HTTP is stably healthy for several probes, treat the service as ready.
+        if ($httpSuccessCount -ge 3) {
             return $true
         }
         Start-Sleep -Seconds 1

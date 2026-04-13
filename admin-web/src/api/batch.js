@@ -50,6 +50,10 @@ export function getBatchDetail(id) {
   return http.get(`/batches/${id}`)
 }
 
+export function verifyBatchTraceChain(id) {
+  return getBatchPath(id, 'trace-chain/verify')
+}
+
 export function createBatch(data) {
   return http.post('/batches', data)
 }

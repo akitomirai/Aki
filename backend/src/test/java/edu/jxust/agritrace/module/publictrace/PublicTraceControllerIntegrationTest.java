@@ -46,6 +46,9 @@ class PublicTraceControllerIntegrationTest extends AuthenticatedIntegrationTestS
                 .andExpect(jsonPath("$.data.timeline").isArray())
                 .andExpect(jsonPath("$.data.quality").exists())
                 .andExpect(jsonPath("$.data.company").exists())
+                .andExpect(jsonPath("$.data.verification.passed").value(true))
+                .andExpect(jsonPath("$.data.verification.statusLabel").value("校验通过"))
+                .andExpect(jsonPath("$.data.verification.latestHash", notNullValue()))
                 .andExpect(jsonPath("$.data.risk.status").value("NORMAL"));
 
         long afterPv = batchService.getBatchWorkbench(1L).qr().pv();

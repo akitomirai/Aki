@@ -19,12 +19,14 @@ test('admin batch list and workbench support the main smoke path', async ({ page
   await page.getByTestId(`batch-open-workbench-${batchId}`).click()
   await expect(page).toHaveURL(new RegExp(`/batches/${batchId}$`))
   await expect(page.getByTestId('batch-workbench-page')).toBeVisible()
-  await expect(page.getByTestId('workbench-next-step-card')).toBeVisible()
-  await expect(page.getByTestId('workbench-action-groups')).toBeVisible()
+  await expect(page.getByTestId('workbench-simple-actions')).toBeVisible()
+  await expect(page.getByTestId('workbench-trace-chain-panel')).toBeVisible()
+  await expect(page.getByTestId('workbench-trace-chain-panel')).toContainText('可信溯源校验')
 
-  await page.getByTestId('workbench-qr-action-0').click()
-  await expect(page.getByTestId('workbench-qr-status')).toContainText('已生成')
-  await expect(page.getByTestId('workbench-public-preview')).toBeVisible()
+  const quickActions = page.getByTestId('workbench-simple-actions')
+  await quickActions.getByRole('button', { name: '生成二维码' }).click()
+  await expect(quickActions.getByRole('button', { name: '二维码已生成' })).toBeVisible()
+  await expect(quickActions.getByRole('button', { name: '查看公开页' })).toBeVisible()
   await saveNamedScreenshot(page, 'round8-admin-workbench-after-qr')
 
   const workbenchResponse = await request.get(`${apiBaseUrl}/batches/${batchId}`, {
