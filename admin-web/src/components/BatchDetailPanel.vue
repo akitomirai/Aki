@@ -229,6 +229,73 @@ const infoItems = computed(() => [
   { label: '公开页状态', value: canPreviewPublic.value ? '已开放' : '未开放', hint: canPreviewPublic.value ? '右上角可直接查看公开页' : '先生成二维码后开放' },
   { label: '最近更新时间', value: formatDateTime(resolveLatestActivityTime()), hint: latestRiskAction.value ? `最近风险动作：${latestRiskActionLabel.value}` : (latestRecord.value?.title ? `最近记录：${latestRecord.value.title}` : '暂无最近动作') }
 ])
+const traceTimelineSection = computed(() => detail.value?.traceTimeline ?? {
+  totalCount: 0,
+  phaseCount: 0,
+  currentPhaseLabel: '暂无关键节点',
+  currentStatusLabel: batchStatusText.value,
+  items: []
+})
+const traceTimelineItems = computed(() => traceTimelineSection.value?.items ?? [])
+const traceTimelineSummaryCards = computed(() => ([
+  {
+    label: '关键节点',
+    value: `${traceTimelineSection.value.totalCount || 0} 个`,
+    hint: `覆盖 ${traceTimelineSection.value.phaseCount || 0} 个阶段`
+  },
+  {
+    label: '当前阶段',
+    value: traceTimelineSection.value.currentPhaseLabel || '暂无',
+    hint: '时间轴按业务阶段自动分组'
+  },
+  {
+    label: '当前状态',
+    value: traceTimelineSection.value.currentStatusLabel || batchStatusText.value,
+    hint: canPreviewPublic.value ? '已具备公开追溯讲解条件' : '当前仍在内部处理阶段'
+  }
+]))
+const traceTimelineStatusChips = computed(() => {
+  const chips = []
+  const seen = new Set()
+
+  const pushChip = (label, tone = 'subtle') => {
+    const key = `${tone}:${label}`
+    if (!label || seen.has(key)) return
+    seen.add(key)
+    chips.push({ label, tone })
+  }
+
+  ;(detail.value?.statusHistory ?? []).slice().reverse().forEach((item) => {
+    const tone = {
+      DRAFT: 'subtle',
+      PUBLISHED: 'success',
+      FROZEN: 'warning',
+      RECALLED: 'danger'
+    }[String(item.status || '').toUpperCase()] ?? 'subtle'
+    pushChip(item.statusLabel, tone)
+  })
+
+  pushChip(detail.value?.quality?.label, qualityAllowsPublish.value ? 'success' : (qualityUploaded.value ? 'warning' : 'subtle'))
+  pushChip(qrStatusText.value, qrGenerated.value ? 'info' : 'subtle')
+
+  return chips.slice(0, 6)
+})
+const traceTimelinePhaseGroups = computed(() => {
+  const groups = []
+  for (const item of traceTimelineItems.value) {
+    const lastGroup = groups[groups.length - 1]
+    if (!lastGroup || lastGroup.code !== item.phaseCode) {
+      groups.push({
+        code: item.phaseCode,
+        label: item.phaseLabel,
+        items: [item]
+      })
+      continue
+    }
+    lastGroup.items.push(item)
+  }
+  return groups
+})
 const previewRecords = computed(() => recentRecords.value.slice(0, 3))
 const allRecords = computed(() => recentRecords.value)
 const assignmentSummaryItems = computed(() => [
@@ -310,6 +377,13 @@ function formatDateTime(value) {
   if (Number.isNaN(date.getTime())) return raw.replace('T', ' ')
   const pad = (number) => String(number).padStart(2, '0')
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+function timelineResultTone(item) {
+  const resultCode = String(item?.resultCode || '').toUpperCase()
+  if (['PASS', 'SUCCESS', 'PUBLISHED', 'ACTIVE'].includes(resultCode)) return 'success'
+  if (['FAIL', 'FAILED', 'RECALLED'].includes(resultCode)) return 'danger'
+  if (['FROZEN', 'PROCESSING', 'RECTIFIED'].includes(resultCode)) return 'warning'
+  return 'subtle'
 }
 function resolveLatestActivityTime() {
   return detail.value?.batch?.updatedAt || latestRiskAction.value?.createdAt || latestRiskAction.value?.operatedAt || latestRecord.value?.eventTime || latestRecord.value?.createdAt || detail.value?.batch?.createdAt || ''
@@ -741,6 +815,75 @@ onMounted(async () => {
               <strong class="status-card-value">{{ card.value }}</strong>
               <p class="status-card-copy">{{ card.description }}</p>
             </article>
+          </div>
+        </section>
+
+        <section class="detail-panel" data-testid="workbench-trace-timeline-panel">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">特色功能</p>
+              <h2>溯源时间轴回放</h2>
+              <p>按阶段回放该批次从建档到公开发布的关键节点。</p>
+            </div>
+          </div>
+          <div class="timeline-feature-summary">
+            <article v-for="item in traceTimelineSummaryCards" :key="item.label" class="status-card">
+              <span class="card-label">{{ item.label }}</span>
+              <strong class="status-card-value inline-card-value">{{ item.value }}</strong>
+              <p class="status-card-copy">{{ item.hint }}</p>
+            </article>
+          </div>
+          <div class="timeline-status-strip">
+            <span
+              v-for="item in traceTimelineStatusChips"
+              :key="`${item.tone}-${item.label}`"
+              class="detail-pill"
+              :class="`timeline-pill-${item.tone}`"
+            >
+              {{ item.label }}
+            </span>
+          </div>
+          <div v-if="traceTimelinePhaseGroups.length" class="timeline-feature-groups">
+            <section
+              v-for="group in traceTimelinePhaseGroups"
+              :key="group.code"
+              class="timeline-feature-group"
+              :data-testid="`trace-timeline-phase-${group.code.toLowerCase()}`"
+            >
+              <div class="timeline-feature-group-head">
+                <div>
+                  <span class="card-label">{{ group.label }}</span>
+                  <strong>{{ group.items.length }} 个节点</strong>
+                </div>
+              </div>
+              <div class="timeline-feature-list">
+                <article
+                  v-for="item in group.items"
+                  :key="item.key"
+                  class="timeline-feature-item"
+                  :class="{ 'is-highlighted': item.highlighted }"
+                >
+                  <div class="timeline-feature-marker">
+                    <span class="timeline-feature-dot"></span>
+                  </div>
+                  <div class="timeline-feature-body">
+                    <div class="timeline-feature-top">
+                      <strong>{{ item.title }}</strong>
+                      <span class="detail-pill" :class="`timeline-pill-${timelineResultTone(item)}`">{{ item.resultLabel }}</span>
+                    </div>
+                    <div class="record-meta">
+                      <span>{{ item.eventTime }}</span>
+                      <span>{{ item.operatorName }}</span>
+                      <span>{{ item.operatorRole }}</span>
+                    </div>
+                    <p class="timeline-feature-copy">{{ item.summary }}</p>
+                  </div>
+                </article>
+              </div>
+            </section>
+          </div>
+          <div v-else class="empty-panel compact">
+            <strong>当前还没有可回放的关键节点。</strong>
           </div>
         </section>
 

@@ -2,6 +2,8 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { changeBatchStatus, generateBatchQr, getBatchDetail, getBatchList } from '../api/batch'
+import AdminListPagination from '../components/AdminListPagination.vue'
+import AdminPageHeader from '../components/AdminPageHeader.vue'
 import { useAuthStore } from '../stores/auth'
 import { getFriendlyErrorMessage } from '../utils/batchExperience'
 import { resolvePublishBlockState } from '../utils/batchStatusFlow'
@@ -28,12 +30,17 @@ const selectedIds = ref([])
 const DEFAULT_PAGE_SIZE = 10
 const page = ref(1)
 const pageSize = ref(DEFAULT_PAGE_SIZE)
+const pageTitle = '二维码发布'
+const pageSubtitle = '统一查看二维码生成、发布校验、公开入口与批量打印状态，适合做答辩演示台账。'
 const pageSizeOptions = [
   { value: 10, label: '10 条 / 页' },
   { value: 20, label: '20 条 / 页' },
   { value: 50, label: '50 条 / 页' },
   { value: 100, label: '100 条 / 页' }
 ]
+
+const cleanPageTitle = '二维码与发布'
+const cleanPageSubtitle = ''
 
 const tabs = [
   { value: 'NEED_QR', label: '待生成二维码' },
@@ -96,6 +103,20 @@ const qrOverviewCards = computed(() => ([
     detail: '仍有前置条件没有满足'
   }
 ]))
+const qrBoardCards = computed(() => {
+  return qrOverviewCards.value.map((item) => ({
+    key: item.value,
+    label: item.label,
+    value: item.count,
+    detail: item.detail
+  }))
+})
+const qrSummaryTabs = computed(() => ([
+  { value: 'NEED_QR', label: '待生成', count: tabCounts.value.NEED_QR ?? 0 },
+  { value: 'READY', label: '待发布', count: tabCounts.value.READY ?? 0 },
+  { value: 'PUBLISHED', label: '已发布', count: tabCounts.value.PUBLISHED ?? 0 },
+  { value: 'BLOCKED', label: '不可发布', count: tabCounts.value.BLOCKED ?? 0 }
+]))
 
 const publishDialogError = computed(() => {
   if (!publishDialog.value.visible) {
@@ -125,6 +146,18 @@ const listSummary = computed(() => {
   const to = Math.min(filteredRows.value.length, page.value * pageSize.value)
   return `共 ${filteredRows.value.length} 个批次，当前显示 ${from}-${to} 个。`
 })
+
+const paginationSummary = computed(() => `第 ${page.value} / ${pageCount.value} 页`)
+
+const cleanListSummary = computed(() => {
+  if (!filteredRows.value.length) {
+    return '暂无批次数据。'
+  }
+  const from = (page.value - 1) * pageSize.value + 1
+  const to = Math.min(filteredRows.value.length, page.value * pageSize.value)
+  return `共 ${filteredRows.value.length} 个批次，当前显示 ${from}-${to} 个。`
+})
+const cleanPaginationSummary = computed(() => `第 ${page.value} / ${pageCount.value} 页`)
 
 onMounted(async () => {
   await fetchRows()
@@ -318,6 +351,28 @@ function publishHint(item) {
   return actionOf(item, 'PUBLISH').hint || actionOf(item, 'RESUME').hint || '当前还不满足发布条件。'
 }
 
+function qrStageText(item) {
+  const published = String(item.status || '').toUpperCase() === 'PUBLISHED'
+  if (published) {
+    return '已发布'
+  }
+  if (!hasQr(item)) {
+    return '待生成'
+  }
+  if (canPublish(item)) {
+    return '待发布'
+  }
+  return '不可发布'
+}
+
+function qrStageTone(item) {
+  const stage = qrStageText(item)
+  if (stage === '已发布') return 'success'
+  if (stage === '待发布') return 'info'
+  if (stage === '待生成') return 'pending'
+  return 'warning'
+}
+
 function currentStateChips(item) {
   return [
     {
@@ -362,8 +417,69 @@ function compactPublishChecks(item) {
   }]
 }
 
+function qrStatusChips(item) {
+  const chips = [
+    {
+      key: 'batch',
+      label: item.statusLabel || '状态待确认',
+      tone: statusClass(item.status)
+    },
+    {
+      key: 'qr',
+      label: hasQr(item) ? '二维码已生成' : '待生成二维码',
+      tone: hasQr(item) ? 'info' : 'pending'
+    }
+  ]
+
+  if (String(item.status || '').toUpperCase() === 'PUBLISHED') {
+    chips.push({
+      key: 'publish',
+      label: '已发布',
+      tone: 'success'
+    })
+  } else if (canPublish(item)) {
+    chips.push({
+      key: 'publish',
+      label: '可发布',
+      tone: 'success'
+    })
+  }
+
+  return chips
+}
+
 function latestUpdatedText(item) {
   return item.lastUpdatedAt || item.latestTraceTime || '暂无更新'
+}
+
+function compactQrStatusChips(item) {
+  return [
+    {
+      key: 'batch',
+      label: item.statusLabel || '状态待确认',
+      tone: statusClass(item.status)
+    },
+    {
+      key: 'stage',
+      label: qrStageText(item),
+      tone: qrStageTone(item)
+    }
+  ]
+}
+
+function shortQrToken(item) {
+  const token = String(item.qrToken || '').trim()
+  if (!token) {
+    return '暂无公开标识'
+  }
+  if (token.length <= 18) {
+    return token
+  }
+  return `${token.slice(0, 10)}...${token.slice(-4)}`
+}
+
+function displayPublishTime(item) {
+  return item.marketDate || latestUpdatedText(item)
 }
 
 function printTimestamp() {
@@ -755,7 +871,30 @@ async function submitPublish() {
 <template>
   <div class="page-shell" data-testid="qr-publish-page">
     <div class="manage-page qr-manage">
+    <AdminPageHeader :title="cleanPageTitle" :subtitle="cleanPageSubtitle">
+      <template #actions>
+        <button class="ghost" data-testid="qr-refresh-button" :disabled="loading" @click="fetchRows">刷新</button>
+      </template>
+    </AdminPageHeader>
+
     <div class="manage-summary-row">
+      <div class="manage-summary">
+        <button
+          v-for="item in qrSummaryTabs"
+          :key="item.value"
+          type="button"
+          class="manage-summary-chip manage-summary-chip--interactive"
+          :class="{ 'is-active': activeTab === item.value }"
+          :data-testid="`qr-tab-${item.value}`"
+          @click="activeTab = item.value"
+        >
+          <span>{{ item.label }}</span>
+          <strong>{{ item.count }}</strong>
+        </button>
+      </div>
+    </div>
+
+    <div v-if="false" class="manage-summary-row">
       <div class="manage-summary">
         <button
           v-for="card in qrOverviewCards"
@@ -763,7 +902,7 @@ async function submitPublish() {
           type="button"
           class="manage-summary-chip manage-summary-chip--interactive"
           :class="{ 'is-active': activeTab === card.value }"
-          :data-testid="`qr-tab-${card.value}`"
+          :data-testid="`qr-tab-legacy-${card.value}`"
           @click="activeTab = card.value"
         >
           <span>{{ card.label }}</span>
@@ -771,7 +910,7 @@ async function submitPublish() {
         </button>
       </div>
 
-      <div class="manage-summary-actions">
+      <div v-if="false" class="manage-summary-actions">
         <button class="ghost" data-testid="qr-refresh-button" :disabled="loading" @click="fetchRows">刷新</button>
       </div>
     </div>
@@ -794,24 +933,24 @@ async function submitPublish() {
             </option>
           </select>
         </label>
-        <div class="qr-page-size-control">
+        <div class="page-size-control qr-page-size-control">
           <span class="manage-muted">每页显示</span>
-          <select v-model="pageSize" data-testid="qr-page-size" class="qr-page-size-select" @change="handlePageSizeChange($event.target.value)">
+          <select v-model="pageSize" data-testid="qr-page-size" class="page-size-select qr-page-size-select" @change="handlePageSizeChange($event.target.value)">
             <option v-for="item in pageSizeOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
           </select>
         </div>
-        <div class="toolbar-actions qr-filter-actions">
+        <div class="toolbar-actions filter-actions qr-filter-actions">
           <button class="primary" data-testid="qr-search-button" :disabled="loading" @click="handleSearch">查询</button>
           <button class="ghost" :disabled="loading" @click="resetFilters">重置</button>
         </div>
       </div>
 
-      <div class="toolbar qr-filter-meta">
-        <div class="list-summary">{{ listSummary }}</div>
+      <div class="toolbar filter-meta qr-filter-meta">
+        <div class="list-summary">{{ cleanListSummary }}</div>
       </div>
 
-      <div class="toolbar qr-bulk-toolbar">
-        <div class="list-summary">已勾选 {{ selectedPrintableRows.length }} 个可打印批次</div>
+      <div class="toolbar list-toolbar qr-bulk-toolbar" :class="{ 'has-selection': selectedPrintableRows.length }">
+        <div class="list-summary">已选 {{ selectedPrintableRows.length }} 项</div>
         <div class="toolbar-actions">
           <button
             class="ghost"
@@ -845,7 +984,7 @@ async function submitPublish() {
 
     <section class="panel ledger-panel qr-ledger-panel">
       <div class="panel-heading">
-        <div>
+        <div class="panel-heading__copy">
           <h2 class="panel-heading__title">二维码与发布台账</h2>
         </div>
       </div>
@@ -867,9 +1006,8 @@ async function submitPublish() {
           <span>选择</span>
           <span>批次</span>
           <span>企业 / 更新时间</span>
-          <span>当前状态</span>
-          <span>发布前检查</span>
-          <span>二维码 / 公开入口</span>
+          <span>状态</span>
+          <span>公开标识</span>
           <span>操作</span>
         </div>
 
@@ -905,7 +1043,7 @@ async function submitPublish() {
           <div class="row-status qr-status-overview">
             <div class="status-chip-row qr-status-chip-row">
               <span
-                v-for="chip in currentStateChips(item)"
+                v-for="chip in compactQrStatusChips(item)"
                 :key="chip.key"
                 class="status-chip"
                 :class="chip.tone"
@@ -915,23 +1053,9 @@ async function submitPublish() {
             </div>
           </div>
 
-          <div class="row-status qr-publish-overview">
-            <strong class="publish-summary" :class="publishToneClass(item)">{{ publishSummary(item) }}</strong>
-            <div class="status-chip-row qr-check-chip-row">
-              <span
-                v-for="entry in compactPublishChecks(item)"
-                :key="entry.key"
-                class="qr-check-chip"
-                :class="entry.tone"
-              >
-                {{ entry.label }}
-              </span>
-            </div>
-          </div>
-
           <div class="row-meta qr-entry-panel">
-            <strong>{{ item.qrToken || '暂无公开标识' }}</strong>
-            <small v-if="item.marketDate">公开时间：{{ item.marketDate }}</small>
+            <strong :title="item.qrToken || '暂无公开标识'">{{ shortQrToken(item) }}</strong>
+            <small>{{ displayPublishTime(item) }}</small>
           </div>
 
           <div class="row-actions">
@@ -992,7 +1116,17 @@ async function submitPublish() {
         </div>
       </div>
 
-      <div class="toolbar qr-pagination">
+      <AdminListPagination
+        :summary="cleanPaginationSummary"
+        :prev-disabled="loading || page <= 1"
+        :next-disabled="loading || page >= pageCount"
+        prev-testid="qr-prev-page"
+        next-testid="qr-next-page"
+        @prev="goPrevPage"
+        @next="goNextPage"
+      />
+
+      <div v-if="false" class="toolbar qr-pagination">
         <span class="list-summary">第 {{ page }} / {{ pageCount }} 页</span>
         <div class="toolbar-actions">
           <button class="ghost" data-testid="qr-prev-page" :disabled="loading || page <= 1" @click="goPrevPage">上一页</button>
@@ -1066,7 +1200,6 @@ async function submitPublish() {
             :class="{ done: entry.done, blocked: !entry.done }"
           >
             <strong>{{ entry.label }}</strong>
-            <small>{{ entry.detail }}</small>
           </article>
         </div>
 
@@ -1080,8 +1213,6 @@ async function submitPublish() {
         </label>
 
         <p v-if="publishDialogError" class="form-error">{{ publishDialogError }}</p>
-
-          <p class="hint-note" style="margin-top: 14px;">不可发布时，先回列表查看阻塞项或回详情补齐质检、二维码和风险处理。</p>
 
         <div class="dialog-actions" style="margin-top: 18px;">
           <button class="ghost" :disabled="publishSubmitting" @click="closePublishDialog">取消</button>
@@ -1172,16 +1303,23 @@ async function submitPublish() {
   border-top: 1px solid rgba(56, 134, 217, 0.1);
 }
 
+.qr-bulk-toolbar:not(.has-selection) {
+  justify-content: flex-end;
+}
+
+.qr-bulk-toolbar:not(.has-selection) > .list-summary {
+  display: none;
+}
+
 .qr-head,
 .qr-row {
   grid-template-columns:
     minmax(34px, 0.18fr)
-    minmax(0, 1.16fr)
-    minmax(0, 0.9fr)
-    minmax(0, 0.7fr)
-    minmax(0, 0.82fr)
-    minmax(0, 0.72fr)
-    minmax(0, 1.6fr);
+    minmax(0, 1.2fr)
+    minmax(0, 1fr)
+    minmax(0, 1.1fr)
+    minmax(0, 0.95fr)
+    minmax(0, 1.4fr);
 }
 
 .row-select {
@@ -1205,10 +1343,6 @@ async function submitPublish() {
 .qr-table-shell .ledger-table-head,
 .qr-table-shell .ledger-row-list {
   width: 100%;
-  min-width: 0;
-}
-
-.qr-publish-overview {
   min-width: 0;
 }
 
@@ -1311,8 +1445,15 @@ async function submitPublish() {
   min-width: 0;
 }
 
-.qr-status-overview,
-.qr-publish-overview {
+.qr-entry-panel strong {
+  display: block;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qr-status-overview {
   gap: 6px;
 }
 
@@ -1402,3 +1543,5 @@ async function submitPublish() {
   }
 }
 </style>
+
+<style src="../assets/styles/admin-ledger-unified.css" scoped></style>

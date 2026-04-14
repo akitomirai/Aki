@@ -11,6 +11,7 @@ public record BatchWorkbenchVO(
         BatchRiskSummaryVO risk,
         RiskHandlingSectionVO riskHandling,
         TraceSectionVO trace,
+        TraceTimelineSectionVO traceTimeline,
         QualitySectionVO quality,
         QrSummaryVO qr,
         ScanStatsSectionVO scanStats,

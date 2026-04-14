@@ -93,8 +93,13 @@ import edu.jxust.agritrace.module.batch.vo.ScanTrendPointVO;
 import edu.jxust.agritrace.module.batch.vo.TraceChainVerificationVO;
 import edu.jxust.agritrace.module.batch.vo.TraceRecordVO;
 import edu.jxust.agritrace.module.batch.vo.TraceSectionVO;
+import edu.jxust.agritrace.module.batch.vo.TraceTimelineItemVO;
+import edu.jxust.agritrace.module.batch.vo.TraceTimelineSectionVO;
 import edu.jxust.agritrace.module.log.dto.OperationLogRecord;
+import edu.jxust.agritrace.module.log.mapper.OperationAuditLogMapper;
+import edu.jxust.agritrace.module.log.mapper.po.OperationAuditLogPO;
 import edu.jxust.agritrace.module.log.service.OperationLogService;
+import edu.jxust.agritrace.module.log.service.support.OperationLogLabels;
 import edu.jxust.agritrace.module.publictrace.dto.PublicTraceAccessContext;
 import org.springframework.core.io.Resource;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -143,6 +148,7 @@ public class BatchServiceImpl implements BatchService {
     private final QrCodeMapper qrCodeMapper;
     private final BatchStatusLogMapper batchStatusLogMapper;
     private final QrQueryLogMapper qrQueryLogMapper;
+    private final OperationAuditLogMapper operationAuditLogMapper;
     private final ObjectMapper objectMapper;
     private final MasterDataService masterDataService;
     private final TraceLinkBuilder traceLinkBuilder;
@@ -166,6 +172,7 @@ public class BatchServiceImpl implements BatchService {
             QrCodeMapper qrCodeMapper,
             BatchStatusLogMapper batchStatusLogMapper,
             QrQueryLogMapper qrQueryLogMapper,
+            OperationAuditLogMapper operationAuditLogMapper,
             ObjectMapper objectMapper,
             MasterDataService masterDataService,
             TraceLinkBuilder traceLinkBuilder,
@@ -188,6 +195,7 @@ public class BatchServiceImpl implements BatchService {
         this.qrCodeMapper = qrCodeMapper;
         this.batchStatusLogMapper = batchStatusLogMapper;
         this.qrQueryLogMapper = qrQueryLogMapper;
+        this.operationAuditLogMapper = operationAuditLogMapper;
         this.objectMapper = objectMapper;
         this.masterDataService = masterDataService;
         this.traceLinkBuilder = traceLinkBuilder;
@@ -1202,6 +1210,7 @@ public class BatchServiceImpl implements BatchService {
                         "优先用快速录入补齐关键节点，只填阶段、地点、说明和时间。",
                         sortedTraceRecords.stream().limit(6).toList()
                 ),
+                buildTraceTimeline(batch, statusHistory, sortedQualityReports, batch.getQrCode()),
                 new QualitySectionVO(
                         latestQuality == null ? "PENDING" : latestQuality.result(),
                         latestQuality == null ? TraceDisplayLabels.qualityStatus(null) : latestQuality.resultLabel(),
@@ -1215,6 +1224,297 @@ public class BatchServiceImpl implements BatchService {
                 statusHistory,
                 buildActions(batch)
         );
+    }
+
+    private TraceTimelineSectionVO buildTraceTimeline(
+            BatchEntity batch,
+            List<BatchStatusLogVO> statusHistory,
+            List<QualityReportVO> qualityReports,
+            QrCodeEntity qrCode
+    ) {
+        List<TimelineEntry> entries = new ArrayList<>();
+
+        List<OperationAuditLogPO> batchLogs = operationAuditLogMapper.selectList(new LambdaQueryWrapper<OperationAuditLogPO>()
+                .eq(OperationAuditLogPO::getTargetId, batch.getId())
+                .and(wrapper -> wrapper
+                        .eq(OperationAuditLogPO::getTargetType, "BATCH")
+                        .or()
+                        .eq(OperationAuditLogPO::getTargetType, "TRACE_BATCH"))
+                .orderByAsc(OperationAuditLogPO::getCreatedAt)
+                .orderByAsc(OperationAuditLogPO::getId));
+
+        boolean hasPublishLog = false;
+        boolean hasAssignmentLog = false;
+        boolean hasCreateLog = false;
+
+        for (OperationAuditLogPO logPO : batchLogs) {
+            String actionType = normalizeUpper(logPO.getActionType());
+            if ("BATCH_CREATE".equals(actionType)) {
+                hasCreateLog = true;
+                entries.add(new TimelineEntry(
+                        "log-" + logPO.getId(),
+                        logPO.getCreatedAt(),
+                        "ARCHIVE",
+                        "建档",
+                        "批次建档",
+                        defaultValue(logPO.getOperatorName(), "企业管理员"),
+                        defaultValue(OperationLogLabels.roleName(logPO.getRoleCode()), inferRoleLabel(logPO.getOperatorName(), "企业管理员")),
+                        defaultValue(logPO.getResult(), "SUCCESS"),
+                        OperationLogLabels.resultLabel(logPO.getResult()),
+                        defaultValue(logPO.getSummary(), "批次基础档案已创建。"),
+                        "OPERATION_LOG",
+                        false
+                ));
+            }
+            if ("BATCH_ASSIGN".equals(actionType) || "BATCH_REASSIGN".equals(actionType) || "BATCH_UNASSIGN".equals(actionType)) {
+                hasAssignmentLog = true;
+                entries.add(new TimelineEntry(
+                        "log-" + logPO.getId(),
+                        logPO.getCreatedAt(),
+                        "ASSIGNMENT",
+                        "任务分配",
+                        OperationLogLabels.actionLabel(actionType),
+                        defaultValue(logPO.getOperatorName(), "平台管理员"),
+                        defaultValue(OperationLogLabels.roleName(logPO.getRoleCode()), inferRoleLabel(logPO.getOperatorName(), "平台管理员")),
+                        defaultValue(logPO.getResult(), "SUCCESS"),
+                        OperationLogLabels.resultLabel(logPO.getResult()),
+                        defaultValue(logPO.getSummary(), "已完成负责人分配。"),
+                        "OPERATION_LOG",
+                        false
+                ));
+            }
+            if ("BATCH_PUBLISH".equals(actionType)) {
+                hasPublishLog = true;
+                entries.add(new TimelineEntry(
+                        "log-" + logPO.getId(),
+                        logPO.getCreatedAt(),
+                        "PUBLISH",
+                        "发布",
+                        "公开发布",
+                        defaultValue(logPO.getOperatorName(), "企业管理员"),
+                        defaultValue(OperationLogLabels.roleName(logPO.getRoleCode()), inferRoleLabel(logPO.getOperatorName(), "企业管理员")),
+                        defaultValue(logPO.getResult(), "SUCCESS"),
+                        OperationLogLabels.resultLabel(logPO.getResult()),
+                        defaultValue(logPO.getSummary(), "批次已完成公开发布。"),
+                        "OPERATION_LOG",
+                        true
+                ));
+            }
+        }
+
+        if (!hasCreateLog && !statusHistory.isEmpty()) {
+            BatchStatusLogVO firstStatus = statusHistory.get(statusHistory.size() - 1);
+            entries.add(new TimelineEntry(
+                    "status-create",
+                    parseDateTimeValue(firstStatus.operatedAt()),
+                    "ARCHIVE",
+                    "建档",
+                    "批次建档",
+                    defaultValue(firstStatus.operatorName(), "企业管理员"),
+                    inferRoleLabel(firstStatus.operatorName(), "企业管理员"),
+                    firstStatus.status(),
+                    firstStatus.statusLabel(),
+                    defaultValue(firstStatus.reason(), "批次建档完成。"),
+                    "STATUS_LOG",
+                    false
+            ));
+        }
+
+        if (!hasAssignmentLog && batch.getAssignedAt() != null) {
+            entries.add(new TimelineEntry(
+                    "assignment-fallback",
+                    batch.getAssignedAt(),
+                    "ASSIGNMENT",
+                    "任务分配",
+                    "负责人分配",
+                    defaultValue(batch.getAssigneeName(), "未分配"),
+                    inferRoleLabel(batch.getAssigneeName(), "现场操作员"),
+                    defaultValue(batch.getTaskStatus(), "PENDING"),
+                    TraceDisplayLabels.taskStatus(batch.getTaskStatus()),
+                    defaultValue(batch.getAssigneeName(), "未分配") + " 已接收该批次任务。",
+                    "TASK",
+                    false
+            ));
+        }
+
+        batch.getTraceRecords().stream()
+                .sorted(Comparator.comparing(TraceRecordEntity::eventTime))
+                .filter(record -> switch (record.stage()) {
+                    case PRODUCE, TRANSPORT, WAREHOUSE, DELIVERY -> true;
+                    default -> false;
+                })
+                .forEach(record -> entries.add(new TimelineEntry(
+                        "trace-" + record.id(),
+                        record.eventTime(),
+                        "TRACE",
+                        "现场追溯",
+                        defaultValue(record.title(), record.stage().label()),
+                        defaultValue(record.operatorName(), "现场操作员"),
+                        inferRoleLabel(record.operatorName(), "现场操作员"),
+                        "SUCCESS",
+                        "完成",
+                        defaultValue(record.summary(), "已完成该阶段现场记录。"),
+                        "TRACE_EVENT",
+                        false
+                )));
+
+        qualityReports.stream()
+                .sorted(Comparator.comparing(report -> parseDateTimeValue(report.reportTime())))
+                .forEach(report -> entries.add(new TimelineEntry(
+                        "quality-" + report.id(),
+                        parseDateTimeValue(report.reportTime()),
+                        "QUALITY",
+                        "质检",
+                        "质检结果确认",
+                        defaultValue(report.agency(), "质检机构"),
+                        "质检节点",
+                        defaultValue(report.result(), "PENDING"),
+                        defaultValue(report.resultLabel(), TraceDisplayLabels.qualityStatus(report.result())),
+                        buildQualityTimelineSummary(report),
+                        "QUALITY_REPORT",
+                        "PASS".equalsIgnoreCase(report.result()) || "FAIL".equalsIgnoreCase(report.result())
+                )));
+
+        if (qrCode != null && qrCode.generatedAt() != null) {
+            entries.add(new TimelineEntry(
+                    "qr-" + defaultLong(qrCode.id()),
+                    qrCode.generatedAt(),
+                    "QR",
+                    "二维码",
+                    "二维码生成",
+                    "平台管理员",
+                    "平台管理员",
+                    defaultValue(qrCode.status(), "ACTIVE"),
+                    TraceDisplayLabels.qrStatus(qrCode.status()),
+                    "公开查询 token：" + defaultValue(qrCode.token(), "未生成"),
+                    "QR_CODE",
+                    true
+            ));
+        }
+
+        final boolean publishedLogExists = hasPublishLog;
+        statusHistory.stream()
+                .sorted(Comparator.comparing(item -> parseDateTimeValue(item.operatedAt())))
+                .filter(item -> {
+                    String status = normalizeUpper(item.status());
+                    if ("FROZEN".equals(status) || "RECALLED".equals(status)) {
+                        return true;
+                    }
+                    return "PUBLISHED".equals(status) && !publishedLogExists;
+                })
+                .forEach(item -> entries.add(new TimelineEntry(
+                        "status-" + item.status() + "-" + item.operatedAt(),
+                        parseDateTimeValue(item.operatedAt()),
+                        "PUBLISHED".equals(normalizeUpper(item.status())) ? "PUBLISH" : "RISK",
+                        "PUBLISHED".equals(normalizeUpper(item.status())) ? "发布" : "风险/监管",
+                        "状态变更：" + item.statusLabel(),
+                        defaultValue(item.operatorName(), "系统节点"),
+                        inferRoleLabel(item.operatorName(), "系统节点"),
+                        defaultValue(item.status(), "SUCCESS"),
+                        defaultValue(item.statusLabel(), "状态已更新"),
+                        defaultValue(item.reason(), "批次状态已更新。"),
+                        "STATUS_LOG",
+                        !"PUBLISHED".equals(normalizeUpper(item.status()))
+                )));
+
+        batch.getRiskActions().stream()
+                .sorted(Comparator.comparing(BatchRiskActionEntity::createdAt))
+                .forEach(action -> entries.add(new TimelineEntry(
+                        "risk-" + action.id(),
+                        action.createdAt(),
+                        "RISK",
+                        "风险/监管",
+                        resolveRiskActionLabel(action),
+                        defaultValue(action.operatorName(), "风险处理人"),
+                        inferRoleLabel(action.operatorName(), "风险处理"),
+                        action.actionType() == null ? "SUCCESS" : action.actionType().code(),
+                        resolveRiskActionLabel(action),
+                        defaultValue(action.comment(), defaultValue(action.reason(), "风险处理动作已记录。")),
+                        "RISK_ACTION",
+                        true
+                )));
+
+        List<TraceTimelineItemVO> items = entries.stream()
+                .sorted(Comparator.comparing(TimelineEntry::sortTime, Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(TimelineEntry::key))
+                .map(entry -> new TraceTimelineItemVO(
+                        entry.key(),
+                        entry.phaseCode(),
+                        entry.phaseLabel(),
+                        entry.title(),
+                        formatDateTime(entry.sortTime()),
+                        entry.operatorName(),
+                        entry.operatorRole(),
+                        entry.resultCode(),
+                        entry.resultLabel(),
+                        entry.summary(),
+                        entry.sourceType(),
+                        entry.highlighted()
+                ))
+                .toList();
+
+        long phaseCount = items.stream()
+                .map(TraceTimelineItemVO::phaseCode)
+                .filter(this::notBlank)
+                .distinct()
+                .count();
+
+        String currentPhaseLabel = items.isEmpty()
+                ? "暂无关键节点"
+                : items.get(items.size() - 1).phaseLabel();
+
+        return new TraceTimelineSectionVO(
+                items.size(),
+                Math.toIntExact(phaseCount),
+                currentPhaseLabel,
+                toStatusLabel(batch.getStatus()),
+                items
+        );
+    }
+
+    private String buildQualityTimelineSummary(QualityReportVO report) {
+        if (report == null) {
+            return "当前还没有质检结果。";
+        }
+        String headline = defaultValue(report.resultLabel(), TraceDisplayLabels.qualityStatus(report.result()));
+        if (report.highlights() == null || report.highlights().isEmpty()) {
+            return headline;
+        }
+        return headline + " · " + report.highlights().get(0);
+    }
+
+    private String inferRoleLabel(String operatorName, String fallback) {
+        String normalized = defaultValue(operatorName, "").toLowerCase(Locale.ROOT);
+        if (normalized.contains("平台")) return "平台管理员";
+        if (normalized.contains("企业")) return "企业管理员";
+        if (normalized.contains("操作员") || normalized.contains("现场")) return "现场操作员";
+        if (normalized.contains("监管")) return "监管人员";
+        if (normalized.contains("质检")) return "质检节点";
+        if (normalized.contains("风控") || normalized.contains("召回")) return "风险处理";
+        if (normalized.contains("物流") || normalized.contains("门店")) return "业务节点";
+        return fallback;
+    }
+
+    private String resolveRiskActionLabel(BatchRiskActionEntity action) {
+        if (action == null || action.actionType() == null) {
+            return "风险处理";
+        }
+        return action.actionType().label();
+    }
+
+    private LocalDateTime parseDateTimeValue(String value) {
+        if (!notBlank(value)) {
+            return LocalDateTime.MIN;
+        }
+        try {
+            return LocalDateTime.parse(value.trim());
+        } catch (DateTimeParseException ignored) {
+        }
+        try {
+            return LocalDateTime.parse(value.trim(), DATE_TIME_FORMATTER);
+        } catch (DateTimeParseException ignored) {
+        }
+        return LocalDateTime.MIN;
     }
 
     private BatchStatusSummaryVO buildStatusSummary(BatchEntity batch, List<BatchStatusLogVO> statusHistory) {
@@ -2737,8 +3037,28 @@ public class BatchServiceImpl implements BatchService {
         return value == null ? null : DATE_TIME_FORMATTER.format(value);
     }
 
+    private record TimelineEntry(
+            String key,
+            LocalDateTime sortTime,
+            String phaseCode,
+            String phaseLabel,
+            String title,
+            String operatorName,
+            String operatorRole,
+            String resultCode,
+            String resultLabel,
+            String summary,
+            String sourceType,
+            boolean highlighted
+    ) {
+    }
+
     private String defaultValue(String value, String fallback) {
         return notBlank(value) ? value.trim() : fallback;
+    }
+
+    private String normalizeUpper(String value) {
+        return notBlank(value) ? value.trim().toUpperCase(Locale.ROOT) : "";
     }
 
     private String trimToNull(String value) {

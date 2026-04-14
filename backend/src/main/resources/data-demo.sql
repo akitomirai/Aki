@@ -104,3 +104,45 @@ INSERT INTO batch_risk_action (id, batch_id, action_type, reason, comment, opera
 (5, 4, 'RECTIFICATION', '受影响库存已隔离，下游合作方已同步通知。', '回收登记和库存核对已完成。', '运营负责人', '2026-03-21 14:00:00'),
 (6, 4, 'PROCESSING', '召回处理仍在持续推进。', '企业正在汇总渠道反馈和回收结果。', '风控负责人', '2026-03-22 10:00:00'),
 (7, 4, 'RECTIFIED', '企业已完成整改并提交处理报告。', '召回信息继续保留在公开页，便于后续追查。', '风控负责人', '2026-03-23 16:20:00');
+INSERT INTO trace_batch (
+  id, batch_code, product_id, company_id, assignee_user_id, assigned_at, task_status, task_completed_at, origin_place, start_date, status,
+  public_remark, internal_remark, status_reason, published_at, frozen_at, recalled_at, created_at, updated_at
+) VALUES
+(5, 'ORANGE-202604-Q1', 1, 1, 3, '2026-04-02 08:30:00', 'PENDING', NULL, '江西省赣州市信丰果园基地', '2026-04-02', 'DRAFT',
+ '主演示企业待质检批次，用于展示任务推进、现场填报和质检待办。', '用于企业管理员、现场操作员和平台管理员演示待处理链路。', '已完成建档并提交首轮现场记录，待上传质检并生成二维码。',
+ NULL, NULL, NULL, '2026-04-02 08:20:00', '2026-04-02 11:10:00');
+
+INSERT INTO batch_status_log (id, batch_id, status, reason, operator_name, operated_at, created_at) VALUES
+(11, 5, 'DRAFT', '主演示企业的新批次已完成建档，等待继续推进现场记录与质检数据。', '企业管理员', '2026-04-02 08:20:00', '2026-04-02 08:20:00');
+
+INSERT INTO trace_event (
+  id, batch_id, company_id, stage, title, event_time, operator_name, location, is_public, content_json, attachments_json, created_at
+) VALUES
+(12, 2, 1, 'ARCHIVE', '任务分配完成', '2026-03-20 09:25:00', '平台管理员', '平台控制中心', TRUE,
+ '{"summary":"主演示批次已分配给现场操作员B，后续现场填报、质检和发布流程均围绕该批次展开。","action":"ASSIGN_OPERATOR","role":"PLATFORM_ADMIN","result":"SUCCESS"}', '[]', '2026-03-20 09:25:00'),
+(13, 2, 1, 'PRODUCE', '现场采后分拣完成', '2026-03-20 14:20:00', '现场操作员B', 'C区果园', TRUE,
+ '{"summary":"完成分拣、装筐与标签核对，已留存现场图片并进入待送检状态。","action":"FIELD_SUBMIT","role":"OPERATOR","result":"SUCCESS"}', '["/images/products/orange-batch.svg"]', '2026-03-20 14:20:00'),
+(14, 2, 1, 'TRANSPORT', '冷链交接完成', '2026-03-21 08:40:00', '现场操作员B', '信丰冷库收货口', TRUE,
+ '{"summary":"批次已完成采后入库与冷链交接，进入质检与二维码准备环节。","action":"COLD_CHAIN_HANDOVER","role":"OPERATOR","result":"SUCCESS"}', '[]', '2026-03-21 08:40:00'),
+(15, 2, 1, 'QUALITY', '质检结果已确认', '2026-03-21 10:50:00', '企业管理员', '江西省农产品质检中心', TRUE,
+ '{"summary":"最新质检结果为合格，明星演示批次满足继续公开发布条件。","action":"QUALITY_APPROVED","role":"ENTERPRISE_ADMIN","result":"PASS"}', '[]', '2026-03-21 10:50:00'),
+(16, 2, 1, 'MARKET', '二维码生成完成', '2026-03-21 11:00:00', '平台管理员', '后台发布中心', TRUE,
+ '{"summary":"公开查询 token 已固定为 orange-202603-d1，可直接用于答辩扫码演示。","action":"QR_GENERATED","role":"PLATFORM_ADMIN","result":"SUCCESS"}', '[]', '2026-03-21 11:00:00'),
+(17, 2, 1, 'MARKET', '公开发布完成', '2026-03-21 11:30:00', '企业管理员', '后台发布中心', TRUE,
+ '{"summary":"明星演示批次已正式对外发布，后台工作台和公开追溯页可同步讲解。","action":"BATCH_PUBLISHED","role":"ENTERPRISE_ADMIN","result":"SUCCESS"}', '[]', '2026-03-21 11:30:00'),
+(18, 5, 1, 'ARCHIVE', '待处理批次建档完成', '2026-04-02 08:25:00', '企业管理员', '信丰果园办公室', TRUE,
+ '{"summary":"待处理批次已完成建档并分配给现场操作员，用于演示待质检链路。","action":"BATCH_CREATED","role":"ENTERPRISE_ADMIN","result":"SUCCESS"}', '[]', '2026-04-02 08:25:00'),
+(19, 5, 1, 'PRODUCE', '现场采样完成', '2026-04-02 11:10:00', '现场操作员', 'D区果园', TRUE,
+ '{"summary":"现场操作员已完成首轮采样与记录，当前批次等待上传质检结果。","action":"FIELD_SUBMIT","role":"OPERATOR","result":"SUCCESS"}', '[]', '2026-04-02 11:10:00');
+
+INSERT INTO operation_audit_log (
+  id, operator_user_id, operator_name, role_code, company_id, action_type, target_type, target_id, target_name, result, summary, created_at
+) VALUES
+(1, 2, '企业管理员', 'ENTERPRISE_ADMIN', 1, 'BATCH_CREATE', 'TRACE_BATCH', 2, 'ORANGE-202603-D1', 'SUCCESS', '主演示批次建档完成。', '2026-03-20 09:10:00'),
+(2, 1, '平台管理员', 'PLATFORM_ADMIN', NULL, 'ASSIGN_OPERATOR', 'TRACE_BATCH', 2, 'ORANGE-202603-D1', 'SUCCESS', '主演示批次已分配给现场操作员B。', '2026-03-20 09:25:00'),
+(3, 5, '现场操作员B', 'OPERATOR', 1, 'TRACE_SUBMIT', 'TRACE_BATCH', 2, 'ORANGE-202603-D1', 'SUCCESS', '主演示批次已提交现场采后记录。', '2026-03-20 14:20:00'),
+(4, 2, '企业管理员', 'ENTERPRISE_ADMIN', 1, 'QUALITY_UPLOAD', 'TRACE_BATCH', 2, 'ORANGE-202603-D1', 'SUCCESS', '主演示批次质检结果已上传并确认合格。', '2026-03-21 10:50:00'),
+(5, 1, '平台管理员', 'PLATFORM_ADMIN', NULL, 'QR_GENERATE', 'TRACE_BATCH', 2, 'ORANGE-202603-D1', 'SUCCESS', '主演示批次二维码与公开 token 已固定。', '2026-03-21 11:00:00'),
+(6, 2, '企业管理员', 'ENTERPRISE_ADMIN', 1, 'BATCH_PUBLISH', 'TRACE_BATCH', 2, 'ORANGE-202603-D1', 'SUCCESS', '主演示批次已完成对外发布。', '2026-03-21 11:30:00'),
+(7, 2, '企业管理员', 'ENTERPRISE_ADMIN', 1, 'BATCH_CREATE', 'TRACE_BATCH', 5, 'ORANGE-202604-Q1', 'SUCCESS', '待处理批次已完成建档。', '2026-04-02 08:25:00'),
+(8, 3, '现场操作员', 'OPERATOR', 1, 'TRACE_SUBMIT', 'TRACE_BATCH', 5, 'ORANGE-202604-Q1', 'SUCCESS', '待处理批次已完成首轮现场记录，等待质检。', '2026-04-02 11:10:00');

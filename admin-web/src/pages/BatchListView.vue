@@ -1,6 +1,9 @@
 ﻿<script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import AdminListPagination from '../components/AdminListPagination.vue'
+import AdminOverviewCards from '../components/AdminOverviewCards.vue'
+import AdminPageHeader from '../components/AdminPageHeader.vue'
 import BatchDetailPanel from '../components/BatchDetailPanel.vue'
 import {
   changeBatchStatus,
@@ -45,6 +48,15 @@ const message = ref('')
 const messageType = ref('info')
 const batches = ref([])
 const allBatches = ref([])
+const DEFAULT_PAGE_SIZE = 10
+const page = ref(1)
+const pageSize = ref(DEFAULT_PAGE_SIZE)
+const pageSizeOptions = [
+  { value: 10, label: '10 条 / 页' },
+  { value: 20, label: '20 条 / 页' },
+  { value: 50, label: '50 条 / 页' },
+  { value: 100, label: '100 条 / 页' }
+]
 
 const filters = ref(createFilterState())
 const listMode = ref('ACTION')
@@ -105,15 +117,7 @@ const canManageBatch = computed(() => canManageAdminBatch(roleCode.value))
 const canManageAssignment = computed(() => ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN'].includes(authStore.user?.roleCode))
 const readOnlyBatchView = computed(() => isRegulator(roleCode.value))
 const pageTitle = computed(() => readOnlyBatchView.value ? '批次查看' : '批次管理')
-const pageSubtitle = computed(() => {
-  if (readOnlyBatchView.value) {
-    return '监管账号可统一查看企业、质检、二维码、任务和风险状态，不提供新增、分配、复制、上传或发布入口。'
-  }
-  return '围绕批次建档、分配、质检、二维码和发布链路集中处理高频动作。'
-})
-const readOnlyBannerText = computed(() => {
-  return '当前为监管查看模式，页面保留批次编号、企业、质检结论、二维码状态、任务状态、风险状态和最近更新时间，便于直接判断批次风险。'
-})
+const pageSubtitle = ''
 const listModeOptions = computed(() => {
   const source = readOnlyBatchView.value
     ? listModes.filter((item) => item.value !== 'READY')
@@ -262,6 +266,11 @@ const visibleBatchCards = computed(() => {
     }
   })
 })
+const pageCount = computed(() => Math.max(1, Math.ceil(Number(visibleBatchCards.value.length || 0) / Number(pageSize.value || DEFAULT_PAGE_SIZE))))
+const paginatedBatchCards = computed(() => {
+  const fromIndex = (page.value - 1) * pageSize.value
+  return visibleBatchCards.value.slice(fromIndex, fromIndex + pageSize.value)
+})
 
 const listStats = computed(() => {
   return {
@@ -296,6 +305,23 @@ const batchOverviewCards = computed(() => {
     detail: detailMap[item.value] || '查看当前批次集合'
   }))
 })
+const batchBoardCards = computed(() => {
+  return batchOverviewCards.value.map((item) => ({
+    key: item.value,
+    label: item.label,
+    value: item.count,
+    detail: item.detail
+  }))
+})
+const listSummary = computed(() => {
+  if (!visibleBatchCards.value.length) {
+    return '暂无批次数据。'
+  }
+  const from = (page.value - 1) * pageSize.value + 1
+  const to = Math.min(visibleBatchCards.value.length, page.value * pageSize.value)
+  return `共 ${visibleBatchCards.value.length} 个批次，当前显示 ${from}-${to} 个。`
+})
+const paginationSummary = computed(() => `第 ${page.value} / ${pageCount.value} 页`)
 
 const topQueue = computed(() => {
   return batchCards.value.filter((card) => card.insight.isActionable).slice(0, 3)
@@ -340,6 +366,16 @@ watch(
     await maybeOpenCopyDialogFromRoute()
   }
 )
+
+watch([listMode, filters], () => {
+  page.value = 1
+}, { deep: true })
+
+watch([visibleBatchCards, pageSize], () => {
+  if (page.value > pageCount.value) {
+    page.value = pageCount.value
+  }
+}, { deep: true })
 
 async function fetchBatches() {
   loading.value = true
@@ -682,6 +718,33 @@ function riskTone(item) {
   return item.riskStatusLabel && item.riskStatusLabel !== '当前无风险' ? 'warning' : 'normal'
 }
 
+function batchStatusChips(item) {
+  const chips = [
+    {
+      label: item.statusLabel || '状态待确认',
+      tone: statusClass(item.status)
+    },
+    {
+      label: qualityStatusText(item),
+      tone: qualityTone(item)
+    }
+  ]
+
+  if (item.riskStatusLabel && item.riskStatusLabel !== '当前无风险') {
+    chips.push({
+      label: item.riskStatusLabel,
+      tone: riskTone(item)
+    })
+  } else {
+    chips.push({
+      label: qrStatusText(item),
+      tone: qrTone(item)
+    })
+  }
+
+  return chips.slice(0, 3)
+}
+
 function normalizeBatchActionCode(code) {
   return String(code || '').trim().toUpperCase()
 }
@@ -819,8 +882,29 @@ function exportCurrentLedger() {
 
 function resetFilters() {
   filters.value = createFilterState()
+  page.value = 1
+  pageSize.value = DEFAULT_PAGE_SIZE
   switchListMode('ACTION')
   fetchBatches()
+}
+
+function handlePageSizeChange(value) {
+  const nextPageSize = Number(value || DEFAULT_PAGE_SIZE)
+  if (nextPageSize === pageSize.value) {
+    return
+  }
+  pageSize.value = nextPageSize
+  page.value = 1
+}
+
+function goPrevPage() {
+  if (loading.value || page.value <= 1) return
+  page.value -= 1
+}
+
+function goNextPage() {
+  if (loading.value || page.value >= pageCount.value) return
+  page.value += 1
 }
 
 function syncListModeFromRoute() {
@@ -831,6 +915,7 @@ function syncListModeFromRoute() {
 
 function switchListMode(mode) {
   listMode.value = mode
+  page.value = 1
   const nextQuery = { ...route.query }
   if (!mode || mode === 'ACTION') {
     delete nextQuery.mode
@@ -1538,12 +1623,30 @@ function statusClass(status) {
 <template>
   <div class="page-shell" data-testid="batch-list-page">
     <div class="manage-page batch-manage">
-    <section v-if="readOnlyBatchView" class="panel profile-banner" data-testid="batch-regulator-banner">
-      <strong>监管查看模式</strong>
-      <span>{{ readOnlyBannerText }}</span>
-    </section>
+    <AdminPageHeader :title="pageTitle" :subtitle="pageSubtitle">
+      <template #actions>
+        <button class="ghost" :disabled="loading" @click="fetchBatches">刷新</button>
+        <button
+          v-if="canManageBatch"
+          class="primary"
+          data-testid="batch-create-button"
+          @click="openCreateDialog"
+        >
+          新增批次
+        </button>
+      </template>
+    </AdminPageHeader>
 
-    <div class="manage-summary-row batch-summary-row">
+    <div class="manage-overview-row batch-summary-row">
+      <AdminOverviewCards
+        :items="batchBoardCards"
+        :active-key="listMode"
+        test-id-prefix="batch-mode"
+        @select="switchListMode($event)"
+      />
+    </div>
+
+    <div v-if="false" class="manage-summary-row batch-summary-row">
       <div class="manage-summary batch-mode-summary">
         <button
           v-for="item in batchOverviewCards"
@@ -1600,14 +1703,21 @@ function statusClass(status) {
             <option v-for="item in companyOptions" :key="item" :value="item" />
           </datalist>
         </label>
+        <div class="page-size-control">
+          <span class="manage-muted">每页显示</span>
+          <select v-model="pageSize" class="page-size-select" @change="handlePageSizeChange($event.target.value)">
+            <option v-for="item in pageSizeOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+          </select>
+        </div>
       </div>
 
-      <div class="toolbar batch-filter-toolbar">
-        <div class="toolbar-actions">
+      <div class="toolbar filter-meta batch-filter-toolbar">
+        <div class="list-summary">{{ listSummary }}</div>
+        <div class="toolbar-actions filter-actions">
           <button class="ghost" data-testid="batch-export-ledger" :disabled="loading || !visibleBatchCards.length" @click="exportCurrentLedger">
             导出台账
           </button>
-          <button class="primary" :disabled="loading" @click="fetchBatches">查询</button>
+          <button class="primary" data-testid="batch-search-button" :disabled="loading" @click="fetchBatches">查询</button>
           <button class="ghost" :disabled="loading" @click="resetFilters">重置</button>
         </div>
       </div>
@@ -1635,7 +1745,7 @@ function statusClass(status) {
 
     <section v-else class="panel ledger-panel batch-ledger-panel">
       <div class="panel-heading">
-        <div>
+        <div class="panel-heading__copy">
           <h2 class="panel-heading__title">批次台账</h2>
         </div>
       </div>
@@ -1643,16 +1753,15 @@ function statusClass(status) {
       <div class="table-scroll-shell batch-table-shell">
         <div class="batch-table-head">
           <span>批次与产品</span>
-          <span>企业</span>
-          <span>状态概览</span>
-          <span>下一步</span>
-          <span>任务执行</span>
+          <span>企业 / 更新时间</span>
+          <span>状态</span>
+          <span>负责人 / 任务</span>
           <span>{{ readOnlyBatchView ? '查看' : '动作' }}</span>
         </div>
 
         <div class="batch-row-list">
         <article
-          v-for="card in visibleBatchCards"
+          v-for="card in paginatedBatchCards"
           :key="card.item.id"
           class="batch-row"
           :data-testid="`batch-card-${card.item.id}`"
@@ -1667,22 +1776,17 @@ function statusClass(status) {
             <small>最近更新：{{ latestUpdatedText(card.item) }}</small>
           </div>
 
-          <div class="row-health">
-            <div class="row-health-scroll">
+          <div class="row-status">
+            <div class="status-chip-row">
               <span
-                v-for="item in card.insight.compactStatuses"
+                v-for="item in batchStatusChips(card.item)"
                 :key="item.label"
-                class="progress-pill"
-                :class="[item.tone, { done: item.tone === 'success' }]"
+                class="status-chip"
+                :class="item.tone"
               >
                 {{ item.label }}
               </span>
             </div>
-          </div>
-
-          <div class="row-status row-next">
-            <span class="status-badge" :class="statusClass(card.item.status)">{{ card.item.statusLabel }}</span>
-            <strong class="row-next-title" :data-testid="`batch-next-${card.item.id}`">{{ card.insight.nextLabel }}</strong>
           </div>
 
           <div class="row-task" :data-testid="`batch-task-block-${card.item.id}`">
@@ -1708,12 +1812,11 @@ function statusClass(status) {
           <div class="row-actions">
             <div class="row-actions-scroll">
               <button
-                :class="recommendedActionClass(card)"
-                class="action-primary-button"
+                class="ghost action-primary-button"
                 :data-testid="readOnlyBatchView ? null : `batch-recommend-${card.item.id}`"
-                @click="runRecommendedAction(card)"
+                @click="openBatchDetail(card.item)"
               >
-                {{ readOnlyBatchView ? '查看详情' : card.insight.nextLabel }}
+                详情
               </button>
               <button
                 class="text-button primary-text"
@@ -1757,20 +1860,27 @@ function statusClass(status) {
         </article>
         </div>
       </div>
+
+      <AdminListPagination
+        :summary="paginationSummary"
+        :prev-disabled="loading || page <= 1"
+        :next-disabled="loading || page >= pageCount"
+        @prev="goPrevPage"
+        @next="goNextPage"
+      />
     </section>
 
     <div v-if="dialog.visible" class="dialog-mask" @click.self="closeDialog">
       <section class="dialog-card">
         <div class="dialog-head">
           <div>
-            <p class="eyebrow">批次操作</p>
             <h3>{{ dialogTitle }}</h3>
           </div>
           <button class="ghost icon-button" @click="closeDialog">关闭</button>
         </div>
 
         <div v-if="dialog.type === 'create' || dialog.type === 'copy' || dialog.type === 'edit'" class="form-grid" data-testid="batch-edit-dialog">
-          <div class="full-width form-intro-banner">
+          <div v-if="false" class="full-width form-intro-banner">
             <strong>
               {{
                 dialog.type === 'copy'
@@ -1781,7 +1891,7 @@ function statusClass(status) {
             <span>{{ batchDialogGuideText() }}</span>
           </div>
 
-          <label v-if="dialog.type === 'copy'" class="full-width">
+          <label v-if="false && dialog.type === 'copy'" class="full-width">
             <span>复制来源</span>
             <div class="field-note field-note--accent" data-testid="batch-copy-source-note">
               <strong>{{ dialog.sourceBatchCode }}</strong>
@@ -1791,8 +1901,6 @@ function statusClass(status) {
               </small>
             </div>
           </label>
-
-          <div class="full-width form-section-title">归属关系</div>
 
           <label>
             <span>企业（必填）</span>
@@ -1818,7 +1926,7 @@ function statusClass(status) {
             <input :value="batchForm.batchCode" type="text" disabled>
           </label>
 
-          <label class="full-width" v-if="selectedCompanyOption">
+          <label v-if="false && selectedCompanyOption" class="full-width">
             <span>当前企业</span>
             <div class="field-note">
               <strong>{{ selectedCompanyOption.name }}</strong>
@@ -1833,14 +1941,14 @@ function statusClass(status) {
             <span>生产日期（必填）</span>
             <input v-model="batchForm.productionDate" type="date">
           </label>
-          <label v-if="dialog.type === 'copy'" class="full-width">
+          <label v-if="false && dialog.type === 'copy'" class="full-width">
             <span>复制提示</span>
             <div class="field-note">
               <strong>当前日期已重新带入</strong>
               <small>请重新确认新批次编号和生产日期，复制出的批次会回到“刚创建”的初始状态。</small>
             </div>
           </label>
-          <label v-if="selectedProductOption" class="full-width">
+          <label v-if="false && selectedProductOption" class="full-width">
             <span>当前产品</span>
             <div class="field-note">
               <strong>{{ selectedProductOption.name }}</strong>
@@ -1851,12 +1959,11 @@ function statusClass(status) {
               </small>
             </div>
           </label>
-          <div v-else-if="batchForm.companyId && !formProductOptions.length" class="full-width flow-tip warning-tip">
+          <div v-if="false && batchForm.companyId && !formProductOptions.length" class="full-width flow-tip warning-tip">
             <strong>当前企业还没有可建档产品。</strong>
             <span>请先去产品管理新增产品，再回来继续建批次。</span>
           </div>
 
-          <div class="full-width form-section-title">补充说明</div>
           <label class="full-width">
             <span>公开说明（选填）</span>
             <textarea
@@ -1873,7 +1980,7 @@ function statusClass(status) {
               placeholder="用于记录补录计划、处理提醒或内部跟进说明"
             />
           </label>
-          <div class="full-width flow-tip">
+          <div v-if="false" class="full-width flow-tip">
             <strong>
               {{
                 dialog.type === 'copy'
@@ -1886,21 +1993,16 @@ function statusClass(status) {
         </div>
 
         <div v-else-if="dialog.type === 'trace'" class="form-grid" data-testid="batch-trace-dialog">
-          <div class="full-width quick-entry-card">
+          <div class="full-width quick-entry-card quick-entry-card--compact">
             <div>
-              <p class="eyebrow">现场快速补录</p>
-              <h4>当前表单已按少录入、少跳转整理</h4>
-              <p>
-                默认带入当前时间，阶段、地点和说明可以直接点选。
-                {{ traceDialogContext.totalCount ? `当前批次已有 ${traceDialogContext.totalCount} 条记录。` : '当前还没有记录，可先补第一条关键节点。' }}
-              </p>
+              <strong>补录追溯</strong>
             </div>
             <button
               v-if="traceDialogContext.latestRecord"
               class="ghost"
               @click="copyLatestTraceRecord"
             >
-              复制上一条并微调
+              复制上一条
             </button>
           </div>
 
@@ -2008,7 +2110,7 @@ function statusClass(status) {
             <span>这条记录同步展示给消费者</span>
           </label>
 
-          <div v-if="traceDialogContext.latestRecord" class="full-width last-record-card">
+          <div v-if="false && traceDialogContext.latestRecord" class="full-width last-record-card">
             <span>上一条记录</span>
             <strong>{{ traceDialogContext.latestRecord.title }}</strong>
             <p>{{ traceDialogContext.latestRecord.location }} 路 {{ traceDialogContext.latestRecord.eventTime }}</p>
@@ -2127,7 +2229,6 @@ function statusClass(status) {
       <section class="dialog-card assignment-dialog-card" data-testid="batch-assignment-dialog">
         <div class="dialog-head">
           <div>
-            <p class="eyebrow">任务分配</p>
             <h3>批次 {{ assignmentDialog.batchCode }}</h3>
           </div>
           <button class="ghost icon-button" @click="closeAssignmentDialog">关闭</button>
@@ -2175,7 +2276,7 @@ function statusClass(status) {
             </select>
           </label>
 
-          <div class="field-note">
+          <div v-if="false" class="field-note">
             <strong>{{ assignmentHint }}</strong>
             <small>{{ operatorLoading ? '正在加载操作员列表...' : `当前可分配 ${operatorOptions.length} 位操作员。` }}</small>
           </div>
@@ -2810,12 +2911,11 @@ button:not(.manage-summary-chip):disabled {
 .batch-table-head {
   display: grid;
   grid-template-columns:
+    minmax(220px, 1.1fr)
     minmax(220px, 1fr)
-    minmax(190px, 0.9fr)
-    minmax(280px, max-content)
-    minmax(230px, max-content)
-    minmax(230px, max-content)
-    minmax(360px, max-content);
+    minmax(260px, 1fr)
+    minmax(220px, 0.95fr)
+    minmax(280px, max-content);
   gap: 16px;
   padding: 0 18px 14px;
   color: #54708d;
@@ -2839,12 +2939,11 @@ button:not(.manage-summary-chip):disabled {
 .batch-row {
   display: grid;
   grid-template-columns:
+    minmax(220px, 1.1fr)
     minmax(220px, 1fr)
-    minmax(190px, 0.9fr)
-    minmax(280px, max-content)
-    minmax(230px, max-content)
-    minmax(230px, max-content)
-    minmax(360px, max-content);
+    minmax(260px, 1fr)
+    minmax(220px, 0.95fr)
+    minmax(280px, max-content);
   gap: 14px;
   align-items: center;
   padding: 20px 18px;
@@ -3074,8 +3173,8 @@ button:not(.manage-summary-chip):disabled {
 
 .batch-table-shell .batch-table-head,
 .batch-table-shell .batch-row-list {
-  width: max-content;
-  min-width: 100%;
+  width: 100%;
+  min-width: 0;
 }
 
 .text-button:hover {
@@ -3469,4 +3568,7 @@ button:not(.manage-summary-chip):disabled {
   }
 }
 </style>
+
+<style src="../assets/styles/admin-task-pages.css" scoped></style>
+<style src="../assets/styles/admin-ledger-unified.css" scoped></style>
 

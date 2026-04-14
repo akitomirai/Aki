@@ -1,0 +1,144 @@
+.manage-filter-card {
+  padding: 20px 22px;
+}
+
+.manage-filter-grid label {
+  display: grid;
+  gap: 8px;
+}
+
+.manage-filter-grid label > span,
+.page-size-control .manage-muted {
+  color: var(--admin-text-mid);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.manage-filter-grid input,
+.manage-filter-grid select,
+.page-size-select {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid var(--admin-border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--admin-text);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.manage-filter-grid input:focus,
+.manage-filter-grid select:focus,
+.page-size-select:focus {
+  border-color: rgba(48, 149, 246, 0.26);
+  box-shadow: 0 0 0 3px rgba(48, 149, 246, 0.08);
+  outline: none;
+}
+
+.page-size-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 188px;
+}
+
+.page-size-select {
+  width: 128px;
+}
+
+.filter-actions {
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  min-width: 170px;
+}
+
+.filter-meta {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(56, 134, 217, 0.1);
+}
+
+.list-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.list-toolbar + .list-toolbar {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(56, 134, 217, 0.1);
+}
+
+.readonly-banner,
+.profile-banner {
+  padding: 16px 18px;
+  border: 1px solid rgba(48, 149, 246, 0.18);
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(48, 149, 246, 0.12) 0%, rgba(255, 255, 255, 0.96) 100%);
+}
+
+.readonly-banner strong,
+.profile-banner strong {
+  color: var(--admin-text);
+}
+
+.readonly-banner span,
+.profile-banner span {
+  color: var(--admin-text-soft);
+  line-height: 1.7;
+}
+
+.panel-heading__copy {
+  display: grid;
+  gap: 4px;
+}
+
+.panel-heading__meta {
+  margin: 0;
+  color: var(--admin-text-soft);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.table-note {
+  margin: 0;
+  color: var(--admin-text-soft);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.empty-state p {
+  margin: 0;
+}
+
+@media (max-width: 1180px) {
+  .page-size-control {
+    min-width: 0;
+  }
+
+  .filter-actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 760px) {
+  .page-size-control,
+  .list-toolbar {
+    width: 100%;
+  }
+
+  .page-size-control {
+    justify-content: space-between;
+  }
+
+  .page-size-select {
+    width: 100%;
+  }
+
+  .list-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

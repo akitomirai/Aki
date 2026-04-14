@@ -2,6 +2,9 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { createQualityReport, getBatchDetail, getBatchList, uploadBatchFiles } from '../api/batch'
+import AdminListPagination from '../components/AdminListPagination.vue'
+import AdminOverviewCards from '../components/AdminOverviewCards.vue'
+import AdminPageHeader from '../components/AdminPageHeader.vue'
 import StatusTag from '../components/StatusTag.vue'
 import { useAuthStore } from '../stores/auth'
 import { createQualityForm, getFriendlyErrorMessage, getFriendlyUploadError, qualityOptions, splitHighlights } from '../utils/batchExperience'
@@ -26,12 +29,20 @@ const resultDialog = ref(createResultDialogState())
 const uploadDialog = ref(createUploadDialogState())
 const page = ref(1)
 const pageSize = ref(DEFAULT_PAGE_SIZE)
+const pageTitle = computed(() => readOnlyQualityView.value ? '质检查看' : '质检待办')
+const pageSubtitle = computed(() => {
+  if (readOnlyQualityView.value) {
+    return '统一查看批次质检结论、最近更新与发布准备度，便于答辩时从监管视角快速讲解。'
+  }
+  return '围绕上传质检、查看结果和继续发布准备三类高频动作整理成统一台账。'
+})
 const pageSizeOptions = [
   { value: 10, label: '10 条 / 页' },
   { value: 20, label: '20 条 / 页' },
   { value: 50, label: '50 条 / 页' },
   { value: 100, label: '100 条 / 页' }
 ]
+const cleanPageSubtitle = ''
 const roleCode = computed(() => authStore.user?.roleCode || '')
 const readOnlyQualityView = computed(() => isRegulator(roleCode.value))
 const readOnlyBannerText = computed(() => '当前为监管查看模式，页面保留批次、企业、质检结论、二维码状态和最近更新时间，便于直接核对质检链路。')
@@ -95,6 +106,14 @@ const qualityOverviewCards = computed(() => [
     detail: '质检条件已齐，可继续发布'
   }
 ])
+const qualityBoardCards = computed(() => {
+  return qualityOverviewCards.value.map((item, index) => ({
+    key: qualityTabs[index].value,
+    label: item.label,
+    value: item.value,
+    detail: item.detail
+  }))
+})
 
 const listSummary = computed(() => {
   if (!filteredRows.value.length) {
@@ -104,6 +123,18 @@ const listSummary = computed(() => {
   const to = Math.min(filteredRows.value.length, page.value * pageSize.value)
   return `当前看板为“${activeTabMeta.value.label}”，共 ${filteredRows.value.length} 个批次，当前显示 ${from}-${to} 个。`
 })
+
+const paginationSummary = computed(() => `第 ${page.value} / ${pageCount.value} 页`)
+
+const cleanListSummary = computed(() => {
+  if (!filteredRows.value.length) {
+    return '暂无批次数据。'
+  }
+  const from = (page.value - 1) * pageSize.value + 1
+  const to = Math.min(filteredRows.value.length, page.value * pageSize.value)
+  return `共 ${filteredRows.value.length} 个批次，当前显示 ${from}-${to} 个。`
+})
+const cleanPaginationSummary = computed(() => `第 ${page.value} / ${pageCount.value} 页`)
 
 const uploadDialogError = computed(() => {
   if (!uploadDialog.value.visible) {
@@ -460,6 +491,26 @@ function qualityPreparationTitle(item) {
   return '已形成判断，继续补齐发布条件'
 }
 
+function qualityBatchStatusTags(item) {
+  const tags = [
+    {
+      key: 'batch',
+      text: item.statusLabel || '状态待确认',
+      tone: statusClass(item.status)
+    }
+  ]
+
+  if (String(item.status || '').toUpperCase() !== 'PUBLISHED' && resolvePublishReady(item)) {
+    tags.push({
+      key: 'ready',
+      text: '可发布',
+      tone: 'success'
+    })
+  }
+
+  return tags
+}
+
 function defaultReportNo(item) {
   const stamp = new Date().toISOString().replace(/[^\d]/g, '').slice(0, 12)
   return `QA-${item.batchCode}-${stamp}`
@@ -666,12 +717,22 @@ function formatFileSize(size) {
 <template>
   <div class="page-shell" data-testid="quality-page">
     <div class="manage-page quality-manage">
-    <section v-if="readOnlyQualityView" class="panel readonly-banner" data-testid="quality-readonly-banner">
-      <strong>监管查看模式</strong>
-      <span>{{ readOnlyBannerText }}</span>
-    </section>
+    <AdminPageHeader :title="pageTitle" :subtitle="cleanPageSubtitle">
+      <template #actions>
+        <button class="ghost" :disabled="loading" @click="fetchRows">刷新</button>
+      </template>
+    </AdminPageHeader>
 
-    <div class="manage-summary-row">
+    <div class="manage-overview-row">
+      <AdminOverviewCards
+        :items="qualityBoardCards"
+        :active-key="activeTab"
+        test-id-prefix="quality-tab"
+        @select="activeTab = $event"
+      />
+    </div>
+
+    <div v-if="false" class="manage-summary-row">
       <div class="manage-summary quality-mode-summary">
         <button
           v-for="(card, index) in qualityOverviewCards"
@@ -708,20 +769,20 @@ function formatFileSize(size) {
             <option v-for="item in statusOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
           </select>
         </label>
-        <div class="quality-page-size-control">
+        <div class="page-size-control quality-page-size-control">
           <span class="manage-muted">每页显示</span>
-          <select v-model="pageSize" data-testid="quality-page-size" class="quality-page-size-select" @change="handlePageSizeChange($event.target.value)">
+          <select v-model="pageSize" data-testid="quality-page-size" class="page-size-select quality-page-size-select" @change="handlePageSizeChange($event.target.value)">
             <option v-for="item in pageSizeOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
           </select>
         </div>
-        <div class="toolbar-actions quality-filter-actions">
+        <div class="toolbar-actions filter-actions quality-filter-actions">
           <button class="primary" data-testid="quality-search-button" :disabled="loading" @click="handleSearch">查询</button>
           <button class="ghost" data-testid="quality-reset-button" :disabled="loading" @click="resetFilters">重置</button>
         </div>
       </div>
 
-      <div class="toolbar quality-filter-meta">
-        <span class="list-summary quality-filter-summary">{{ listSummary }}</span>
+      <div class="toolbar filter-meta quality-filter-meta">
+        <span class="list-summary quality-filter-summary">{{ cleanListSummary }}</span>
       </div>
     </section>
 
@@ -749,10 +810,9 @@ function formatFileSize(size) {
       <div class="table-scroll-shell ledger-table-shell quality-table-shell" style="--table-min-width: 1320px;">
         <div class="ledger-table-head quality-head">
           <span>批次与产品</span>
-          <span>企业</span>
-          <span>状态概览</span>
-          <span>下一步 / 当前判断</span>
-          <span>任务执行 / 发布准备</span>
+          <span>企业 / 更新时间</span>
+          <span>质检结果</span>
+          <span>批次状态</span>
           <span>动作</span>
         </div>
 
@@ -774,31 +834,16 @@ function formatFileSize(size) {
           </div>
 
           <div class="row-status quality-overview">
-            <div class="status-chip-row quality-status-chip-row">
-              <span
-                v-for="chip in qualityOverviewChips(item)"
-                :key="chip.key"
-                class="status-chip"
-                :class="chip.tone"
-              >
-                {{ chip.label }}
-              </span>
-            </div>
+            <StatusTag :text="qualityResultText(item)" :tone="resultStatusTone(item)" />
           </div>
 
           <div class="row-status row-next quality-next">
-            <StatusTag :text="qualityPriorityBadgeText(item)" :tone="qualityPriorityTone(item)" />
-            <strong class="row-next-title">{{ qualityPriorityText(item) }}</strong>
-          </div>
-
-          <div class="row-task quality-task">
-            <strong>{{ qualityPreparationTitle(item) }}</strong>
             <div class="quality-preparation-tags">
               <StatusTag
-                v-for="tag in qualityReadinessTags(item)"
+                v-for="tag in qualityBatchStatusTags(item)"
                 :key="tag.key"
-                :text="tag.label"
-                :tone="tag.tone === 'info' ? 'primary' : tag.tone"
+                :text="tag.text"
+                :tone="tag.tone"
               />
             </div>
           </div>
@@ -812,7 +857,7 @@ function formatFileSize(size) {
                 :data-testid="primaryQualityActionTestId(item)"
                 @click="handleRecommendedQualityAction(item)"
               >
-                {{ primaryQualityActionLabel(item) }}
+                {{ recommendedQualityActionLabel(item) }}
               </button>
               <button
                 class="text-button primary-text"
@@ -842,7 +887,15 @@ function formatFileSize(size) {
         </div>
       </div>
 
-      <div class="toolbar quality-pagination">
+      <AdminListPagination
+        :summary="cleanPaginationSummary"
+        :prev-disabled="loading || page <= 1"
+        :next-disabled="loading || page >= pageCount"
+        @prev="goPrevPage"
+        @next="goNextPage"
+      />
+
+      <div v-if="false" class="toolbar quality-pagination">
         <span class="list-summary">第 {{ page }} / {{ pageCount }} 页</span>
         <div class="toolbar-actions">
           <button class="ghost" data-testid="quality-prev-page" :disabled="loading || page <= 1" @click="goPrevPage">上一页</button>
@@ -1002,12 +1055,11 @@ function formatFileSize(size) {
 .quality-head,
 .quality-row {
   grid-template-columns:
-    minmax(0, 1.08fr)
+    minmax(0, 1.1fr)
+    minmax(0, 1fr)
+    minmax(0, 0.8fr)
     minmax(0, 0.9fr)
-    minmax(0, 0.88fr)
-    minmax(0, 1.04fr)
-    minmax(0, 1.02fr)
-    minmax(0, 0.92fr);
+    minmax(0, 1fr);
 }
 
 .quality-mode-summary {
@@ -1281,3 +1333,5 @@ function formatFileSize(size) {
   }
 }
 </style>
+
+<style src="../assets/styles/admin-ledger-unified.css" scoped></style>

@@ -2,6 +2,9 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { changeBatchStatus, createRiskAction, getBatchDetail, getBatchList } from '../api/batch'
+import AdminListPagination from '../components/AdminListPagination.vue'
+import AdminOverviewCards from '../components/AdminOverviewCards.vue'
+import AdminPageHeader from '../components/AdminPageHeader.vue'
 import PrimaryActionGroup from '../components/PrimaryActionGroup.vue'
 import StatusTag from '../components/StatusTag.vue'
 import { getFriendlyErrorMessage, riskActionOptions } from '../utils/batchExperience'
@@ -43,6 +46,7 @@ const pageSubtitle = computed(() => {
   return '集中处理已冻结、处理中、已整改和已召回批次，直接在列表里补动作，再回工作台核对状态。'
 })
 const readOnlyBannerText = computed(() => '当前为监管查看模式，页面保留批次、企业、风险状态、最近动作、整改结果和最近更新时间，便于快速判断风险处置进展。')
+const cleanPageSubtitle = ''
 const openWorkbenchText = computed(() => readOnlyRiskView.value ? '查看批次详情' : '查看工作台')
 
 const riskTabs = [
@@ -102,6 +106,14 @@ const riskOverviewCards = computed(() => [
     detail: '公开页会持续保留风险提示'
   }
 ])
+const riskBoardCards = computed(() => {
+  return riskOverviewCards.value.map((item, index) => ({
+    key: riskTabs[index].value,
+    label: item.label,
+    value: item.value,
+    detail: item.detail
+  }))
+})
 
 const boardLeadText = computed(() => {
   if (readOnlyRiskView.value) {
@@ -122,6 +134,18 @@ const listSummary = computed(() => {
   const to = Math.min(filteredRows.value.length, page.value * pageSize.value)
   return `共 ${filteredRows.value.length} 个批次，当前显示 ${from}-${to} 个。`
 })
+
+const paginationSummary = computed(() => `第 ${page.value} / ${pageCount.value} 页`)
+
+const cleanListSummary = computed(() => {
+  if (!filteredRows.value.length) {
+    return '暂无批次数据。'
+  }
+  const from = (page.value - 1) * pageSize.value + 1
+  const to = Math.min(filteredRows.value.length, page.value * pageSize.value)
+  return `共 ${filteredRows.value.length} 个批次，当前显示 ${from}-${to} 个。`
+})
+const cleanPaginationSummary = computed(() => `第 ${page.value} / ${pageCount.value} 页`)
 
 const riskDialogError = computed(() => {
   if (!riskDialog.value.visible) {
@@ -233,6 +257,21 @@ function latestRiskActionText(item) {
 
 function rectificationText(item) {
   return item.riskResolutionLabel || '无需整改'
+}
+
+function riskStateTags(item) {
+  return [
+    {
+      key: 'batch',
+      text: item.statusLabel || '状态待确认',
+      tone: statusClass(item.status)
+    },
+    {
+      key: 'risk',
+      text: item.riskStatusLabel || '风险待确认',
+      tone: riskToneClass(item)
+    }
+  ]
 }
 
 function latestUpdatedText(item) {
@@ -681,12 +720,22 @@ async function openWorkbenchAfterRefresh(item) {
 <template>
   <div class="page-shell" data-testid="risk-page">
     <div class="manage-page risk-manage">
-    <section v-if="readOnlyRiskView" class="panel readonly-banner" data-testid="risk-readonly-banner">
-      <strong>监管查看模式</strong>
-      <span>{{ readOnlyBannerText }}</span>
-    </section>
+    <AdminPageHeader :title="pageTitle" :subtitle="cleanPageSubtitle">
+      <template #actions>
+        <button class="ghost" :disabled="loading" @click="fetchRows">刷新</button>
+      </template>
+    </AdminPageHeader>
 
-    <div class="manage-summary-row">
+    <div class="manage-overview-row">
+      <AdminOverviewCards
+        :items="riskBoardCards"
+        :active-key="activeTab"
+        test-id-prefix="risk-tab"
+        @select="activeTab = $event"
+      />
+    </div>
+
+    <div v-if="false" class="manage-summary-row">
       <div class="manage-summary">
         <button
           v-for="(card, index) in riskOverviewCards"
@@ -723,20 +772,20 @@ async function openWorkbenchAfterRefresh(item) {
             <option v-for="item in statusOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
           </select>
         </label>
-        <div class="risk-page-size-control">
+        <div class="page-size-control risk-page-size-control">
           <span class="manage-muted">每页显示</span>
-          <select v-model="pageSize" data-testid="risk-page-size" class="risk-page-size-select" @change="handlePageSizeChange($event.target.value)">
+          <select v-model="pageSize" data-testid="risk-page-size" class="page-size-select risk-page-size-select" @change="handlePageSizeChange($event.target.value)">
             <option v-for="item in pageSizeOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
           </select>
         </div>
-        <div class="toolbar-actions risk-filter-actions">
+        <div class="toolbar-actions filter-actions risk-filter-actions">
           <button class="primary" data-testid="risk-search-button" :disabled="loading" @click="handleSearch">查询</button>
           <button class="ghost" data-testid="risk-reset-button" :disabled="loading" @click="resetFilters">重置</button>
         </div>
       </div>
 
-      <div class="toolbar risk-filter-meta">
-        <span class="list-summary">{{ listSummary }}</span>
+      <div class="toolbar filter-meta risk-filter-meta">
+        <span class="list-summary">{{ cleanListSummary }}</span>
       </div>
     </section>
 
@@ -765,9 +814,8 @@ async function openWorkbenchAfterRefresh(item) {
         <div class="ledger-table-head risk-head">
           <span>批次与产品</span>
           <span>企业 / 更新时间</span>
-          <span>状态概览</span>
-          <span>当前判断</span>
-          <span>处置进展</span>
+          <span>风险状态</span>
+          <span>整改结果 / 最近动作</span>
           <span>动作</span>
         </div>
 
@@ -790,16 +838,17 @@ async function openWorkbenchAfterRefresh(item) {
 
           <div class="row-status risk-overview">
             <div class="status-chip-row">
-              <span class="status-chip" :class="statusClass(item.status)">{{ item.statusLabel }}</span>
-              <span class="status-chip" :class="riskToneClass(item)">{{ item.riskStatusLabel }}</span>
+              <StatusTag
+                v-for="tag in riskStateTags(item)"
+                :key="tag.key"
+                :text="tag.text"
+                :tone="tag.tone"
+              />
             </div>
           </div>
 
-          <div class="row-meta risk-focus">
-            <strong>{{ riskPriorityText(item) }}</strong>
-          </div>
-
           <div class="row-status risk-progress">
+            <small>{{ rectificationText(item) }}</small>
             <strong>{{ canResume(item) ? '已满足恢复发布条件' : latestRiskActionText(item) }}</strong>
           </div>
 
@@ -829,7 +878,15 @@ async function openWorkbenchAfterRefresh(item) {
         </div>
       </div>
 
-      <div class="toolbar risk-pagination">
+      <AdminListPagination
+        :summary="cleanPaginationSummary"
+        :prev-disabled="loading || page <= 1"
+        :next-disabled="loading || page >= pageCount"
+        @prev="goPrevPage"
+        @next="goNextPage"
+      />
+
+      <div v-if="false" class="toolbar risk-pagination">
         <span class="list-summary">第 {{ page }} / {{ pageCount }} 页</span>
         <div class="toolbar-actions">
           <button class="ghost" data-testid="risk-prev-page" :disabled="loading || page <= 1" @click="goPrevPage">上一页</button>
@@ -859,7 +916,7 @@ async function openWorkbenchAfterRefresh(item) {
           </label>
           <label class="full-width">
             <span>动作提示</span>
-            <textarea :value="riskActionHint(riskDialog.actionType)" rows="2" disabled></textarea>
+            <textarea v-if="false" :value="riskActionHint(riskDialog.actionType)" rows="2" disabled></textarea>
           </label>
           <label class="full-width">
             <span>处理说明</span>
@@ -970,12 +1027,11 @@ async function openWorkbenchAfterRefresh(item) {
 .risk-head,
 .risk-row {
   grid-template-columns:
-    minmax(0, 1.05fr)
+    minmax(0, 1.1fr)
+    minmax(0, 1fr)
     minmax(0, 0.95fr)
-    minmax(0, 0.9fr)
-    minmax(0, 0.95fr)
-    minmax(0, 0.95fr)
-    minmax(0, 1.2fr);
+    minmax(0, 1fr)
+    minmax(0, 1.15fr);
 }
 
 .risk-filter-grid {
@@ -1319,3 +1375,5 @@ async function openWorkbenchAfterRefresh(item) {
   }
 }
 </style>
+
+<style src="../assets/styles/admin-ledger-unified.css" scoped></style>
