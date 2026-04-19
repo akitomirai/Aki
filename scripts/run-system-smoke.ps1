@@ -20,7 +20,8 @@ $requiredSpecs = @(
     'specs/regulator-readonly-smoke.spec.mjs',
     'specs/quality-to-publish.spec.mjs',
     'specs/invalid-status-transition.spec.mjs',
-    'specs/field-work-round.spec.mjs'
+    'specs/field-work-round.spec.mjs',
+    'specs/full-link-demo-smoke.spec.mjs'
 )
 
 function Ensure-SystemSmokeDependencies {
@@ -113,7 +114,7 @@ try {
     $env:TRACE_BASE_URL = 'http://127.0.0.1:5173'
     $env:API_BASE_URL = 'http://127.0.0.1:8080/api'
 
-    Write-Host 'Running 7-group system smoke suite...' -ForegroundColor Cyan
+    Write-Host 'Running 8-group system smoke suite...' -ForegroundColor Cyan
     Push-Location $testDir
     try {
         npm run test:system-smoke

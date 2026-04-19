@@ -162,7 +162,7 @@ const routes = [
         component: () => import('../pages/BatchWorkbenchView.vue'),
         meta: {
           requiresAuth: true,
-          title: '批次详情主页面',
+          title: '批次工作台',
           roles: batchReadRoles
         }
       }

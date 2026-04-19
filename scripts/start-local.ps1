@@ -48,6 +48,10 @@ $services = @(
 
 foreach ($service in $services) {
     Set-Content -Path $service.LogPath -Value '' -Encoding UTF8
+    $stderrPath = "$($service.LogPath).stderr"
+    if (Test-Path $stderrPath) {
+        Set-Content -Path $stderrPath -Value '' -Encoding UTF8
+    }
 }
 
 $started = @()

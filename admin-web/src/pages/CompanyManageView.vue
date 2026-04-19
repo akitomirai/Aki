@@ -1,57 +1,78 @@
 <template>
   <div class="page-shell">
   <div class="manage-page company-manage" data-testid="companies-page">
-    <el-card v-if="isEnterpriseAdmin" shadow="never" class="profile-banner" data-testid="companies-self-mode">
-      <strong>当前为本企业资料模式</strong>
-      <span>这里只显示并维护你所在企业的基础资料，不涉及全平台企业管理。</span>
-    </el-card>
+    <AdminListTemplate
+      template-class="company-card-stack"
+      filter-card-class="company-filter-card"
+      ledger-card-class="company-ledger-panel company-ledger-card"
+    >
+    <template #banner>
+      <el-card v-if="isEnterpriseAdmin" shadow="never" class="profile-banner" data-testid="companies-self-mode">
+        <strong>当前为本企业资料模式</strong>
+        <span>这里只显示并维护你所在企业的基础资料，不涉及全平台企业管理。</span>
+      </el-card>
+    </template>
 
-    <el-card v-if="isPlatformAdmin" shadow="never" class="manage-filter-card">
-      <div class="manage-filter-grid company-filter-grid">
-        <el-input
-          v-model.trim="searchForm.keyword"
-          clearable
-          class="manage-filter-item"
-          placeholder="按企业名称、联系人、电话或地址搜索"
-          @keyup.enter="handleSearch"
-        />
+    <template v-if="isPlatformAdmin" #filterPrimary>
+      <div class="company-filter-layout">
+        <div class="manage-filter-grid company-filter-grid">
+          <label class="manage-filter-field company-filter-field company-filter-field--keyword">
+            <span class="manage-filter-field__label">关键词</span>
+            <el-input
+              v-model.trim="searchForm.keyword"
+              clearable
+              class="manage-filter-item"
+              placeholder="按企业名称、联系人、电话或地址搜索"
+              @keyup.enter="handleSearch"
+            />
+          </label>
 
-        <el-select
-          v-model="searchForm.status"
-          clearable
-          class="manage-filter-item"
-          placeholder="状态"
-        >
-          <el-option
-            v-for="item in statusOptions"
-            :key="item.value"
-            :label="item.label"
-            :value="item.value"
-          />
-        </el-select>
+          <label class="manage-filter-field company-filter-field company-filter-field--status">
+            <span class="manage-filter-field__label">状态</span>
+            <el-select
+              v-model="searchForm.status"
+              clearable
+              class="manage-filter-item"
+              placeholder="状态"
+            >
+              <el-option
+                v-for="item in statusOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
+          </label>
 
-        <div class="company-page-size-control">
-          <span class="manage-muted">每页显示</span>
-          <el-select
-            :model-value="pageSize"
-            class="company-page-size-select"
-            data-testid="companies-page-size"
-            @change="handlePageSizeChange"
-          >
-            <el-option v-for="item in pageSizeOptions" :key="item.value" :label="item.label" :value="item.value" />
-          </el-select>
+          <label class="manage-filter-field company-filter-field company-filter-field--page-size">
+            <span class="manage-filter-field__label">每页显示</span>
+            <el-select
+              :model-value="pageSize"
+              class="manage-filter-item company-page-size-select"
+              data-testid="companies-page-size"
+              @change="handlePageSizeChange"
+            >
+              <el-option v-for="item in pageSizeOptions" :key="item.value" :label="item.label" :value="item.value" />
+            </el-select>
+          </label>
+        </div>
+      </div>
+    </template>
+
+    <template v-if="isPlatformAdmin" #filterSecondary>
+      <div class="company-filter-toolbar">
+        <div class="company-filter-actions">
+          <el-button type="primary" @click="handleSearch">查询</el-button>
+          <el-button @click="handleReset">重置</el-button>
         </div>
 
-        <div class="summary-slot">
+        <div class="company-list-summary">
           <span class="manage-muted">{{ listSummary }}</span>
         </div>
-
-        <el-button type="primary" @click="handleSearch">查询</el-button>
-        <el-button @click="handleReset">重置</el-button>
       </div>
-    </el-card>
+    </template>
 
-    <div class="manage-summary-row">
+    <template #summary>
       <div class="manage-summary">
         <button
           v-if="isPlatformAdmin"
@@ -103,7 +124,9 @@
         </button>
       </div>
 
-      <div class="manage-summary-actions">
+    </template>
+
+    <template #actions>
         <el-button data-testid="companies-refresh-button" :loading="loading" @click="loadCompanies">刷新</el-button>
         <el-button
           v-if="canCreateCompany"
@@ -113,10 +136,9 @@
         >
           新增企业
         </el-button>
-      </div>
-    </div>
+    </template>
 
-    <section class="panel ledger-panel company-ledger-panel">
+    <template #ledger>
       <div class="panel-heading">
         <div>
           <h2 class="panel-heading__title">{{ tableTitle }}</h2>
@@ -143,12 +165,12 @@
           <span>企业</span>
           <span>联系人 / 电话</span>
           <span>地址</span>
-          <span>状态</span>
-          <span>产品 / 批次</span>
+          <span class="table-head-cell--center">状态</span>
+          <span class="table-head-cell--center">产品 / 批次</span>
           <span>操作</span>
         </div>
 
-        <div class="ledger-row-list">
+        <div class="ledger-row-list company-row-list">
           <article
             v-for="row in visibleCompanies"
             :key="row.id"
@@ -169,18 +191,18 @@
               <strong>{{ textOf(row.address, '未填写地址') }}</strong>
             </div>
 
-            <div class="row-status">
+            <div class="row-status table-cell--center">
               <span class="ledger-status-pill" :class="statusClass(row.status)">
                 {{ statusText(row.statusLabel || row.status) }}
               </span>
             </div>
 
-            <div class="row-meta">
+            <div class="row-meta table-cell--center">
               <strong>{{ row.productCount ?? 0 }} 个产品</strong>
               <small>{{ row.batchCount ?? 0 }} 个批次</small>
             </div>
 
-            <div class="row-actions">
+            <div class="row-actions table-cell--actions">
               <div class="ledger-actions-scroll">
                 <button class="text-button primary-text" :data-testid="`company-edit-${row.id}`" @click="openEditDialog(row)">编辑</button>
                 <button
@@ -214,14 +236,17 @@
         </div>
       </div>
 
-      <div class="toolbar company-pagination">
-        <span class="list-summary">第 {{ page }} / {{ pageCount }} 页</span>
-        <div class="toolbar-actions">
-          <el-button data-testid="companies-prev-page" :disabled="loading || page <= 1" @click="goPrevPage">上一页</el-button>
-          <el-button data-testid="companies-next-page" :disabled="loading || page >= pageCount" @click="goNextPage">下一页</el-button>
-        </div>
-      </div>
-    </section>
+      <AdminListPagination
+        :summary="`第 ${page} / ${pageCount} 页`"
+        :prev-disabled="loading || page <= 1"
+        :next-disabled="loading || page >= pageCount"
+        prev-testid="companies-prev-page"
+        next-testid="companies-next-page"
+        @prev="goPrevPage"
+        @next="goNextPage"
+      />
+    </template>
+    </AdminListTemplate>
 
     <el-dialog
       v-model="showDialog"
@@ -316,6 +341,8 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import AdminListTemplate from '../components/AdminListTemplate.vue'
+import AdminListPagination from '../components/AdminListPagination.vue'
 import { useAuthStore } from '../stores/auth'
 import { getCompanyList, createCompany, updateCompany, updateCompanyStatus, deleteCompany } from '../api/master-data'
 import { normalizeDisplayText } from '../utils/display'
@@ -650,6 +677,22 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.company-manage {
+  font-family: "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  --company-filter-text-inset: 14px;
+  --company-grid-inline-padding: 18px;
+  --company-grid-column-gap: 16px;
+  --company-filter-group-left-shift: 8px;
+  --company-keyword-filter-width: 296px;
+  --company-status-filter-width: 116px;
+  --company-page-size-width: 148px;
+  --company-filter-card-border: rgba(56, 134, 217, 0.14);
+  --company-filter-card-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(247, 251, 255, 0.94) 100%);
+  --company-filter-card-shadow: 0 16px 34px rgba(45, 113, 194, 0.1);
+  --company-filter-control-height: 40px;
+  --company-filter-control-radius: 12px;
+}
+
 .profile-banner {
   display: grid;
   gap: 8px;
@@ -669,56 +712,217 @@ onMounted(async () => {
   line-height: 1.7;
 }
 
-.company-filter-grid {
-  grid-template-columns: minmax(280px, 1.4fr) minmax(140px, 0.72fr) minmax(188px, max-content) minmax(210px, 1fr) auto auto;
+.company-card-stack {
+  display: grid;
+  gap: 16px;
 }
 
-.summary-slot {
+:deep(.company-filter-card),
+:deep(.company-ledger-card) {
+  position: relative;
+  overflow: hidden;
+}
+
+:deep(.company-filter-card) {
+  padding: 18px 22px 0;
+  border-color: var(--company-filter-card-border) !important;
+  background: var(--company-filter-card-bg) !important;
+  box-shadow: var(--company-filter-card-shadow) !important;
+}
+
+.company-filter-layout {
   display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding-right: 8px;
+  align-items: flex-end;
+  justify-content: flex-start;
+  gap: 18px;
+  margin-left: calc(-1 * var(--company-filter-group-left-shift));
+  padding: 0 12px 0 calc(var(--company-grid-inline-padding) - var(--company-filter-text-inset));
+  flex-wrap: wrap;
 }
 
-.company-page-size-control {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 188px;
+.company-filter-grid {
+  grid-template-columns:
+    minmax(var(--company-keyword-filter-width), max-content)
+    minmax(var(--company-status-filter-width), max-content)
+    minmax(var(--company-page-size-width), max-content);
+  align-items: end;
+  column-gap: 12px;
+  row-gap: 12px;
+  padding: 0;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.company-filter-field {
+  gap: 8px;
+  width: 100%;
+  justify-self: start;
+}
+
+.company-filter-field--keyword {
+  max-width: var(--company-keyword-filter-width);
+}
+
+.company-filter-field--status {
+  max-width: var(--company-status-filter-width);
+}
+
+.company-filter-field--page-size {
+  max-width: var(--company-page-size-width);
+}
+
+.company-filter-grid .manage-filter-field__label {
+  padding-inline-start: var(--company-filter-text-inset);
+  color: var(--admin-text-mid);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.company-filter-grid :deep(.manage-filter-item .el-input__wrapper),
+.company-filter-grid :deep(.manage-filter-item .el-select__wrapper) {
+  min-height: var(--company-filter-control-height);
+  padding-inline-start: var(--company-filter-text-inset);
+  padding-inline-end: 14px;
+  border-radius: var(--company-filter-control-radius);
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(56, 134, 217, 0.14) inset !important;
+}
+
+.company-filter-grid :deep(.manage-filter-item .el-input__inner),
+.company-filter-grid :deep(.manage-filter-item .el-select__selected-item),
+.company-filter-grid :deep(.manage-filter-item .el-select__placeholder) {
+  text-align: left;
+}
+
+.company-filter-grid :deep(.manage-filter-item .el-select__placeholder),
+.company-filter-grid :deep(.manage-filter-item .el-input__inner::placeholder) {
+  color: var(--admin-text-faint);
 }
 
 .company-page-size-select {
-  width: 128px;
+  width: 100%;
 }
 
-.company-pagination {
-  margin-top: 18px;
-  padding: 0 28px;
+.company-page-size-select :deep(.el-select__wrapper) {
+  min-height: var(--company-filter-control-height);
 }
 
-.company-pagination .list-summary {
+.company-filter-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 14px;
+  margin-top: 14px;
+  margin-left: calc(-1 * var(--company-filter-group-left-shift));
+  padding: 0 12px 18px var(--company-grid-inline-padding);
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.company-filter-actions {
   display: inline-flex;
   align-items: center;
-  min-height: 40px;
+  gap: 10px;
+  flex-wrap: nowrap;
 }
 
-.company-pagination .toolbar-actions {
+.company-filter-actions :deep(.el-button) {
+  min-height: 38px;
+  padding-inline: 16px;
+  border-radius: 12px;
+}
+
+.company-list-summary {
+  margin: 0;
+  padding: 0;
+}
+
+.company-list-summary .manage-muted {
+  display: inline-flex;
   align-items: center;
+  min-height: 22px;
+  color: var(--admin-text-soft);
+  font-size: 13px;
 }
 
-.company-ledger-panel {
-  margin-top: 0;
+:deep(.company-ledger-panel .panel-heading) {
+  padding-left: 28px;
 }
 
-.company-table-head,
-.company-row {
-  grid-template-columns:
-    minmax(240px, 1fr)
+:deep(.company-ledger-card) {
+  padding: 20px 22px 18px;
+  border: 1px solid rgba(56, 134, 217, 0.14) !important;
+  border-radius: 24px !important;
+  background: #fff !important;
+  box-shadow: 0 18px 42px rgba(45, 113, 194, 0.08) !important;
+}
+
+.company-table-shell {
+  --ledger-grid-columns:
+    minmax(240px, 1.08fr)
     minmax(190px, 0.82fr)
-    minmax(280px, 1.2fr)
-    minmax(120px, 0.5fr)
-    minmax(150px, 0.65fr)
-    minmax(250px, max-content);
+    minmax(280px, 1.18fr)
+    minmax(118px, 0.48fr)
+    minmax(148px, 0.54fr)
+    minmax(272px, 0.96fr);
+  --ledger-column-gap: var(--company-grid-column-gap);
+  --ledger-inline-padding: var(--company-grid-inline-padding);
+  --ledger-min-width: 1340px;
+}
+
+.company-table-head {
+  color: #6f86a4;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: #fff;
+}
+
+.company-row-list,
+.company-row-list.ledger-row-list {
+  display: grid;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid rgba(56, 134, 217, 0.14);
+  border-radius: 26px;
+  background: #fff;
+}
+
+:deep(.company-ledger-card .table-scroll-shell) {
+  background: #fff !important;
+}
+
+:deep(.company-ledger-card .admin-list-pagination) {
+  background: #fff !important;
+}
+
+:deep(.company-ledger-card .table-scroll-shell .company-table-head) {
+  background: #fff !important;
+}
+
+:deep(.company-ledger-card .panel-heading),
+:deep(.company-ledger-card .panel-heading > div) {
+  background: #fff;
+}
+
+.company-row,
+.company-row.ledger-row {
+  align-items: center;
+  border-top: 1px solid rgba(56, 134, 217, 0.1);
+  background: #fff;
+}
+
+.company-row:first-child {
+  border-top: 0;
+}
+
+.company-row:hover {
+  background: rgba(48, 149, 246, 0.03);
+}
+
+.company-row .table-cell--center .ledger-status-pill {
+  min-width: 92px;
 }
 
 .dialog-form :deep(.el-select),
@@ -758,29 +962,59 @@ onMounted(async () => {
   font-weight: 700;
 }
 
-@media (max-width: 1080px) {
+@media (max-width: 1280px) {
+  .company-filter-layout {
+    align-items: flex-end;
+    gap: 14px;
+    margin-left: 0;
+    padding-inline: 0;
+  }
+
   .company-filter-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .company-page-size-control {
-    min-width: 0;
-  }
-
-  .summary-slot {
+  .company-filter-toolbar {
+    width: 100%;
+    margin-left: 0;
     justify-content: flex-start;
-    padding-right: 0;
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 960px) {
   .company-filter-grid,
   .dialog-form--grouped {
     grid-template-columns: 1fr;
   }
 
-  .company-page-size-control {
-    justify-content: space-between;
+  .company-filter-field--keyword,
+  .company-filter-field--status {
+    max-width: none;
+  }
+}
+
+@media (max-width: 768px) {
+  :deep(.company-ledger-panel) {
+    padding: 16px;
+  }
+
+  :deep(.company-ledger-panel .panel-heading) {
+    padding-left: 0;
+  }
+
+  .company-filter-grid,
+  .dialog-form--grouped {
+    grid-template-columns: 1fr;
+  }
+
+  :deep(.company-filter-card) {
+    padding-bottom: 0;
+  }
+
+  .company-filter-toolbar {
+    justify-content: flex-start;
+    min-width: 0;
+    width: 100%;
   }
 
   .company-page-size-select {

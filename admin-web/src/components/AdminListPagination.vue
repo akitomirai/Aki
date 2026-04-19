@@ -26,35 +26,64 @@ const emit = defineEmits(['prev', 'next'])
 </script>
 
 <template>
-  <div class="toolbar admin-list-pagination">
-    <span class="list-summary">{{ summary }}</span>
-    <div class="toolbar-actions">
-      <button class="ghost" :data-testid="prevTestid || undefined" :disabled="prevDisabled" @click="emit('prev')">
-        上一页
-      </button>
-      <button class="ghost" :data-testid="nextTestid || undefined" :disabled="nextDisabled" @click="emit('next')">
-        下一页
-      </button>
-    </div>
+  <div class="admin-list-pagination">
+    <el-button
+      class="admin-list-pagination__button"
+      :data-testid="prevTestid || undefined"
+      :disabled="prevDisabled"
+      @click="emit('prev')"
+    >
+      上一页
+    </el-button>
+    <span class="admin-list-pagination__summary">{{ summary }}</span>
+    <el-button
+      class="admin-list-pagination__button"
+      :data-testid="nextTestid || undefined"
+      :disabled="nextDisabled"
+      @click="emit('next')"
+    >
+      下一页
+    </el-button>
   </div>
 </template>
 
 <style scoped>
 .admin-list-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+  gap: 12px;
   margin-top: 18px;
-  padding: 18px 28px 0;
-  border-top: 1px solid rgba(56, 134, 217, 0.1);
+  padding: 0 28px;
 }
 
-.admin-list-pagination .list-summary {
+.admin-list-pagination__summary {
   display: inline-flex;
   align-items: center;
-  min-height: 40px;
+  min-height: 32px;
+  flex: 0 0 auto;
+  color: var(--admin-text-mid);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.admin-list-pagination__button {
+  flex: 0 0 auto;
+}
+
+.admin-list-pagination :deep(.el-button) {
+  min-width: 72px;
+  min-height: 32px;
+  padding: 0 18px;
+  border-radius: 999px;
 }
 
 @media (max-width: 760px) {
   .admin-list-pagination {
-    padding: 18px 0 0;
+    padding: 0;
+    flex-wrap: wrap;
+    row-gap: 8px;
   }
 }
 </style>

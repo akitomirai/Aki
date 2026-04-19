@@ -3,9 +3,8 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { changeBatchStatus, createRiskAction, getBatchDetail, getBatchList } from '../api/batch'
 import AdminListPagination from '../components/AdminListPagination.vue'
+import AdminListTemplate from '../components/AdminListTemplate.vue'
 import AdminOverviewCards from '../components/AdminOverviewCards.vue'
-import AdminPageHeader from '../components/AdminPageHeader.vue'
-import PrimaryActionGroup from '../components/PrimaryActionGroup.vue'
 import StatusTag from '../components/StatusTag.vue'
 import { getFriendlyErrorMessage, riskActionOptions } from '../utils/batchExperience'
 import { mapBackendRecommendedRiskActionCode } from '../utils/batchStatusFlow'
@@ -47,6 +46,7 @@ const pageSubtitle = computed(() => {
 })
 const readOnlyBannerText = computed(() => '当前为监管查看模式，页面保留批次、企业、风险状态、最近动作、整改结果和最近更新时间，便于快速判断风险处置进展。')
 const cleanPageSubtitle = ''
+const actionWorkbenchText = computed(() => readOnlyRiskView.value ? '详情' : '工作台')
 const openWorkbenchText = computed(() => readOnlyRiskView.value ? '查看批次详情' : '查看工作台')
 
 const riskTabs = [
@@ -415,6 +415,17 @@ function recommendedRiskActionClass(item) {
   }[recommendedRiskActionCode(item)]
 }
 
+function primaryRiskActionTestId(item) {
+  return {
+    resume: `risk-resume-${item.id}`,
+    comment: `risk-comment-${item.id}`,
+    rectification: `risk-rectification-${item.id}`,
+    processing: `risk-processing-${item.id}`,
+    rectified: `risk-rectified-${item.id}`,
+    workbench: `risk-open-workbench-${item.id}`
+  }[recommendedRiskActionCode(item)]
+}
+
 function riskSecondaryActions(item) {
   const actions = []
   if (recommendedRiskActionCode(item) !== 'workbench') {
@@ -466,6 +477,10 @@ function riskSecondaryActions(item) {
     })
   }
   return actions
+}
+
+function riskMoreActions(item) {
+  return riskSecondaryActions(item).filter((action) => action.key !== 'workbench')
 }
 
 function handleRecommendedRiskAction(item) {
@@ -720,97 +735,103 @@ async function openWorkbenchAfterRefresh(item) {
 <template>
   <div class="page-shell" data-testid="risk-page">
     <div class="manage-page risk-manage">
-    <AdminPageHeader :title="pageTitle" :subtitle="cleanPageSubtitle">
-      <template #actions>
-        <button class="ghost" :disabled="loading" @click="fetchRows">刷新</button>
+    <AdminListTemplate
+      template-class="risk-card-stack"
+      filter-card-class="risk-filter-card"
+      ledger-card-class="risk-ledger-panel risk-ledger-card"
+    >
+      <template #summary>
+        <AdminOverviewCards
+          :items="riskBoardCards"
+          :active-key="activeTab"
+          test-id-prefix="risk-tab"
+          @select="activeTab = $event"
+        />
       </template>
-    </AdminPageHeader>
 
-    <div class="manage-overview-row">
-      <AdminOverviewCards
-        :items="riskBoardCards"
-        :active-key="activeTab"
-        test-id-prefix="risk-tab"
-        @select="activeTab = $event"
-      />
-    </div>
+      <template #banner>
+        <section v-if="readOnlyRiskView" class="panel readonly-banner" data-testid="risk-readonly-banner">
+      <strong>监管查看模式</strong>
+      <span>{{ readOnlyBannerText }}</span>
+        </section>
+      </template>
 
-    <div v-if="false" class="manage-summary-row">
-      <div class="manage-summary">
-        <button
-          v-for="(card, index) in riskOverviewCards"
-          :key="riskTabs[index].value"
-          type="button"
-          class="manage-summary-chip manage-summary-chip--interactive"
-          :class="{ 'is-active': activeTab === riskTabs[index].value }"
-          :data-testid="`risk-tab-${riskTabs[index].value}`"
-          @click="activeTab = riskTabs[index].value"
-        >
-          <span>{{ card.label }}</span>
-          <strong>{{ card.value }}</strong>
-        </button>
-      </div>
-
-      <div class="manage-summary-actions">
+      <template #actions>
         <button class="ghost" data-testid="risk-refresh-button" :disabled="loading" @click="fetchRows">刷新</button>
-      </div>
-    </div>
+      </template>
 
-    <section class="panel manage-filter-card risk-filter-panel">
-      <div class="manage-filter-grid risk-filter-grid">
-        <label>
-          <span>批次名称 / 编号</span>
-          <input v-model.trim="filters.keyword" data-testid="risk-filter-keyword" type="text" placeholder="输入批次编号或产品名称">
-        </label>
-        <label>
-          <span>企业</span>
-          <input v-model.trim="filters.companyName" type="text" placeholder="输入企业名称">
-        </label>
-        <label>
-          <span>批次状态</span>
-          <select v-model="filters.status">
-            <option v-for="item in statusOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-          </select>
-        </label>
-        <div class="page-size-control risk-page-size-control">
-          <span class="manage-muted">每页显示</span>
-          <select v-model="pageSize" data-testid="risk-page-size" class="page-size-select risk-page-size-select" @change="handlePageSizeChange($event.target.value)">
-            <option v-for="item in pageSizeOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-          </select>
+      <template #filterPrimary>
+      <div class="risk-filter-layout">
+        <div class="manage-filter-grid risk-filter-grid">
+          <label class="manage-filter-field risk-filter-field risk-filter-field--keyword">
+            <span class="manage-filter-field__label">批次名称 / 编号</span>
+            <input v-model.trim="filters.keyword" data-testid="risk-filter-keyword" type="text" placeholder="输入批次编号或产品名称">
+          </label>
+          <label class="manage-filter-field risk-filter-field risk-filter-field--company">
+            <span class="manage-filter-field__label">企业</span>
+            <input v-model.trim="filters.companyName" type="text" placeholder="输入企业名称">
+          </label>
+          <label class="manage-filter-field risk-filter-field risk-filter-field--status">
+            <span class="manage-filter-field__label">批次状态</span>
+            <el-select
+              v-model="filters.status"
+              class="manage-filter-item"
+              placeholder="全部批次状态"
+            >
+              <el-option v-for="item in statusOptions" :key="item.value" :label="item.label" :value="item.value" />
+            </el-select>
+          </label>
+          <label class="manage-filter-field risk-filter-field risk-filter-field--page-size">
+            <span class="manage-filter-field__label">每页显示</span>
+            <el-select
+              :model-value="pageSize"
+              data-testid="risk-page-size"
+              class="manage-filter-item risk-page-size-select"
+              @change="handlePageSizeChange"
+            >
+              <el-option v-for="item in pageSizeOptions" :key="item.value" :label="item.label" :value="item.value" />
+            </el-select>
+          </label>
         </div>
-        <div class="toolbar-actions filter-actions risk-filter-actions">
+      </div>
+      </template>
+
+      <template #filterSecondary>
+        <div class="risk-filter-toolbar">
+          <div class="risk-filter-actions">
           <button class="primary" data-testid="risk-search-button" :disabled="loading" @click="handleSearch">查询</button>
           <button class="ghost" data-testid="risk-reset-button" :disabled="loading" @click="resetFilters">重置</button>
+          </div>
+          <div class="risk-list-summary">
+            <span class="manage-muted">{{ cleanListSummary }}</span>
+          </div>
         </div>
-      </div>
+      </template>
 
-      <div class="toolbar filter-meta risk-filter-meta">
-        <span class="list-summary">{{ cleanListSummary }}</span>
-      </div>
-    </section>
+      <template #message>
+        <section v-if="message" class="message-bar" :class="messageType">{{ message }}</section>
+      </template>
 
-    <section v-if="message" class="message-bar" :class="messageType">{{ message }}</section>
-
-    <section v-if="loading" class="panel empty-state">
-      <div>
-        <h3>正在同步风险看板...</h3>
-      </div>
-    </section>
-
-    <section v-else-if="!visibleRows.length" class="panel empty-state">
-      <div>
-        <h3>当前看板下还没有风险任务</h3>
-      </div>
-    </section>
-
-    <section v-else class="panel ledger-panel risk-ledger-panel">
+      <template #ledger>
       <div class="panel-heading">
         <div>
           <h2 class="panel-heading__title">风险处置台账</h2>
         </div>
       </div>
 
-      <div class="table-scroll-shell ledger-table-shell risk-table-shell" style="--table-min-width: 1320px;">
+      <div v-if="loading" class="empty-state">
+        <div>
+          <h3>正在同步风险看板...</h3>
+        </div>
+      </div>
+
+      <div v-else-if="!visibleRows.length" class="empty-state">
+        <div>
+          <h3>当前看板下还没有风险任务</h3>
+        </div>
+      </div>
+
+      <div v-else class="table-scroll-shell ledger-table-shell risk-table-shell">
         <div class="ledger-table-head risk-head">
           <span>批次与产品</span>
           <span>企业 / 更新时间</span>
@@ -819,7 +840,7 @@ async function openWorkbenchAfterRefresh(item) {
           <span>动作</span>
         </div>
 
-        <div class="ledger-row-list">
+        <div class="ledger-row-list risk-row-list">
         <article
           v-for="item in visibleRows"
           :key="item.id"
@@ -848,31 +869,45 @@ async function openWorkbenchAfterRefresh(item) {
           </div>
 
           <div class="row-status risk-progress">
-            <small>{{ rectificationText(item) }}</small>
+            <small>整改结果：{{ rectificationText(item) }}</small>
             <strong>{{ canResume(item) ? '已满足恢复发布条件' : latestRiskActionText(item) }}</strong>
           </div>
 
-          <div class="row-actions risk-actions">
-            <PrimaryActionGroup
-              :primary-label="recommendedRiskActionLabel(item)"
-              :primary-class="recommendedRiskActionClass(item)"
-              :primary-disabled="recommendedRiskActionDisabled(item)"
-              :primary-testid="recommendedRiskActionCode(item) === 'resume'
-                ? `risk-resume-${item.id}`
-                : (recommendedRiskActionCode(item) === 'comment'
-                  ? `risk-comment-${item.id}`
-                  : (recommendedRiskActionCode(item) === 'rectification'
-                    ? `risk-rectification-${item.id}`
-                    : (recommendedRiskActionCode(item) === 'processing'
-                      ? `risk-processing-${item.id}`
-                      : (recommendedRiskActionCode(item) === 'rectified'
-                        ? `risk-rectified-${item.id}`
-                        : `risk-open-workbench-${item.id}`))))"
-              primary-hint=""
-              :secondary-actions="riskSecondaryActions(item)"
-              @primary-click="handleRecommendedRiskAction(item)"
-              @secondary-click="(code) => handleSecondaryRiskAction(item, code)"
-            />
+          <div class="row-actions risk-actions table-cell--actions">
+            <div class="row-actions-scroll ledger-actions-scroll risk-actions-row">
+              <button
+                :class="recommendedRiskActionClass(item)"
+                class="action-primary-button"
+                :disabled="recommendedRiskActionDisabled(item)"
+                :data-testid="primaryRiskActionTestId(item)"
+                @click="handleRecommendedRiskAction(item)"
+              >
+                {{ recommendedRiskActionLabel(item) }}
+              </button>
+              <button
+                v-if="recommendedRiskActionCode(item) !== 'workbench'"
+                class="text-button primary-text"
+                :data-testid="`risk-open-workbench-${item.id}`"
+                @click="openWorkbenchAfterRefresh(item)"
+              >
+                {{ actionWorkbenchText }}
+              </button>
+              <el-dropdown v-if="riskMoreActions(item).length" @command="(command) => handleSecondaryRiskAction(item, command)">
+                <button type="button" class="text-button">更多</button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item
+                      v-for="action in riskMoreActions(item)"
+                      :key="action.key"
+                      :command="action.key"
+                      :disabled="action.disabled"
+                    >
+                      <span :data-testid="action.testId">{{ action.label }}</span>
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </div>
           </div>
         </article>
         </div>
@@ -886,14 +921,8 @@ async function openWorkbenchAfterRefresh(item) {
         @next="goNextPage"
       />
 
-      <div v-if="false" class="toolbar risk-pagination">
-        <span class="list-summary">第 {{ page }} / {{ pageCount }} 页</span>
-        <div class="toolbar-actions">
-          <button class="ghost" data-testid="risk-prev-page" :disabled="loading || page <= 1" @click="goPrevPage">上一页</button>
-          <button class="ghost" data-testid="risk-next-page" :disabled="loading || page >= pageCount" @click="goNextPage">下一页</button>
-        </div>
-      </div>
-    </section>
+      </template>
+    </AdminListTemplate>
 
     <div v-if="riskDialog.visible" class="dialog-mask" @click.self="closeRiskDialog">
       <section class="dialog-card" data-testid="risk-action-dialog">
@@ -1024,84 +1053,176 @@ async function openWorkbenchAfterRefresh(item) {
 <style src="../assets/styles/admin-task-pages.css" scoped></style>
 
 <style scoped>
-.risk-head,
-.risk-row {
-  grid-template-columns:
-    minmax(0, 1.1fr)
-    minmax(0, 1fr)
-    minmax(0, 0.95fr)
-    minmax(0, 1fr)
-    minmax(0, 1.15fr);
+.risk-manage {
+  gap: 14px;
+  --risk-filter-card-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 251, 255, 0.98) 100%);
+  --risk-filter-card-border: rgba(56, 134, 217, 0.14);
+  --risk-filter-card-shadow: 0 16px 38px rgba(45, 113, 194, 0.08);
+  --risk-grid-inline-padding: 12px;
+  --risk-filter-group-left-shift: 14px;
+  --risk-filter-text-inset: 12px;
+  --risk-filter-control-height: 42px;
+  --risk-filter-control-radius: 12px;
+  --risk-keyword-width: 264px;
+  --risk-company-width: 220px;
+  --risk-status-width: 150px;
+  --risk-page-size-width: 146px;
+}
+
+.risk-card-stack {
+  display: grid;
+  gap: 16px;
+}
+
+:deep(.risk-filter-card),
+:deep(.risk-ledger-card) {
+  position: relative;
+  overflow: hidden;
+}
+
+:deep(.risk-filter-card) {
+  padding: 18px 22px 0;
+  border-color: var(--risk-filter-card-border) !important;
+  background: var(--risk-filter-card-bg) !important;
+  box-shadow: var(--risk-filter-card-shadow) !important;
+}
+
+:deep(.risk-ledger-card) {
+  padding: 20px 22px 18px;
+  border: 1px solid rgba(56, 134, 217, 0.14) !important;
+  border-radius: 24px !important;
+  background: #fff !important;
+  box-shadow: 0 18px 42px rgba(45, 113, 194, 0.08) !important;
+}
+
+.risk-table-shell {
+  --ledger-grid-columns:
+    minmax(208px, 1.08fr)
+    minmax(192px, 0.98fr)
+    minmax(186px, 0.92fr)
+    minmax(198px, 0.98fr)
+    minmax(278px, 1.12fr);
+  --ledger-min-width: 1320px;
+}
+
+.risk-filter-layout {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  gap: 18px;
+  margin-left: calc(-1 * var(--risk-filter-group-left-shift));
+  padding: 0 12px 0 calc(var(--risk-grid-inline-padding) - var(--risk-filter-text-inset));
+  flex-wrap: wrap;
 }
 
 .risk-filter-grid {
-  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) minmax(180px, 0.9fr) minmax(188px, max-content) auto;
+  grid-template-columns:
+    minmax(0, var(--risk-keyword-width))
+    minmax(0, var(--risk-company-width))
+    minmax(0, var(--risk-status-width))
+    minmax(0, var(--risk-page-size-width));
+  gap: 16px 14px;
   align-items: end;
 }
 
-.risk-filter-grid label {
+.risk-filter-field {
   display: grid;
   gap: 8px;
+  min-width: 0;
+  width: 100%;
 }
 
-.risk-filter-grid label > span,
-.risk-page-size-control .manage-muted {
+.risk-filter-field--keyword {
+  max-width: var(--risk-keyword-width);
+}
+
+.risk-filter-field--company {
+  max-width: var(--risk-company-width);
+}
+
+.risk-filter-field--status {
+  max-width: var(--risk-status-width);
+}
+
+.risk-filter-field--page-size {
+  max-width: var(--risk-page-size-width);
+}
+
+.risk-filter-grid .manage-filter-field__label {
+  padding-inline-start: var(--risk-filter-text-inset);
   color: var(--admin-text-mid);
   font-size: 13px;
   font-weight: 600;
+  line-height: 1.4;
 }
 
 .risk-filter-grid input,
-.risk-filter-grid select,
 .risk-page-size-select {
   width: 100%;
-  min-height: 42px;
+  min-height: var(--risk-filter-control-height);
   padding: 0 14px;
   border: 1px solid var(--admin-border);
-  border-radius: 10px;
+  border-radius: var(--risk-filter-control-radius);
   background: #fff;
   color: var(--admin-text);
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .risk-filter-grid input:focus,
-.risk-filter-grid select:focus,
 .risk-page-size-select:focus {
   border-color: rgba(48, 149, 246, 0.26);
   box-shadow: 0 0 0 3px rgba(48, 149, 246, 0.08);
   outline: none;
 }
 
-.risk-page-size-control {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 188px;
+.risk-filter-grid :deep(.manage-filter-item .el-select__wrapper) {
+  min-height: var(--risk-filter-control-height);
+  padding: 0 14px;
+  border-radius: var(--risk-filter-control-radius);
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--admin-border) inset !important;
+}
+
+.risk-filter-grid :deep(.manage-filter-item .el-select__selected-item),
+.risk-filter-grid :deep(.manage-filter-item .el-select__placeholder) {
+  text-align: left;
 }
 
 .risk-page-size-select {
-  width: 128px;
+  width: 100%;
+}
+
+.risk-page-size-select :deep(.el-select__wrapper) {
+  min-height: var(--risk-filter-control-height);
+}
+
+.risk-filter-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
 .risk-filter-actions {
-  justify-content: flex-end;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-start;
   flex-wrap: nowrap;
-  min-width: 170px;
 }
 
-.risk-filter-meta,
-.risk-pagination {
-  margin-top: 18px;
+.risk-filter-actions button {
+  min-height: 38px;
+  padding-inline: 16px;
+  border-radius: 12px;
 }
 
-.risk-pagination {
-  padding: 0 28px;
-}
-
-.risk-table-shell .ledger-table-head,
-.risk-table-shell .ledger-row-list {
-  width: 100%;
-  min-width: 0;
+.risk-list-summary .manage-muted {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  color: var(--admin-text-soft);
 }
 
 .risk-company,
@@ -1118,6 +1239,30 @@ async function openWorkbenchAfterRefresh(item) {
   gap: 8px;
 }
 
+.risk-row-list,
+.risk-row-list.ledger-row-list {
+  display: grid;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid rgba(56, 134, 217, 0.14);
+  border-radius: 26px;
+  background: #fff;
+}
+
+.risk-row,
+.risk-row.ledger-row {
+  background: #fff;
+  border-top: 1px solid rgba(56, 134, 217, 0.1);
+}
+
+:deep(.risk-ledger-card .table-scroll-shell),
+:deep(.risk-ledger-card .admin-list-pagination),
+:deep(.risk-ledger-card .table-scroll-shell .risk-head),
+:deep(.risk-ledger-card .panel-heading),
+:deep(.risk-ledger-card .panel-heading > div) {
+  background: #fff !important;
+}
+
 .risk-overview .status-chip {
   display: inline-flex;
   align-items: center;
@@ -1130,77 +1275,29 @@ async function openWorkbenchAfterRefresh(item) {
   white-space: nowrap;
 }
 
-.risk-actions :deep(.primary-action-group) {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.risk-actions-row {
+  overflow: visible;
 }
 
-.risk-actions :deep(.action-hint) {
-  display: none;
-}
-
-.risk-actions :deep(.action-primary) {
+.risk-actions-row .action-primary-button,
+.risk-actions-row .text-button {
   min-height: 34px;
   padding: 0 12px;
   font-size: 13px;
+  white-space: nowrap;
+}
+
+.risk-actions-row .action-primary-button {
   box-shadow: none;
 }
 
-.risk-actions :deep(.secondary-menu) {
-  border: none;
-  background: transparent;
+.risk-actions :deep(.el-dropdown) {
+  flex: 0 0 auto;
 }
 
-.risk-actions :deep(.secondary-menu > summary) {
-  display: inline-flex;
-  align-items: center;
-  min-height: 34px;
-  padding: 0 12px;
-  border: 1px solid rgba(56, 134, 217, 0.16);
-  border-radius: 999px;
-  background: #fff;
-}
-
-.risk-actions :deep(.secondary-menu[open] > summary) {
-  border-bottom: 1px solid rgba(56, 134, 217, 0.16);
-}
-
-.risk-actions :deep(.secondary-list) {
-  position: absolute;
-  z-index: 5;
-  min-width: 160px;
-  padding: 10px;
-  border: 1px solid rgba(194, 212, 230, 0.72);
-  border-radius: 14px;
-  background: #fff;
-  box-shadow: var(--admin-shadow);
-}
-
-.risk-actions :deep(.secondary-button) {
-  min-height: 34px;
-  font-size: 12px;
-}
-
-.risk-filter-grid {
-  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) minmax(180px, 0.9fr) minmax(188px, max-content) auto;
-  align-items: end;
-}
-
-.risk-filter-grid label {
-  display: grid;
-  gap: 8px;
-}
-
-.risk-page-size-control {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 188px;
-}
-
-.risk-page-size-select {
-  width: 128px;
+.risk-actions :deep(.el-dropdown-menu__item span[data-testid]) {
+  display: inline-block;
+  width: 100%;
 }
 
 .priority-chip.primary {
@@ -1224,18 +1321,8 @@ async function openWorkbenchAfterRefresh(item) {
 }
 
 .risk-filter-actions {
-  justify-content: flex-end;
+  justify-content: flex-start;
   flex-wrap: nowrap;
-  min-width: 170px;
-}
-
-.risk-filter-meta,
-.risk-pagination {
-  margin-top: 18px;
-}
-
-.risk-pagination {
-  padding: 0 28px;
 }
 
 .risk-actions {
@@ -1277,64 +1364,6 @@ async function openWorkbenchAfterRefresh(item) {
   color: #57718e;
 }
 
-.risk-table-shell .ledger-table-head,
-.risk-table-shell .ledger-row-list {
-  width: 100%;
-  min-width: 0;
-}
-
-.risk-actions :deep(.primary-action-group) {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.risk-actions :deep(.action-hint) {
-  display: none;
-}
-
-.risk-actions :deep(.action-primary) {
-  min-height: 34px;
-  padding: 0 12px;
-  font-size: 13px;
-  box-shadow: none;
-}
-
-.risk-actions :deep(.secondary-menu) {
-  border: none;
-  background: transparent;
-}
-
-.risk-actions :deep(.secondary-menu > summary) {
-  display: inline-flex;
-  align-items: center;
-  min-height: 34px;
-  padding: 0 12px;
-  border: 1px solid rgba(56, 134, 217, 0.16);
-  border-radius: 999px;
-  background: #fff;
-}
-
-.risk-actions :deep(.secondary-menu[open] > summary) {
-  border-bottom: 1px solid rgba(56, 134, 217, 0.16);
-}
-
-.risk-actions :deep(.secondary-list) {
-  position: absolute;
-  z-index: 5;
-  min-width: 160px;
-  padding: 10px;
-  border: 1px solid rgba(194, 212, 230, 0.72);
-  border-radius: 14px;
-  background: #fff;
-  box-shadow: var(--admin-shadow);
-}
-
-.risk-actions :deep(.secondary-button) {
-  min-height: 34px;
-  font-size: 12px;
-}
-
 .primary-text {
   font-weight: 700;
 }
@@ -1365,6 +1394,24 @@ async function openWorkbenchAfterRefresh(item) {
   min-height: 160px;
 }
 
+@media (max-width: 1180px) {
+  .risk-filter-layout,
+  .risk-filter-toolbar {
+    margin-left: 0;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .risk-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .risk-filter-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}
+
 @media (max-width: 760px) {
   .risk-filter-grid {
     grid-template-columns: 1fr;
@@ -1372,6 +1419,10 @@ async function openWorkbenchAfterRefresh(item) {
 
   .risk-row {
     grid-template-columns: 1fr;
+  }
+
+  .risk-page-size-select {
+    width: 100%;
   }
 }
 </style>

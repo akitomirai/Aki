@@ -367,6 +367,23 @@ a:focus-visible {
   box-shadow: 0 0 0 1px var(--admin-border) inset !important;
 }
 
+.manage-filter-card :is(select, .page-size-select) {
+  text-align: left;
+  text-align-last: left;
+}
+
+.manage-filter-card :deep(.el-select__wrapper) {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.manage-filter-card :deep(.el-select__selected-item),
+.manage-filter-card :deep(.el-select__placeholder),
+.manage-filter-card :deep(.el-select-dropdown__item) {
+  width: 100%;
+  text-align: left;
+}
+
 .el-input__wrapper.is-focus,
 .el-select__wrapper.is-focused,
 .el-textarea__inner:focus {

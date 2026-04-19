@@ -283,31 +283,31 @@ function shortSummary(text, length = 72) {
             </div>
           </div>
 
-          <div class="hero-kpi-grid">
-            <article class="kpi-card">
+          <div class="hero-kpi-grid summary-grid">
+            <div class="kpi-card">
               <span>当前状态</span>
               <strong data-testid="public-status">{{ publicStatusText }}</strong>
-            </article>
-            <article class="kpi-card kpi-card--accent">
+            </div>
+            <div class="kpi-card kpi-card--accent">
               <span>质检结论</span>
               <strong data-testid="public-quality">{{ publicQualityText }}</strong>
-            </article>
-            <article class="kpi-card">
+            </div>
+            <div class="kpi-card">
               <span>主体企业</span>
               <strong data-testid="public-company">{{ summary.companyName || company.name }}</strong>
-            </article>
-            <article class="kpi-card">
+            </div>
+            <div class="kpi-card">
               <span>批次编号</span>
               <strong data-testid="public-batch-code">{{ summary.batchCode }}</strong>
-            </article>
-            <article class="kpi-card">
+            </div>
+            <div class="kpi-card">
               <span>产地</span>
               <strong data-testid="public-origin">{{ localizeVisibleText(summary.originPlace) || '产地待补充' }}</strong>
-            </article>
-            <article class="kpi-card">
+            </div>
+            <div class="kpi-card">
               <span>公开时间</span>
-              <strong>{{ publicPublishedAtText }}</strong>
-            </article>
+              <strong data-testid="public-published-at">{{ publicPublishedAtText }}</strong>
+            </div>
           </div>
         </div>
 
@@ -414,9 +414,9 @@ function shortSummary(text, length = 72) {
           <span>{{ timelineItems.length }} 个节点</span>
         </div>
 
-        <article class="latest-event-card">
+        <article class="latest-event-card recent-card">
           <span>最近动态</span>
-          <strong>{{ latestTimelineItem?.title || '暂无追溯记录' }}</strong>
+          <strong data-testid="public-latest-record">{{ latestTimelineItem?.title || '暂无追溯记录' }}</strong>
           <p>{{ latestTimelineItem?.time || '暂无时间' }} · {{ localizeVisibleText(latestTimelineItem?.location) || '地点待补充' }}</p>
           <small>{{ shortSummary(latestTimelineItem?.summary) }}</small>
         </article>

@@ -1,74 +1,98 @@
 <template>
   <div class="page-shell">
   <div class="manage-page product-manage" data-testid="products-page">
-    <el-card v-if="isEnterpriseAdmin" shadow="never" class="profile-banner" data-testid="products-self-mode">
-      <strong>当前为本企业产品模式</strong>
-      <span>{{ scopedModeHint }}</span>
-    </el-card>
+    <AdminListTemplate
+      template-class="product-card-stack"
+      filter-card-class="product-filter-card"
+      ledger-card-class="product-ledger-panel product-ledger-card"
+    >
+    <template #banner>
+      <el-card v-if="isEnterpriseAdmin" shadow="never" class="profile-banner" data-testid="products-self-mode">
+        <strong>当前为本企业产品模式</strong>
+        <span>{{ scopedModeHint }}</span>
+      </el-card>
+    </template>
 
-    <el-card shadow="never" class="manage-filter-card">
-      <div class="manage-filter-grid product-filter-grid">
-        <el-select
-          v-model="searchForm.companyId"
-          clearable
-          filterable
-          class="manage-filter-item"
-          placeholder="选择企业"
-          :disabled="isCompanyLocked"
-          data-testid="products-filter-company"
-        >
-          <el-option
-            v-for="item in companyOptions"
-            :key="item.id"
-            :label="item.name"
-            :value="item.id"
-          />
-        </el-select>
+    <template #filterPrimary>
+      <div class="product-filter-layout">
+        <div class="manage-filter-grid product-filter-grid">
+          <label class="manage-filter-field product-filter-field product-filter-field--company">
+            <span class="manage-filter-field__label">企业</span>
+            <el-select
+              v-model="searchForm.companyId"
+              clearable
+              filterable
+              class="manage-filter-item"
+              placeholder="选择企业"
+              :disabled="isCompanyLocked"
+              data-testid="products-filter-company"
+            >
+              <el-option
+                v-for="item in companyOptions"
+                :key="item.id"
+                :label="item.name"
+                :value="item.id"
+              />
+            </el-select>
+          </label>
 
-        <el-input
-          v-model.trim="searchForm.keyword"
-          clearable
-          class="manage-filter-item"
-          placeholder="按产品名称、编码、分类、规格搜索"
-          @keyup.enter="handleSearch"
-        />
+          <label class="manage-filter-field product-filter-field product-filter-field--keyword">
+            <span class="manage-filter-field__label">关键词</span>
+            <el-input
+              v-model.trim="searchForm.keyword"
+              clearable
+              class="manage-filter-item"
+              placeholder="按产品名称、编码、分类、规格搜索"
+              @keyup.enter="handleSearch"
+            />
+          </label>
 
-        <el-select
-          v-model="searchForm.status"
-          clearable
-          class="manage-filter-item"
-          placeholder="状态"
-        >
-          <el-option
-            v-for="item in statusOptions"
-            :key="item.value"
-            :label="item.label"
-            :value="item.value"
-          />
-        </el-select>
-
-        <div class="product-page-size-control">
-          <span class="manage-muted">每页显示</span>
-          <el-select
-            :model-value="pageSize"
-            class="product-page-size-select"
-            data-testid="products-page-size"
-            @change="handlePageSizeChange"
-          >
-            <el-option v-for="item in pageSizeOptions" :key="item.value" :label="item.label" :value="item.value" />
+          <label class="manage-filter-field product-filter-field product-filter-field--status">
+            <span class="manage-filter-field__label">状态</span>
+            <el-select
+              v-model="searchForm.status"
+              clearable
+              class="manage-filter-item"
+              placeholder="状态"
+            >
+              <el-option
+                v-for="item in statusOptions"
+                :key="item.value"
+                :label="item.label"
+              :value="item.value"
+            />
           </el-select>
+        </label>
+          <label class="manage-filter-field product-filter-field product-filter-field--page-size">
+            <span class="manage-filter-field__label">每页显示</span>
+            <el-select
+              :model-value="pageSize"
+              class="manage-filter-item product-page-size-select"
+              data-testid="products-page-size"
+              @change="handlePageSizeChange"
+            >
+              <el-option v-for="item in pageSizeOptions" :key="item.value" :label="item.label" :value="item.value" />
+            </el-select>
+          </label>
         </div>
 
-        <div class="summary-slot">
+      </div>
+    </template>
+
+    <template #filterSecondary>
+      <div class="product-filter-toolbar">
+        <div class="product-filter-actions">
+          <el-button type="primary" @click="handleSearch">查询</el-button>
+          <el-button @click="handleReset">重置</el-button>
+        </div>
+
+        <div class="product-list-summary" role="status" aria-live="polite">
           <span class="manage-muted">{{ listSummary }}</span>
         </div>
-
-        <el-button type="primary" @click="handleSearch">查询</el-button>
-        <el-button @click="handleReset">重置</el-button>
       </div>
-    </el-card>
+    </template>
 
-    <div class="manage-summary-row">
+    <template #summary>
       <div class="manage-summary">
         <button
           v-for="chip in summaryChips"
@@ -84,13 +108,14 @@
         </button>
       </div>
 
-      <div class="manage-summary-actions">
+    </template>
+
+    <template #actions>
         <el-button data-testid="products-refresh-button" :loading="loading" @click="loadProducts">刷新</el-button>
         <el-button v-if="canManage" type="primary" data-testid="products-open-create" @click="openCreateDialog">新增产品</el-button>
-      </div>
-    </div>
+    </template>
 
-    <section class="panel product-ledger-panel">
+    <template #ledger>
       <div class="panel-heading">
         <div>
           <h2 class="panel-heading__title">{{ tableTitle }}</h2>
@@ -112,22 +137,22 @@
         </div>
       </div>
 
-      <div v-else class="table-scroll-shell product-table-shell">
-        <div class="product-table-head">
+      <div v-else class="table-scroll-shell ledger-table-shell product-table-shell">
+        <div class="ledger-table-head product-table-head">
           <span>产品</span>
           <span>企业</span>
           <span>分类 / 产地</span>
           <span>规格 / 单位</span>
-          <span>状态</span>
-          <span>批次</span>
+          <span class="table-head-cell--center">状态</span>
+          <span class="table-head-cell--center">批次</span>
           <span v-if="canManage">操作</span>
         </div>
 
-        <div class="product-row-list">
+        <div class="ledger-row-list product-row-list">
           <article
             v-for="row in visibleProductList"
             :key="row.id"
-            class="product-row"
+            class="ledger-row product-row"
             :data-testid="`products-row-${row.id}`"
           >
             <div class="row-main">
@@ -148,16 +173,16 @@
               <strong>{{ joinSpec(row.specification, row.unit) }}</strong>
             </div>
 
-            <div class="row-status">
-              <span class="status-pill" :class="statusClass(row.status)">{{ statusText(row.statusLabel || row.status) }}</span>
+            <div class="row-status table-cell--center">
+              <span class="ledger-status-pill" :class="statusClass(row.status)">{{ statusText(row.statusLabel || row.status) }}</span>
             </div>
 
-            <div class="row-meta">
+            <div class="row-meta table-cell--center">
               <strong>{{ row.batchCount ?? 0 }}</strong>
             </div>
 
-            <div v-if="canManage" class="row-actions">
-              <div class="row-actions-scroll">
+            <div v-if="canManage" class="row-actions table-cell--actions">
+              <div class="row-actions-scroll ledger-actions-scroll">
                 <button class="text-button primary-text" :data-testid="`products-edit-${row.id}`" @click="openEditDialog(row)">编辑</button>
                 <button
                   class="text-button"
@@ -188,14 +213,17 @@
         </div>
       </div>
 
-      <div class="toolbar product-pagination">
-        <span class="list-summary">第 {{ page }} / {{ pageCount }} 页</span>
-        <div class="toolbar-actions">
-          <el-button data-testid="products-prev-page" :disabled="loading || page <= 1" @click="goPrevPage">上一页</el-button>
-          <el-button data-testid="products-next-page" :disabled="loading || page >= pageCount" @click="goNextPage">下一页</el-button>
-        </div>
-      </div>
-    </section>
+      <AdminListPagination
+        :summary="`第 ${page} / ${pageCount} 页`"
+        :prev-disabled="loading || page <= 1"
+        :next-disabled="loading || page >= pageCount"
+        prev-testid="products-prev-page"
+        next-testid="products-next-page"
+        @prev="goPrevPage"
+        @next="goNextPage"
+      />
+    </template>
+    </AdminListTemplate>
 
     <el-dialog
       v-model="showDialog"
@@ -238,7 +266,7 @@
             v-model.trim="form.productCode"
             maxlength="64"
             show-word-limit
-            placeholder="便于内部台账与打印标识"
+            placeholder="可选，便于内部台账和打印标识"
             data-testid="products-form-code"
           />
         </el-form-item>
@@ -270,7 +298,7 @@
             v-model.trim="form.specification"
             maxlength="64"
             show-word-limit
-            placeholder="如 5kg / 箱"
+            placeholder="可选，如 5kg / 箱"
             data-testid="products-form-specification"
           />
         </el-form-item>
@@ -280,7 +308,7 @@
             v-model.trim="form.unit"
             maxlength="16"
             show-word-limit
-            placeholder="如 箱、袋、罐"
+            placeholder="可选，如 箱、斤、袋"
             data-testid="products-form-unit"
           />
         </el-form-item>
@@ -313,6 +341,8 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import AdminListTemplate from '../components/AdminListTemplate.vue'
+import AdminListPagination from '../components/AdminListPagination.vue'
 import { useAuthStore } from '../stores/auth'
 import { getCompanyList, getProductList, createProduct, updateProduct, updateProductStatus, deleteProduct } from '../api/master-data'
 import { normalizeDisplayText } from '../utils/display'
@@ -690,6 +720,27 @@ onMounted(async () => {
 <style scoped>
 .product-manage {
   font-family: "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  --product-filter-text-inset: 14px;
+  --product-grid-inline-padding: 18px;
+  --product-grid-column-gap: 16px;
+  --product-filter-group-left-shift: 8px;
+  --product-ledger-columns:
+    minmax(220px, 1.02fr)
+    minmax(178px, 0.8fr)
+    minmax(208px, 0.84fr)
+    minmax(154px, 0.64fr)
+    minmax(112px, 0.46fr)
+    minmax(84px, 0.32fr)
+    minmax(242px, 0.86fr);
+  --product-company-filter-width: 168px;
+  --product-keyword-filter-width: 280px;
+  --product-status-filter-width: 116px;
+  --product-page-size-width: 148px;
+  --product-filter-card-border: rgba(56, 134, 217, 0.14);
+  --product-filter-card-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(247, 251, 255, 0.94) 100%);
+  --product-filter-card-shadow: 0 16px 34px rgba(45, 113, 194, 0.1);
+  --product-filter-control-height: 40px;
+  --product-filter-control-radius: 12px;
 }
 
 .profile-banner {
@@ -711,70 +762,183 @@ onMounted(async () => {
   line-height: 1.7;
 }
 
+.product-card-stack {
+  display: grid;
+  gap: 16px;
+}
+
+:deep(.product-filter-card),
+:deep(.product-ledger-card) {
+  position: relative;
+  overflow: hidden;
+}
+
+:deep(.product-filter-card) {
+  padding: 18px 22px 0;
+  border-color: var(--product-filter-card-border) !important;
+  background: var(--product-filter-card-bg) !important;
+  box-shadow: var(--product-filter-card-shadow) !important;
+}
+
+.product-filter-layout {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  gap: 18px;
+  margin-left: calc(-1 * var(--product-filter-group-left-shift));
+  padding: 0 12px 0 calc(var(--product-grid-inline-padding) - var(--product-filter-text-inset));
+  flex-wrap: wrap;
+}
+
 .product-filter-grid {
-  grid-template-columns: minmax(180px, 1fr) minmax(260px, 1.15fr) minmax(140px, 0.72fr) minmax(188px, max-content) minmax(210px, 1fr) auto auto;
+  grid-template-columns:
+    minmax(var(--product-company-filter-width), max-content)
+    minmax(var(--product-keyword-filter-width), max-content)
+    minmax(var(--product-status-filter-width), max-content)
+    minmax(var(--product-page-size-width), max-content);
+  align-items: end;
+  column-gap: 12px;
+  row-gap: 12px;
+  padding: 0;
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
-.product-ledger-panel {
-  border: 1px solid var(--admin-border);
-  border-radius: 18px;
-  background: var(--admin-surface);
-  box-shadow: var(--admin-shadow);
-  padding: 20px 22px;
+.product-filter-field {
+  gap: 8px;
+  width: 100%;
+  justify-self: start;
 }
 
-.product-ledger-panel .panel-heading {
+.product-filter-field--company {
+  max-width: var(--product-company-filter-width);
+}
+
+.product-filter-field--keyword {
+  max-width: var(--product-keyword-filter-width);
+}
+
+.product-filter-field--status {
+  max-width: var(--product-status-filter-width);
+}
+
+.product-filter-field--page-size {
+  max-width: var(--product-page-size-width);
+}
+
+.product-filter-grid .manage-filter-field__label {
+  padding-inline-start: var(--product-filter-text-inset);
+  color: var(--admin-text-mid);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.product-filter-grid :deep(.manage-filter-item .el-input__wrapper),
+.product-filter-grid :deep(.manage-filter-item .el-select__wrapper) {
+  min-height: var(--product-filter-control-height);
+  padding-inline-start: var(--product-filter-text-inset);
+  padding-inline-end: 14px;
+  border-radius: var(--product-filter-control-radius);
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(56, 134, 217, 0.14) inset !important;
+}
+
+.product-filter-grid :deep(.manage-filter-item .el-input__inner),
+.product-filter-grid :deep(.manage-filter-item .el-select__selected-item),
+.product-filter-grid :deep(.manage-filter-item .el-select__placeholder) {
+  text-align: left;
+}
+
+.product-filter-grid :deep(.manage-filter-item .el-select__placeholder),
+.product-filter-grid :deep(.manage-filter-item .el-input__inner::placeholder) {
+  color: var(--admin-text-faint);
+}
+
+:deep(.product-ledger-panel .panel-heading) {
   padding-left: 28px;
 }
 
-.product-table-shell .product-table-head,
-.product-table-shell .product-row-list {
-  width: max-content;
-  min-width: 100%;
+.product-filter-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 14px;
+  margin-top: 14px;
+  margin-left: calc(-1 * var(--product-filter-group-left-shift));
+  padding: 0 12px 18px var(--product-grid-inline-padding);
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.product-list-summary {
+  margin: 0;
+  padding: 0;
+}
+
+.product-list-summary .manage-muted {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  color: var(--admin-text-soft);
+  font-size: 13px;
+}
+
+:deep(.product-ledger-card) {
+  padding: 20px 22px 18px;
+  border: 1px solid rgba(56, 134, 217, 0.14) !important;
+  border-radius: 24px !important;
+  background: #fff !important;
+  box-shadow: 0 18px 42px rgba(45, 113, 194, 0.08) !important;
+}
+
+.product-table-shell {
+  --ledger-grid-columns: var(--product-ledger-columns);
+  --ledger-column-gap: var(--product-grid-column-gap);
+  --ledger-inline-padding: var(--product-grid-inline-padding);
+  --ledger-min-width: 1500px;
 }
 
 .product-table-head {
-  display: grid;
-  grid-template-columns:
-    minmax(240px, 1fr)
-    minmax(220px, 0.95fr)
-    minmax(220px, 0.9fr)
-    minmax(170px, 0.72fr)
-    minmax(120px, 0.5fr)
-    minmax(90px, 0.42fr)
-    minmax(248px, max-content);
-  gap: 16px;
-  padding: 0 18px 14px;
   color: #6f86a4;
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.02em;
+  background: #fff;
 }
 
-.product-row-list {
+.product-row-list,
+.product-row-list.ledger-row-list {
   display: grid;
   gap: 0;
   overflow: hidden;
   border: 1px solid rgba(56, 134, 217, 0.14);
   border-radius: 26px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 252, 255, 0.98) 100%);
+  background: #fff;
 }
 
-.product-row {
-  display: grid;
-  grid-template-columns:
-    minmax(240px, 1fr)
-    minmax(220px, 0.95fr)
-    minmax(220px, 0.9fr)
-    minmax(170px, 0.72fr)
-    minmax(120px, 0.5fr)
-    minmax(90px, 0.42fr)
-    minmax(248px, max-content);
-  gap: 16px;
+:deep(.product-ledger-card .table-scroll-shell) {
+  background: #fff !important;
+}
+
+:deep(.product-ledger-card .admin-list-pagination) {
+  background: #fff !important;
+}
+
+:deep(.product-ledger-card .table-scroll-shell .product-table-head) {
+  background: #fff !important;
+}
+
+:deep(.product-ledger-card .panel-heading),
+:deep(.product-ledger-card .panel-heading > div) {
+  background: #fff;
+}
+
+.product-row,
+.product-row.ledger-row {
   align-items: center;
-  padding: 20px 18px;
   border-top: 1px solid rgba(56, 134, 217, 0.1);
-  background: transparent;
+  background: #fff;
 }
 
 .product-row:first-child {
@@ -785,67 +949,25 @@ onMounted(async () => {
   background: rgba(48, 149, 246, 0.03);
 }
 
-.status-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 34px;
-  padding: 0 14px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 600;
-  border: 1px solid transparent;
+.product-page-size-select {
+  width: 100%;
 }
 
-.status-pill.is-enabled {
-  border-color: rgba(48, 149, 246, 0.18);
-  background: rgba(48, 149, 246, 0.12);
-  color: #196ec0;
+.product-page-size-select :deep(.el-select__wrapper) {
+  min-height: var(--product-filter-control-height);
 }
 
-.status-pill.is-disabled {
-  border-color: rgba(120, 146, 173, 0.18);
-  background: rgba(120, 146, 173, 0.12);
-  color: #5f7b98;
-}
-
-.status-pill.is-archived {
-  border-color: rgba(232, 165, 61, 0.22);
-  background: rgba(232, 165, 61, 0.14);
-  color: #9a6512;
-}
-
-.summary-slot {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding-right: 8px;
-}
-
-.product-page-size-control {
+.product-filter-actions {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  min-width: 188px;
+  flex-wrap: nowrap;
 }
 
-.product-page-size-select {
-  width: 128px;
-}
-
-.product-pagination {
-  margin-top: 18px;
-  padding: 0 28px;
-}
-
-.product-pagination .list-summary {
-  display: inline-flex;
-  align-items: center;
-  min-height: 40px;
-}
-
-.product-pagination .toolbar-actions {
-  align-items: center;
+.product-filter-actions :deep(.el-button) {
+  min-height: 38px;
+  padding-inline: 16px;
+  border-radius: 12px;
 }
 
 .panel-heading__title {
@@ -886,10 +1008,6 @@ onMounted(async () => {
   align-items: center;
 }
 
-.product-row .row-status .status-pill {
-  margin-left: -14px;
-}
-
 .action-cell {
   display: flex;
   align-items: center;
@@ -904,10 +1022,6 @@ onMounted(async () => {
   flex-wrap: nowrap;
 }
 
-.product-row .row-actions-scroll {
-  margin-left: -10px;
-}
-
 .row-actions-scroll .text-button {
   min-height: 34px;
   padding: 0 12px;
@@ -918,6 +1032,10 @@ onMounted(async () => {
 
 .row-actions-scroll .primary-text {
   font-weight: 600;
+}
+
+.product-row .table-cell--center .ledger-status-pill {
+  min-width: 92px;
 }
 
 .table-action-link {
@@ -962,27 +1080,43 @@ onMounted(async () => {
   font-weight: 700;
 }
 
-@media (max-width: 1080px) {
+@media (max-width: 1280px) {
+  .product-filter-layout {
+    align-items: flex-end;
+    gap: 14px;
+    margin-left: 0;
+    padding-inline: 0;
+  }
+
+  .product-filter-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .product-filter-toolbar {
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 960px) {
   .product-filter-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .product-page-size-control {
-    min-width: 0;
-  }
-
-  .summary-slot {
-    justify-content: flex-start;
-    padding-right: 0;
+  .product-filter-field--company,
+  .product-filter-field--keyword,
+  .product-filter-field--status {
+    max-width: none;
   }
 }
 
 @media (max-width: 768px) {
-  .product-ledger-panel {
+  :deep(.product-ledger-panel) {
     padding: 16px;
   }
 
-  .product-ledger-panel .panel-heading {
+  :deep(.product-ledger-panel .panel-heading) {
     padding-left: 0;
   }
 
@@ -991,8 +1125,14 @@ onMounted(async () => {
     grid-template-columns: 1fr;
   }
 
-  .product-page-size-control {
-    justify-content: space-between;
+  :deep(.product-filter-card) {
+    padding-bottom: 0;
+  }
+
+  .product-filter-toolbar {
+    justify-content: flex-start;
+    min-width: 0;
+    width: 100%;
   }
 
   .product-page-size-select {

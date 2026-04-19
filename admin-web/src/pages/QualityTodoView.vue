@@ -3,8 +3,8 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { createQualityReport, getBatchDetail, getBatchList, uploadBatchFiles } from '../api/batch'
 import AdminListPagination from '../components/AdminListPagination.vue'
+import AdminListTemplate from '../components/AdminListTemplate.vue'
 import AdminOverviewCards from '../components/AdminOverviewCards.vue'
-import AdminPageHeader from '../components/AdminPageHeader.vue'
 import StatusTag from '../components/StatusTag.vue'
 import { useAuthStore } from '../stores/auth'
 import { createQualityForm, getFriendlyErrorMessage, getFriendlyUploadError, qualityOptions, splitHighlights } from '../utils/batchExperience'
@@ -717,106 +717,112 @@ function formatFileSize(size) {
 <template>
   <div class="page-shell" data-testid="quality-page">
     <div class="manage-page quality-manage">
-    <AdminPageHeader :title="pageTitle" :subtitle="cleanPageSubtitle">
-      <template #actions>
-        <button class="ghost" :disabled="loading" @click="fetchRows">刷新</button>
+    <AdminListTemplate
+      template-class="quality-card-stack"
+      filter-card-class="quality-filter-card"
+      ledger-card-class="quality-ledger-panel quality-ledger-card"
+    >
+      <template #summary>
+        <AdminOverviewCards
+          :items="qualityBoardCards"
+          :active-key="activeTab"
+          test-id-prefix="quality-tab"
+          @select="activeTab = $event"
+        />
       </template>
-    </AdminPageHeader>
 
-    <div class="manage-overview-row">
-      <AdminOverviewCards
-        :items="qualityBoardCards"
-        :active-key="activeTab"
-        test-id-prefix="quality-tab"
-        @select="activeTab = $event"
-      />
-    </div>
+      <template #banner>
+        <section v-if="readOnlyQualityView" class="panel readonly-banner" data-testid="quality-readonly-banner">
+      <strong>监管查看模式</strong>
+      <span>{{ readOnlyBannerText }}</span>
+        </section>
+      </template>
 
-    <div v-if="false" class="manage-summary-row">
-      <div class="manage-summary quality-mode-summary">
-        <button
-          v-for="(card, index) in qualityOverviewCards"
-          :key="qualityTabs[index].value"
-          type="button"
-          class="manage-summary-chip manage-summary-chip--interactive"
-          :class="{ 'is-active': activeTab === qualityTabs[index].value }"
-          :data-testid="`quality-tab-${qualityTabs[index].value}`"
-          @click="activeTab = qualityTabs[index].value"
-        >
-          <span>{{ card.label }}</span>
-          <strong>{{ card.value }}</strong>
-        </button>
-      </div>
-
-      <div class="manage-summary-actions">
+      <template #actions>
         <button class="ghost" data-testid="quality-refresh-button" :disabled="loading" @click="fetchRows">刷新</button>
-      </div>
-    </div>
+      </template>
 
-    <section class="panel manage-filter-card quality-filter-panel">
-      <div class="manage-filter-grid quality-filter-grid">
-        <label>
-          <span>批次名称 / 编号</span>
-          <input v-model.trim="filters.keyword" data-testid="quality-filter-keyword" type="text" placeholder="输入批次编号或产品名称">
-        </label>
-        <label>
-          <span>企业</span>
-          <input v-model.trim="filters.companyName" type="text" placeholder="输入企业名称">
-        </label>
-        <label>
-          <span>批次状态</span>
-          <select v-model="filters.status">
-            <option v-for="item in statusOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-          </select>
-        </label>
-        <div class="page-size-control quality-page-size-control">
-          <span class="manage-muted">每页显示</span>
-          <select v-model="pageSize" data-testid="quality-page-size" class="page-size-select quality-page-size-select" @change="handlePageSizeChange($event.target.value)">
-            <option v-for="item in pageSizeOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-          </select>
+      <template #filterPrimary>
+      <div class="quality-filter-layout">
+        <div class="manage-filter-grid quality-filter-grid">
+          <label class="manage-filter-field quality-filter-field quality-filter-field--keyword">
+            <span class="manage-filter-field__label">批次名称 / 编号</span>
+            <input v-model.trim="filters.keyword" data-testid="quality-filter-keyword" type="text" placeholder="输入批次编号或产品名称">
+          </label>
+          <label class="manage-filter-field quality-filter-field quality-filter-field--company">
+            <span class="manage-filter-field__label">企业</span>
+            <input v-model.trim="filters.companyName" type="text" placeholder="输入企业名称">
+          </label>
+          <label class="manage-filter-field quality-filter-field quality-filter-field--status">
+            <span class="manage-filter-field__label">批次状态</span>
+            <el-select
+              v-model="filters.status"
+              class="manage-filter-item"
+              placeholder="全部批次状态"
+            >
+              <el-option v-for="item in statusOptions" :key="item.value" :label="item.label" :value="item.value" />
+            </el-select>
+          </label>
+          <label class="manage-filter-field quality-filter-field quality-filter-field--page-size">
+            <span class="manage-filter-field__label">每页显示</span>
+            <el-select
+              :model-value="pageSize"
+              data-testid="quality-page-size"
+              class="manage-filter-item quality-page-size-select"
+              @change="handlePageSizeChange"
+            >
+              <el-option v-for="item in pageSizeOptions" :key="item.value" :label="item.label" :value="item.value" />
+            </el-select>
+          </label>
         </div>
-        <div class="toolbar-actions filter-actions quality-filter-actions">
+      </div>
+      </template>
+
+      <template #filterSecondary>
+        <div class="quality-filter-toolbar">
+          <div class="quality-filter-actions">
           <button class="primary" data-testid="quality-search-button" :disabled="loading" @click="handleSearch">查询</button>
           <button class="ghost" data-testid="quality-reset-button" :disabled="loading" @click="resetFilters">重置</button>
+          </div>
+          <div class="quality-list-summary">
+            <span class="manage-muted">{{ cleanListSummary }}</span>
+          </div>
         </div>
-      </div>
+      </template>
 
-      <div class="toolbar filter-meta quality-filter-meta">
-        <span class="list-summary quality-filter-summary">{{ cleanListSummary }}</span>
-      </div>
-    </section>
+      <template #message>
+        <section v-if="message" class="message-bar" :class="messageType">{{ message }}</section>
+      </template>
 
-    <section v-if="message" class="message-bar" :class="messageType">{{ message }}</section>
-
-    <section v-if="loading" class="panel empty-state">
-      <div>
-        <h3>正在同步质检看板...</h3>
-      </div>
-    </section>
-
-    <section v-else-if="!visibleRows.length" class="panel empty-state">
-      <div>
-        <h3>当前看板下还没有质检任务</h3>
-      </div>
-    </section>
-
-    <section v-else class="panel ledger-panel quality-ledger-panel">
+      <template #ledger>
       <div class="panel-heading">
         <div>
           <h2 class="panel-heading__title">质检任务台账</h2>
         </div>
       </div>
 
-      <div class="table-scroll-shell ledger-table-shell quality-table-shell" style="--table-min-width: 1320px;">
+      <div v-if="loading" class="empty-state">
+        <div>
+          <h3>正在同步质检看板...</h3>
+        </div>
+      </div>
+
+      <div v-else-if="!visibleRows.length" class="empty-state">
+        <div>
+          <h3>当前看板下还没有质检任务</h3>
+        </div>
+      </div>
+
+      <div v-else class="table-scroll-shell ledger-table-shell quality-table-shell">
         <div class="ledger-table-head quality-head">
           <span>批次与产品</span>
           <span>企业 / 更新时间</span>
-          <span>质检结果</span>
+          <span class="table-head-cell--center">质检结果</span>
           <span>批次状态</span>
           <span>动作</span>
         </div>
 
-        <div class="ledger-row-list">
+        <div class="ledger-row-list quality-row-list">
         <article
           v-for="item in visibleRows"
           :key="item.id"
@@ -833,7 +839,7 @@ function formatFileSize(size) {
             <small>最近更新：{{ latestUpdatedText(item) }}</small>
           </div>
 
-          <div class="row-status quality-overview">
+          <div class="row-status quality-overview table-cell--center">
             <StatusTag :text="qualityResultText(item)" :tone="resultStatusTone(item)" />
           </div>
 
@@ -848,8 +854,8 @@ function formatFileSize(size) {
             </div>
           </div>
 
-          <div class="row-actions quality-actions">
-            <div class="row-actions-scroll quality-actions-row">
+          <div class="row-actions quality-actions table-cell--actions">
+            <div class="row-actions-scroll ledger-actions-scroll quality-actions-row">
               <button
                 :class="recommendedQualityActionClass(item)"
                 class="action-primary-button"
@@ -895,14 +901,8 @@ function formatFileSize(size) {
         @next="goNextPage"
       />
 
-      <div v-if="false" class="toolbar quality-pagination">
-        <span class="list-summary">第 {{ page }} / {{ pageCount }} 页</span>
-        <div class="toolbar-actions">
-          <button class="ghost" data-testid="quality-prev-page" :disabled="loading || page <= 1" @click="goPrevPage">上一页</button>
-          <button class="ghost" data-testid="quality-next-page" :disabled="loading || page >= pageCount" @click="goNextPage">下一页</button>
-        </div>
-      </div>
-    </section>
+      </template>
+    </AdminListTemplate>
 
     <div v-if="resultDialog.visible" class="dialog-mask" @click.self="closeResultDialog">
       <section class="dialog-card" data-testid="quality-result-dialog">
@@ -1050,91 +1050,205 @@ function formatFileSize(size) {
 <style scoped>
 .quality-manage {
   gap: 14px;
+  --quality-filter-card-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 251, 255, 0.98) 100%);
+  --quality-filter-card-border: rgba(56, 134, 217, 0.14);
+  --quality-filter-card-shadow: 0 16px 38px rgba(45, 113, 194, 0.08);
+  --quality-grid-inline-padding: 12px;
+  --quality-filter-group-left-shift: 14px;
+  --quality-filter-text-inset: 12px;
+  --quality-filter-control-height: 42px;
+  --quality-filter-control-radius: 12px;
+  --quality-keyword-width: 264px;
+  --quality-company-width: 220px;
+  --quality-status-width: 150px;
+  --quality-page-size-width: 146px;
 }
 
-.quality-head,
-.quality-row {
-  grid-template-columns:
-    minmax(0, 1.1fr)
-    minmax(0, 1fr)
-    minmax(0, 0.8fr)
-    minmax(0, 0.9fr)
-    minmax(0, 1fr);
+.quality-card-stack {
+  display: grid;
+  gap: 16px;
+}
+
+:deep(.quality-filter-card),
+:deep(.quality-ledger-card) {
+  position: relative;
+  overflow: hidden;
+}
+
+:deep(.quality-filter-card) {
+  padding: 18px 22px 0;
+  border-color: var(--quality-filter-card-border) !important;
+  background: var(--quality-filter-card-bg) !important;
+  box-shadow: var(--quality-filter-card-shadow) !important;
+}
+
+:deep(.quality-ledger-card) {
+  padding: 20px 22px 18px;
+  border: 1px solid rgba(56, 134, 217, 0.14) !important;
+  border-radius: 24px !important;
+  background: #fff !important;
+  box-shadow: 0 18px 42px rgba(45, 113, 194, 0.08) !important;
+}
+
+.quality-table-shell {
+  --ledger-grid-columns:
+    minmax(208px, 1.08fr)
+    minmax(200px, 1fr)
+    minmax(148px, 0.78fr)
+    minmax(168px, 0.86fr)
+    minmax(256px, 1.08fr);
+  --ledger-min-width: 1320px;
 }
 
 .quality-mode-summary {
   margin-top: 0;
 }
 
+.quality-filter-layout {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  gap: 18px;
+  margin-left: calc(-1 * var(--quality-filter-group-left-shift));
+  padding: 0 12px 0 calc(var(--quality-grid-inline-padding) - var(--quality-filter-text-inset));
+  flex-wrap: wrap;
+}
+
 .quality-filter-grid {
-  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) minmax(180px, 0.9fr) minmax(188px, max-content) auto;
+  grid-template-columns:
+    minmax(0, var(--quality-keyword-width))
+    minmax(0, var(--quality-company-width))
+    minmax(0, var(--quality-status-width))
+    minmax(0, var(--quality-page-size-width));
+  gap: 16px 14px;
   align-items: end;
 }
 
-.quality-filter-grid label {
+.quality-filter-field {
   display: grid;
   gap: 8px;
+  min-width: 0;
+  width: 100%;
 }
 
-.quality-filter-grid label > span,
-.quality-page-size-control .manage-muted {
+.quality-filter-field--keyword {
+  max-width: var(--quality-keyword-width);
+}
+
+.quality-filter-field--company {
+  max-width: var(--quality-company-width);
+}
+
+.quality-filter-field--status {
+  max-width: var(--quality-status-width);
+}
+
+.quality-filter-field--page-size {
+  max-width: var(--quality-page-size-width);
+}
+
+.quality-filter-grid .manage-filter-field__label {
+  padding-inline-start: var(--quality-filter-text-inset);
   color: var(--admin-text-mid);
   font-size: 13px;
   font-weight: 600;
+  line-height: 1.4;
 }
 
 .quality-filter-grid input,
-.quality-filter-grid select,
 .quality-page-size-select {
   width: 100%;
-  min-height: 42px;
+  min-height: var(--quality-filter-control-height);
   padding: 0 14px;
   border: 1px solid var(--admin-border);
-  border-radius: 10px;
+  border-radius: var(--quality-filter-control-radius);
   background: #fff;
   color: var(--admin-text);
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .quality-filter-grid input:focus,
-.quality-filter-grid select:focus,
 .quality-page-size-select:focus {
   border-color: rgba(48, 149, 246, 0.26);
   box-shadow: 0 0 0 3px rgba(48, 149, 246, 0.08);
   outline: none;
 }
 
-.quality-page-size-control {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 188px;
+.quality-filter-grid :deep(.manage-filter-item .el-select__wrapper) {
+  min-height: var(--quality-filter-control-height);
+  padding: 0 14px;
+  border-radius: var(--quality-filter-control-radius);
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--admin-border) inset !important;
+}
+
+.quality-filter-grid :deep(.manage-filter-item .el-select__selected-item),
+.quality-filter-grid :deep(.manage-filter-item .el-select__placeholder) {
+  text-align: left;
 }
 
 .quality-page-size-select {
-  width: 128px;
+  width: 100%;
+}
+
+.quality-page-size-select :deep(.el-select__wrapper) {
+  min-height: var(--quality-filter-control-height);
+}
+
+.quality-filter-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-left: calc(-1 * var(--quality-filter-group-left-shift));
+  padding: 0 12px 18px var(--quality-grid-inline-padding);
+  min-width: 0;
 }
 
 .quality-filter-actions {
-  justify-content: flex-end;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-start;
   flex-wrap: nowrap;
-  min-width: 170px;
 }
 
-.quality-filter-meta {
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid rgba(56, 134, 217, 0.1);
+.quality-filter-actions button {
+  min-height: 38px;
+  padding-inline: 16px;
+  border-radius: 12px;
 }
 
-.quality-filter-summary {
+.quality-list-summary .manage-muted {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
   color: var(--admin-text-soft);
 }
 
-.quality-table-shell .ledger-table-head,
-.quality-table-shell .ledger-row-list {
-  width: 100%;
-  min-width: 0;
+:deep(.quality-ledger-card .table-scroll-shell),
+:deep(.quality-ledger-card .admin-list-pagination),
+:deep(.quality-ledger-card .table-scroll-shell .quality-head),
+:deep(.quality-ledger-card .panel-heading),
+:deep(.quality-ledger-card .panel-heading > div) {
+  background: #fff !important;
+}
+
+.quality-row-list,
+.quality-row-list.ledger-row-list {
+  display: grid;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid rgba(56, 134, 217, 0.14);
+  border-radius: 26px;
+  background: #fff;
+}
+
+.quality-row,
+.quality-row.ledger-row {
+  background: #fff;
+  border-top: 1px solid rgba(56, 134, 217, 0.1);
 }
 
 .quality-company,
@@ -1227,18 +1341,14 @@ function formatFileSize(size) {
 }
 
 .quality-actions-row {
-  gap: 6px;
-  flex-wrap: nowrap;
   overflow: visible;
-  width: 100%;
-  justify-content: flex-start;
 }
 
 .quality-actions-row .action-primary-button,
 .quality-actions-row .text-button {
   min-height: 34px;
-  padding: 0 10px;
-  font-size: 12px;
+  padding: 0 12px;
+  font-size: 13px;
   white-space: nowrap;
 }
 
@@ -1253,18 +1363,6 @@ function formatFileSize(size) {
 .quality-actions :deep(.el-dropdown-menu__item span[data-testid]) {
   display: inline-block;
   width: 100%;
-}
-
-.quality-pagination {
-  margin-top: 18px;
-  padding: 18px 28px 0;
-  border-top: 1px solid rgba(56, 134, 217, 0.1);
-}
-
-.quality-pagination .list-summary {
-  display: inline-flex;
-  align-items: center;
-  min-height: 40px;
 }
 
 .readonly-banner {
@@ -1294,16 +1392,20 @@ function formatFileSize(size) {
 }
 
 @media (max-width: 1180px) {
+  .quality-filter-layout,
+  .quality-filter-toolbar {
+    margin-left: 0;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
   .quality-filter-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .quality-page-size-control {
-    min-width: 0;
-  }
-
   .quality-filter-actions {
     justify-content: flex-start;
+    flex-wrap: wrap;
   }
 }
 
@@ -1318,10 +1420,6 @@ function formatFileSize(size) {
 
   .quality-row {
     grid-template-columns: 1fr;
-  }
-
-  .quality-page-size-control {
-    justify-content: space-between;
   }
 
   .quality-page-size-select {

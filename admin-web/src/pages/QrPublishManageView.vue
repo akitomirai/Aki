@@ -3,7 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { changeBatchStatus, generateBatchQr, getBatchDetail, getBatchList } from '../api/batch'
 import AdminListPagination from '../components/AdminListPagination.vue'
-import AdminPageHeader from '../components/AdminPageHeader.vue'
+import AdminListTemplate from '../components/AdminListTemplate.vue'
 import { useAuthStore } from '../stores/auth'
 import { getFriendlyErrorMessage } from '../utils/batchExperience'
 import { resolvePublishBlockState } from '../utils/batchStatusFlow'
@@ -517,15 +517,6 @@ function primaryQrActionLabel(item) {
   }[primaryQrActionCode(item)]
 }
 
-function primaryQrActionClass(item) {
-  return {
-    generate: 'primary',
-    publish: 'success',
-    public: 'ghost',
-    preview: 'ghost'
-  }[primaryQrActionCode(item)]
-}
-
 function primaryQrActionDisabled(item) {
   const action = primaryQrActionCode(item)
   if (action === 'generate') {
@@ -871,13 +862,12 @@ async function submitPublish() {
 <template>
   <div class="page-shell" data-testid="qr-publish-page">
     <div class="manage-page qr-manage">
-    <AdminPageHeader :title="cleanPageTitle" :subtitle="cleanPageSubtitle">
-      <template #actions>
-        <button class="ghost" data-testid="qr-refresh-button" :disabled="loading" @click="fetchRows">刷新</button>
-      </template>
-    </AdminPageHeader>
-
-    <div class="manage-summary-row">
+    <AdminListTemplate
+      template-class="qr-card-stack"
+      filter-card-class="qr-filter-panel"
+      ledger-card-class="qr-ledger-panel qr-ledger-card"
+    >
+      <template #summary>
       <div class="manage-summary">
         <button
           v-for="item in qrSummaryTabs"
@@ -892,100 +882,108 @@ async function submitPublish() {
           <strong>{{ item.count }}</strong>
         </button>
       </div>
-    </div>
+      </template>
 
-    <div v-if="false" class="manage-summary-row">
-      <div class="manage-summary">
-        <button
-          v-for="card in qrOverviewCards"
-          :key="card.value"
-          type="button"
-          class="manage-summary-chip manage-summary-chip--interactive"
-          :class="{ 'is-active': activeTab === card.value }"
-          :data-testid="`qr-tab-legacy-${card.value}`"
-          @click="activeTab = card.value"
+      <template #actions>
+        <el-button data-testid="qr-refresh-button" :loading="loading" @click="fetchRows">刷新</el-button>
+        <el-button
+          data-testid="qr-bulk-select-all"
+          :disabled="!selectableVisibleRows.length"
+          @click="toggleSelectAllPrintable(!allSelectableVisibleChecked)"
         >
-          <span>{{ card.label }}</span>
-          <strong>{{ card.count }}</strong>
-        </button>
-      </div>
+          {{ allSelectableVisibleChecked ? '取消本页全选' : '全选本页已有码批次' }}
+        </el-button>
+        <el-button
+          data-testid="qr-bulk-clear"
+          :disabled="!selectedIds.length"
+          @click="clearSelection"
+        >
+          清空选择
+        </el-button>
+        <el-button
+          type="primary"
+          data-testid="qr-bulk-print"
+          :disabled="bulkPrintSubmitting || !selectedPrintableRows.length"
+          @click="openBulkPrintPreview"
+        >
+          {{ bulkPrintSubmitting ? '正在生成打印页...' : `批量打印预览（${selectedPrintableRows.length}）` }}
+        </el-button>
+      </template>
 
-      <div v-if="false" class="manage-summary-actions">
-        <button class="ghost" data-testid="qr-refresh-button" :disabled="loading" @click="fetchRows">刷新</button>
-      </div>
-    </div>
-
-    <section class="panel manage-filter-card qr-filter-panel">
-      <div class="manage-filter-grid qr-filter-grid">
-        <label>
-          <span>批次名称 / 编号</span>
-          <input v-model.trim="filters.keyword" data-testid="qr-filter-keyword" type="text" placeholder="输入批次编号或产品名称">
-        </label>
-        <label>
-          <span>企业</span>
-          <input v-model.trim="filters.companyName" type="text" placeholder="输入企业名称">
-        </label>
-        <label>
-          <span>批次状态</span>
-          <select v-model="filters.status">
-            <option v-for="option in statusOptions" :key="option.value || 'all'" :value="option.value">
-              {{ option.label }}
-            </option>
-          </select>
-        </label>
-        <div class="page-size-control qr-page-size-control">
-          <span class="manage-muted">每页显示</span>
-          <select v-model="pageSize" data-testid="qr-page-size" class="page-size-select qr-page-size-select" @change="handlePageSizeChange($event.target.value)">
-            <option v-for="item in pageSizeOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-          </select>
-        </div>
-        <div class="toolbar-actions filter-actions qr-filter-actions">
-          <button class="primary" data-testid="qr-search-button" :disabled="loading" @click="handleSearch">查询</button>
-          <button class="ghost" :disabled="loading" @click="resetFilters">重置</button>
-        </div>
-      </div>
-
-      <div class="toolbar filter-meta qr-filter-meta">
-        <div class="list-summary">{{ cleanListSummary }}</div>
-      </div>
-
-      <div class="toolbar list-toolbar qr-bulk-toolbar" :class="{ 'has-selection': selectedPrintableRows.length }">
-        <div class="list-summary">已选 {{ selectedPrintableRows.length }} 项</div>
-        <div class="toolbar-actions">
-          <button
-            class="ghost"
-            data-testid="qr-bulk-select-all"
-            :disabled="!selectableVisibleRows.length"
-            @click="toggleSelectAllPrintable(!allSelectableVisibleChecked)"
-          >
-            {{ allSelectableVisibleChecked ? '取消本页全选' : '全选本页已有码批次' }}
-          </button>
-          <button
-            class="ghost"
-            data-testid="qr-bulk-clear"
-            :disabled="!selectedIds.length"
-            @click="clearSelection"
-          >
-            清空选择
-          </button>
-          <button
-            class="primary"
-            data-testid="qr-bulk-print"
-            :disabled="bulkPrintSubmitting || !selectedPrintableRows.length"
-            @click="openBulkPrintPreview"
-          >
-            {{ bulkPrintSubmitting ? '正在生成打印页...' : `批量打印预览（${selectedPrintableRows.length}）` }}
-          </button>
+    <template #filterPrimary>
+      <div class="qr-filter-layout">
+        <div class="manage-filter-grid qr-filter-grid">
+          <label class="manage-filter-field qr-filter-field qr-filter-field--keyword">
+            <span class="manage-filter-field__label">批次名称 / 编号</span>
+            <el-input
+              v-model.trim="filters.keyword"
+              clearable
+              class="manage-filter-item"
+              data-testid="qr-filter-keyword"
+              placeholder="输入批次编号或产品名称"
+              @keyup.enter="handleSearch"
+            />
+          </label>
+          <label class="manage-filter-field qr-filter-field qr-filter-field--company">
+            <span class="manage-filter-field__label">企业</span>
+            <el-input
+              v-model.trim="filters.companyName"
+              clearable
+              class="manage-filter-item"
+              placeholder="输入企业名称"
+              @keyup.enter="handleSearch"
+            />
+          </label>
+          <label class="manage-filter-field qr-filter-field qr-filter-field--status">
+            <span class="manage-filter-field__label">批次状态</span>
+            <el-select
+              v-model="filters.status"
+              class="manage-filter-item"
+              placeholder="全部批次状态"
+            >
+              <el-option
+                v-for="option in statusOptions"
+                :key="option.value || 'all'"
+                :label="option.label"
+                :value="option.value"
+              />
+            </el-select>
+          </label>
+          <label class="manage-filter-field qr-filter-field qr-filter-field--page-size">
+            <span class="manage-filter-field__label">每页显示</span>
+            <el-select
+              :model-value="pageSize"
+              class="manage-filter-item qr-page-size-select"
+              data-testid="qr-page-size"
+              @change="handlePageSizeChange"
+            >
+              <el-option v-for="item in pageSizeOptions" :key="item.value" :label="item.label" :value="item.value" />
+            </el-select>
+          </label>
         </div>
       </div>
-    </section>
+    </template>
 
-    <section v-if="message" class="message-bar" :class="messageType">{{ message }}</section>
+    <template #filterSecondary>
+      <div class="qr-filter-toolbar">
+        <div class="qr-filter-actions">
+          <el-button type="primary" data-testid="qr-search-button" :disabled="loading" @click="handleSearch">查询</el-button>
+          <el-button :disabled="loading" @click="resetFilters">重置</el-button>
+        </div>
+        <div class="qr-list-summary">
+          <span class="manage-muted">{{ cleanListSummary }}</span>
+        </div>
+      </div>
+    </template>
 
-    <section class="panel ledger-panel qr-ledger-panel">
-      <div class="panel-heading">
-        <div class="panel-heading__copy">
-          <h2 class="panel-heading__title">二维码与发布台账</h2>
+      <template #message>
+        <section v-if="message" class="message-bar" :class="messageType">{{ message }}</section>
+      </template>
+
+    <template #ledger>
+        <div class="panel-heading">
+          <div class="panel-heading__copy">
+            <h2 class="panel-heading__title">二维码与发布台账</h2>
         </div>
       </div>
 
@@ -1003,7 +1001,7 @@ async function submitPublish() {
 
       <div v-else class="table-scroll-shell ledger-table-shell qr-table-shell">
         <div class="ledger-table-head qr-head">
-          <span>选择</span>
+          <span class="table-head-cell--center">选择</span>
           <span>批次</span>
           <span>企业 / 更新时间</span>
           <span>状态</span>
@@ -1011,14 +1009,14 @@ async function submitPublish() {
           <span>操作</span>
         </div>
 
-        <div class="ledger-row-list">
+        <div class="ledger-row-list qr-row-list">
         <article
           v-for="item in visibleRows"
           :key="item.id"
           class="ledger-row qr-row"
           :data-testid="`qr-row-${item.id}`"
         >
-          <div class="row-select">
+          <div class="row-select table-cell--center">
             <label class="selection-check">
               <input
                 :checked="selectedIds.includes(item.id)"
@@ -1058,11 +1056,10 @@ async function submitPublish() {
             <small>{{ displayPublishTime(item) }}</small>
           </div>
 
-          <div class="row-actions">
-            <div class="row-actions-scroll qr-actions-row">
+          <div class="row-actions table-cell--actions">
+            <div class="row-actions-scroll ledger-actions-scroll qr-actions-row">
               <button
-                :class="primaryQrActionClass(item)"
-                class="action-primary-button"
+                class="text-button primary-text"
                 :disabled="primaryQrActionDisabled(item)"
                 :data-testid="`qr-primary-${item.id}`"
                 @click="runPrimaryQrAction(item)"
@@ -1074,7 +1071,7 @@ async function submitPublish() {
                 :data-testid="`qr-workbench-${item.id}`"
                 @click="openWorkbench(item)"
               >
-                  详情
+                详情
               </button>
               <el-dropdown @command="(command) => handleQrRowCommand(item, command)">
                 <button type="button" class="text-button">更多</button>
@@ -1125,15 +1122,8 @@ async function submitPublish() {
         @prev="goPrevPage"
         @next="goNextPage"
       />
-
-      <div v-if="false" class="toolbar qr-pagination">
-        <span class="list-summary">第 {{ page }} / {{ pageCount }} 页</span>
-        <div class="toolbar-actions">
-          <button class="ghost" data-testid="qr-prev-page" :disabled="loading || page <= 1" @click="goPrevPage">上一页</button>
-          <button class="ghost" data-testid="qr-next-page" :disabled="loading || page >= pageCount" @click="goNextPage">下一页</button>
-        </div>
-      </div>
-    </section>
+    </template>
+    </AdminListTemplate>
 
     <div v-if="previewDialog.visible" class="dialog-mask">
       <section class="dialog-card qr-preview-dialog" data-testid="qr-preview-dialog">
@@ -1236,90 +1226,216 @@ async function submitPublish() {
 <style scoped>
 .qr-manage {
   gap: 14px;
+  font-family: "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  --qr-filter-text-inset: 14px;
+  --qr-grid-inline-padding: 18px;
+  --qr-grid-column-gap: 16px;
+  --qr-filter-group-left-shift: 8px;
+  --qr-keyword-filter-width: 248px;
+  --qr-company-filter-width: 188px;
+  --qr-status-filter-width: 148px;
+  --qr-page-size-width: 148px;
+  --qr-filter-card-border: rgba(56, 134, 217, 0.14);
+  --qr-filter-card-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(247, 251, 255, 0.94) 100%);
+  --qr-filter-card-shadow: 0 16px 34px rgba(45, 113, 194, 0.1);
+  --qr-filter-control-height: 40px;
+  --qr-filter-control-radius: 12px;
+}
+
+.qr-card-stack {
+  display: grid;
+  gap: 16px;
+}
+
+:deep(.qr-filter-panel),
+:deep(.qr-ledger-card) {
+  position: relative;
+  overflow: hidden;
+}
+
+:deep(.qr-filter-panel) {
+  padding: 18px 22px 0;
+  border-color: var(--qr-filter-card-border) !important;
+  background: var(--qr-filter-card-bg) !important;
+  box-shadow: var(--qr-filter-card-shadow) !important;
+}
+
+:deep(.qr-ledger-card) {
+  padding: 20px 22px 18px;
+  border: 1px solid rgba(56, 134, 217, 0.14) !important;
+  border-radius: 24px !important;
+  background: #fff !important;
+  box-shadow: 0 18px 42px rgba(45, 113, 194, 0.08) !important;
+}
+
+.qr-filter-layout {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  gap: 18px;
+  margin-left: calc(-1 * var(--qr-filter-group-left-shift));
+  padding: 0 12px 0 calc(var(--qr-grid-inline-padding) - var(--qr-filter-text-inset));
+  flex-wrap: wrap;
 }
 
 .qr-filter-grid {
-  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) minmax(180px, 0.9fr) minmax(188px, max-content) auto;
+  grid-template-columns:
+    minmax(var(--qr-keyword-filter-width), max-content)
+    minmax(var(--qr-company-filter-width), max-content)
+    minmax(var(--qr-status-filter-width), max-content)
+    minmax(var(--qr-page-size-width), max-content);
   align-items: end;
+  column-gap: 12px;
+  row-gap: 12px;
+  padding: 0;
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
-.qr-filter-grid label {
-  display: grid;
+.qr-filter-field {
   gap: 8px;
+  width: 100%;
+  justify-self: start;
 }
 
-.qr-filter-grid label > span,
-.qr-page-size-control .manage-muted {
+.qr-filter-field--keyword {
+  max-width: var(--qr-keyword-filter-width);
+}
+
+.qr-filter-field--company {
+  max-width: var(--qr-company-filter-width);
+}
+
+.qr-filter-field--status {
+  max-width: var(--qr-status-filter-width);
+}
+
+.qr-filter-field--page-size {
+  max-width: var(--qr-page-size-width);
+}
+
+.qr-filter-grid .manage-filter-field__label {
+  padding-inline-start: var(--qr-filter-text-inset);
   color: var(--admin-text-mid);
   font-size: 13px;
   font-weight: 600;
+  line-height: 1.4;
 }
 
-.qr-filter-grid input,
-.qr-filter-grid select,
+.qr-filter-grid :deep(.manage-filter-item .el-input__wrapper),
+.qr-filter-grid :deep(.manage-filter-item .el-select__wrapper) {
+  min-height: var(--qr-filter-control-height);
+  padding-inline-start: var(--qr-filter-text-inset);
+  padding-inline-end: 14px;
+  border-radius: var(--qr-filter-control-radius);
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(56, 134, 217, 0.14) inset !important;
+}
+
+.qr-filter-grid :deep(.manage-filter-item .el-input__inner),
+.qr-filter-grid :deep(.manage-filter-item .el-select__selected-item),
+.qr-filter-grid :deep(.manage-filter-item .el-select__placeholder) {
+  text-align: left;
+}
+
+.qr-filter-grid :deep(.manage-filter-item .el-select__placeholder),
+.qr-filter-grid :deep(.manage-filter-item .el-input__inner::placeholder) {
+  color: var(--admin-text-faint);
+}
+
 .qr-page-size-select {
   width: 100%;
-  min-height: 42px;
-  padding: 0 14px;
-  border: 1px solid var(--admin-border);
-  border-radius: 10px;
-  background: #fff;
-  color: var(--admin-text);
-  transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
-.qr-filter-grid input:focus,
-.qr-filter-grid select:focus,
-.qr-page-size-select:focus {
-  border-color: rgba(48, 149, 246, 0.26);
-  box-shadow: 0 0 0 3px rgba(48, 149, 246, 0.08);
-  outline: none;
-}
-
-.qr-page-size-control {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 188px;
-}
-
-.qr-page-size-select {
-  width: 128px;
+.qr-page-size-select :deep(.el-select__wrapper) {
+  min-height: var(--qr-filter-control-height);
 }
 
 .qr-filter-actions {
-  justify-content: flex-end;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   flex-wrap: nowrap;
-  min-width: 170px;
+  min-width: 0;
 }
 
-.qr-filter-meta {
-  margin-top: 12px;
+.qr-filter-actions :deep(.el-button) {
+  min-height: 38px;
+  padding-inline: 16px;
+  border-radius: 12px;
 }
 
-.qr-bulk-toolbar {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid rgba(56, 134, 217, 0.1);
+.qr-filter-toolbar {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 14px;
+  margin-top: 14px;
+  margin-left: calc(-1 * var(--qr-filter-group-left-shift));
+  padding: 0 12px 18px var(--qr-grid-inline-padding);
+  min-width: 0;
+  flex-wrap: wrap;
 }
 
-.qr-bulk-toolbar:not(.has-selection) {
-  justify-content: flex-end;
+.qr-list-summary .manage-muted {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  color: var(--admin-text-soft);
+  font-size: 13px;
 }
 
-.qr-bulk-toolbar:not(.has-selection) > .list-summary {
-  display: none;
+.qr-table-shell {
+  --ledger-grid-columns:
+    minmax(40px, 0.18fr)
+    minmax(184px, 1.16fr)
+    minmax(176px, 0.98fr)
+    minmax(196px, 1.08fr)
+    minmax(168px, 0.84fr)
+    minmax(272px, 1.12fr);
+  --ledger-column-gap: var(--qr-grid-column-gap);
+  --ledger-inline-padding: var(--qr-grid-inline-padding);
+  --ledger-min-width: 1360px;
 }
 
-.qr-head,
-.qr-row {
-  grid-template-columns:
-    minmax(34px, 0.18fr)
-    minmax(0, 1.2fr)
-    minmax(0, 1fr)
-    minmax(0, 1.1fr)
-    minmax(0, 0.95fr)
-    minmax(0, 1.4fr);
+.qr-head {
+  background: #fff;
+}
+
+:deep(.qr-ledger-panel .panel-heading) {
+  padding-left: 28px;
+}
+
+:deep(.qr-ledger-card .table-scroll-shell) {
+  background: #fff !important;
+}
+
+:deep(.qr-ledger-card .table-scroll-shell .qr-head) {
+  background: #fff !important;
+}
+
+:deep(.qr-ledger-card .admin-list-pagination) {
+  background: #fff !important;
+}
+
+:deep(.qr-ledger-card .panel-heading),
+:deep(.qr-ledger-card .panel-heading > div) {
+  background: #fff;
+}
+
+.qr-row-list,
+.qr-row-list.ledger-row-list {
+  display: grid;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid rgba(56, 134, 217, 0.14);
+  border-radius: 26px;
+  background: #fff;
+}
+
+.qr-row,
+.qr-row.ledger-row {
+  background: #fff;
 }
 
 .row-select {
@@ -1338,12 +1454,6 @@ async function submitPublish() {
   width: 18px;
   height: 18px;
   accent-color: var(--admin-primary);
-}
-
-.qr-table-shell .ledger-table-head,
-.qr-table-shell .ledger-row-list {
-  width: 100%;
-  min-width: 0;
 }
 
 .qr-check-chip-row {
@@ -1416,26 +1526,21 @@ async function submitPublish() {
 }
 
 .qr-actions-row {
-  flex-wrap: nowrap;
   overflow: visible;
-  width: 100%;
-  justify-content: flex-start;
-}
-
-.qr-actions-row .action-primary-button {
-  min-width: auto;
-  white-space: nowrap;
-  min-height: 34px;
-  padding: 0 12px;
-  font-size: 13px;
 }
 
 .qr-actions-row .text-button {
   min-width: auto;
   white-space: nowrap;
   min-height: 34px;
-  padding: 0 10px;
-  font-size: 12px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #2f5f95;
+}
+
+.qr-actions-row .primary-text {
+  font-weight: 600;
 }
 
 .qr-row .row-main,
@@ -1471,17 +1576,6 @@ async function submitPublish() {
   width: fit-content;
 }
 
-.qr-pagination {
-  margin-top: 18px;
-  padding: 0 28px;
-}
-
-.qr-pagination .list-summary {
-  display: inline-flex;
-  align-items: center;
-  min-height: 40px;
-}
-
 .success {
   background: rgba(46, 166, 106, 0.12);
   color: #1e7d50;
@@ -1512,12 +1606,16 @@ async function submitPublish() {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .qr-page-size-control {
-    min-width: 0;
+  .qr-filter-layout,
+  .qr-filter-toolbar {
+    margin-left: 0;
+    padding-left: 0;
+    padding-right: 0;
   }
 
   .qr-filter-actions {
     justify-content: flex-start;
+    flex-wrap: wrap;
   }
 }
 
@@ -1526,16 +1624,21 @@ async function submitPublish() {
     grid-template-columns: 1fr;
   }
 
+  .qr-filter-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
   .qr-row {
     grid-template-columns: 1fr;
   }
 
-  .qr-page-size-control {
-    justify-content: space-between;
+  .qr-filter-actions {
+    width: 100%;
   }
 
-  .qr-page-size-select {
-    width: 100%;
+  .qr-filter-actions :deep(.el-button) {
+    flex: 1 1 auto;
   }
 
   .row-select {

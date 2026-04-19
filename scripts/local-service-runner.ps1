@@ -18,6 +18,59 @@ if (-not (Test-Path $logDir)) {
 
 Add-Content -Path $LogPath -Value ("[{0}] starting {1}" -f (Get-Date).ToString('s'), $Service)
 
+function Start-ViteService {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$WorkingDirectory,
+        [Parameter(Mandatory = $true)]
+        [string]$VitePath,
+        [Parameter(Mandatory = $true)]
+        [int]$Port
+    )
+
+    $nodeExe = (Get-Command node -ErrorAction Stop).Source
+    $stderrPath = "$LogPath.stderr"
+
+    if (-not (Test-Path $VitePath)) {
+        throw "Vite was not found: $VitePath"
+    }
+
+    Set-Location $WorkingDirectory
+
+    foreach ($path in @($LogPath, $stderrPath)) {
+        if (-not (Test-Path $path)) {
+            New-Item -ItemType File -Force -Path $path | Out-Null
+        }
+    }
+
+    $arguments = @(
+        "`"$VitePath`"",
+        '--host', '127.0.0.1',
+        '--port', [string]$Port,
+        '--strictPort'
+    )
+
+    $viteProcess = Start-Process `
+        -FilePath $nodeExe `
+        -ArgumentList ($arguments -join ' ') `
+        -WorkingDirectory $WorkingDirectory `
+        -RedirectStandardOutput $LogPath `
+        -RedirectStandardError $stderrPath `
+        -PassThru `
+        -WindowStyle Hidden
+
+    try {
+        Wait-Process -Id $viteProcess.Id
+    }
+    finally {
+        if ((Test-Path $stderrPath) -and ((Get-Item $stderrPath).Length -gt 0)) {
+            Add-Content -Path $LogPath -Value ''
+            Add-Content -Path $LogPath -Value ('[{0}] stderr' -f (Get-Date).ToString('s'))
+            Get-Content -Path $stderrPath -Encoding UTF8 | Add-Content -Path $LogPath
+        }
+    }
+}
+
 switch ($Service) {
     'backend' {
         if ([string]::IsNullOrWhiteSpace($JavaHome)) {
@@ -36,25 +89,13 @@ switch ($Service) {
         break
     }
     'adminWeb' {
-        $nodeExe = (Get-Command node -ErrorAction Stop).Source
         $vitePath = Join-Path $ProjectRoot 'admin-web\node_modules\vite\bin\vite.js'
-        if (-not (Test-Path $vitePath)) {
-            throw "Vite was not found: $vitePath"
-        }
-
-        Set-Location (Join-Path $ProjectRoot 'admin-web')
-        & $nodeExe $vitePath '--host' '127.0.0.1' '--port' '5174' '--strictPort' *>> $LogPath
+        Start-ViteService -WorkingDirectory (Join-Path $ProjectRoot 'admin-web') -VitePath $vitePath -Port 5174
         break
     }
     'traceWeb' {
-        $nodeExe = (Get-Command node -ErrorAction Stop).Source
         $vitePath = Join-Path $ProjectRoot 'trace-web\node_modules\vite\bin\vite.js'
-        if (-not (Test-Path $vitePath)) {
-            throw "Vite was not found: $vitePath"
-        }
-
-        Set-Location (Join-Path $ProjectRoot 'trace-web')
-        & $nodeExe $vitePath '--host' '127.0.0.1' '--port' '5173' '--strictPort' *>> $LogPath
+        Start-ViteService -WorkingDirectory (Join-Path $ProjectRoot 'trace-web') -VitePath $vitePath -Port 5173
         break
     }
 }

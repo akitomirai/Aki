@@ -2,9 +2,9 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AdminListPagination from '../components/AdminListPagination.vue'
+import AdminListTemplate from '../components/AdminListTemplate.vue'
 import AdminOverviewCards from '../components/AdminOverviewCards.vue'
-import AdminPageHeader from '../components/AdminPageHeader.vue'
-import BatchDetailPanel from '../components/BatchDetailPanel.vue'
+import BatchWorkbenchDrawerPanel from '../components/BatchWorkbenchDrawerPanel.vue'
 import {
   changeBatchStatus,
   createBatch,
@@ -36,7 +36,7 @@ import {
 } from '../utils/batchExperience'
 import { buildTraceLink } from '../utils/display'
 import { downloadCsvFile } from '../utils/exportTools'
-import { resolveQrStatusText, resolveTaskStatusText } from '../utils/statusPresentation'
+import { resolveQrStatusText, resolveTaskStatusText, resolveTodayStatusText } from '../utils/statusPresentation'
 import { canManageAdminBatch, isRegulator } from '../utils/access'
 
 const route = useRoute()
@@ -63,6 +63,7 @@ const listMode = ref('ACTION')
 const dialog = ref(createDialogState())
 const detailDrawer = ref(createBatchDetailDrawerState())
 const assignmentDialog = ref(createAssignmentDialogState())
+const batchSideDrawerSize = 'min(460px, 92vw)'
 const batchForm = ref(createBatchForm())
 const traceForm = ref(createTraceForm())
 const qualityForm = ref(createQualityForm())
@@ -114,7 +115,7 @@ const selectedCompanyOption = computed(() => {
 })
 const roleCode = computed(() => authStore.user?.roleCode || '')
 const canManageBatch = computed(() => canManageAdminBatch(roleCode.value))
-const canManageAssignment = computed(() => ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN'].includes(authStore.user?.roleCode))
+const canManageAssignment = computed(() => ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN'].includes(roleCode.value))
 const readOnlyBatchView = computed(() => isRegulator(roleCode.value))
 const pageTitle = computed(() => readOnlyBatchView.value ? '批次查看' : '批次管理')
 const pageSubtitle = ''
@@ -486,6 +487,10 @@ async function loadAssignableOperators(companyId) {
 }
 
 async function openAssignmentDialog(item) {
+  if (!canManageAssignment.value) {
+    return
+  }
+  closeBatchDetailDrawer()
   syncAssignmentDialog(item)
   try {
     const response = await getBatchDetail(item.id)
@@ -690,7 +695,7 @@ function latestRiskActionText(item) {
 }
 
 function openWorkbenchLabel() {
-  return '详情'
+  return readOnlyBatchView.value ? '查看详情' : '查看工作台'
 }
 
 function qualityStatusText(item) {
@@ -767,16 +772,21 @@ function openPublicTrace(item) {
 
 function openBatchDetail(item, panel = '') {
   const normalizedPanel = String(panel || '').trim().toLowerCase()
+  closeAssignmentDialog()
   detailDrawer.value = {
     visible: true,
     batchId: item?.id ?? null,
-    batchCode: item?.batchCode || item?.productName || '',
+    batchCode: item?.batchCode ?? '',
     panel: normalizedPanel
   }
 }
 
 function closeBatchDetailDrawer() {
   detailDrawer.value = createBatchDetailDrawerState()
+}
+
+function showRecommendedAction(card) {
+  return !readOnlyBatchView.value && String(card?.insight?.nextActionCode || '').toUpperCase() !== 'WORKBENCH'
 }
 
 function isRiskPanelActionCode(code) {
@@ -1111,19 +1121,9 @@ async function submitDialog(options = {}) {
       } else {
         showMessage('批次已创建，工作台已打开，可继续补录。', 'success')
       }
-      const nextQuery = {
-        created: '1',
-        focus: 'trace'
-      }
-      if (isCopyDialog && copySourceBatchCode) {
-        nextQuery.copiedFrom = copySourceBatchCode
-      }
       closeDialog()
       await fetchBatches()
-      router.push({
-        path: `/batches/${response.data.batch.id}`,
-        query: nextQuery
-      })
+      openBatchDetail(response.data.batch)
       return
     }
 
@@ -1144,7 +1144,7 @@ async function submitDialog(options = {}) {
       showMessage('批次资料已更新。', 'success')
       closeDialog()
       await fetchBatches()
-      router.push(`/batches/${response.data.batch.id}`)
+      openBatchDetail(response.data.batch)
       return
     }
 
@@ -1203,7 +1203,7 @@ async function submitDialog(options = {}) {
       showMessage('批次状态已更新。', 'success')
       closeDialog()
       await fetchBatches()
-      router.push(`/batches/${response.data.batch.id}`)
+      openBatchDetail(response.data.batch)
     }
   } catch (error) {
     showMessage(getFriendlyErrorMessage(error), 'error')
@@ -1215,7 +1215,7 @@ async function handleGenerateQr(item) {
     await generateBatchQr(item.id)
     showMessage('二维码已就绪。', 'success')
     await fetchBatches()
-    router.push(`/batches/${item.id}`)
+    openBatchDetail(item, 'qr')
   } catch (error) {
     showMessage(getFriendlyErrorMessage(error, '二维码生成失败，请稍后再试。'), 'error')
   }
@@ -1480,7 +1480,7 @@ function handleRowCommand(card, command) {
     return
   }
   if (command === 'assignment') {
-    openBatchDetail(card.item, 'assignment')
+    void openAssignmentDialog(card.item)
     return
   }
   if (command === 'edit') {
@@ -1623,9 +1623,25 @@ function statusClass(status) {
 <template>
   <div class="page-shell" data-testid="batch-list-page">
     <div class="manage-page batch-manage">
-    <AdminPageHeader :title="pageTitle" :subtitle="pageSubtitle">
+    <AdminListTemplate
+      template-class="batch-card-stack"
+      filter-card-class="batch-filter-panel"
+      ledger-card-class="batch-ledger-panel batch-ledger-card"
+    >
+      <template #summary>
+        <AdminOverviewCards
+          :items="batchBoardCards"
+          :active-key="listMode"
+          test-id-prefix="batch-mode"
+          @select="switchListMode($event)"
+        />
+      </template>
+
       <template #actions>
         <button class="ghost" :disabled="loading" @click="fetchBatches">刷新</button>
+        <button class="ghost" data-testid="batch-export-ledger" :disabled="loading || !visibleBatchCards.length" @click="exportCurrentLedger">
+          导出台账
+        </button>
         <button
           v-if="canManageBatch"
           class="primary"
@@ -1635,123 +1651,94 @@ function statusClass(status) {
           新增批次
         </button>
       </template>
-    </AdminPageHeader>
 
-    <div class="manage-overview-row batch-summary-row">
-      <AdminOverviewCards
-        :items="batchBoardCards"
-        :active-key="listMode"
-        test-id-prefix="batch-mode"
-        @select="switchListMode($event)"
-      />
-    </div>
+      <template #banner>
+        <section v-if="readOnlyBatchView" class="panel profile-banner" data-testid="batch-regulator-banner">
+            <strong>监管查看模式</strong>
+            <span>当前只保留批次状态、质检进度、风险摘要和最近更新，用于核对全链路状态，不展示新增、改派、复制等写入入口。</span>
+          </section>
+        </template>
 
-    <div v-if="false" class="manage-summary-row batch-summary-row">
-      <div class="manage-summary batch-mode-summary">
-        <button
-          v-for="item in batchOverviewCards"
-          :key="item.value"
-          type="button"
-          class="manage-summary-chip manage-summary-chip--interactive"
-          :class="{ 'is-active': listMode === item.value }"
-          :data-testid="`batch-mode-${item.value}`"
-          @click="switchListMode(item.value)"
-        >
-          <span>{{ item.label }}</span>
-          <strong>{{ item.count }}</strong>
-        </button>
-      </div>
+    <template #filterPrimary>
+      <div class="batch-filter-layout">
+        <div class="filter-grid batch-filter-grid">
+          <label class="manage-filter-field batch-filter-field batch-filter-field--code">
+            <span class="manage-filter-field__label">批次号</span>
+            <input v-model.trim="filters.batchCode" data-testid="batch-filter-code" type="text" placeholder="输入批次号">
+          </label>
 
-      <div class="manage-summary-actions">
-        <el-button :loading="loading" data-testid="batch-search-button" @click="fetchBatches">刷新</el-button>
-        <el-button
-          v-if="canManageBatch"
-          type="primary"
-          data-testid="batch-create-button"
-          @click="openCreateDialog"
-        >
-          新增批次
-        </el-button>
-      </div>
-    </div>
+          <label class="manage-filter-field batch-filter-field batch-filter-field--product">
+            <span class="manage-filter-field__label">产品名称</span>
+            <input v-model.trim="filters.productName" type="text" placeholder="输入产品名称">
+          </label>
 
-    <section class="panel manage-filter-card batch-filter-panel">
-      <div class="filter-grid batch-filter-grid">
-        <label>
-          <span>批次号</span>
-          <input v-model.trim="filters.batchCode" data-testid="batch-filter-code" type="text" placeholder="输入批次号">
-        </label>
-        <label>
-          <span>产品名称</span>
-          <input v-model.trim="filters.productName" type="text" placeholder="输入产品名称">
-        </label>
-        <label>
-          <span>状态</span>
-          <select v-model="filters.status">
-            <option v-for="item in statusOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-          </select>
-        </label>
-        <label>
-          <span>企业</span>
-          <input
-            v-model.trim="filters.companyName"
-            type="text"
-            list="company-options"
-            placeholder="输入或选择企业"
-          >
-          <datalist id="company-options">
-            <option v-for="item in companyOptions" :key="item" :value="item" />
-          </datalist>
-        </label>
-        <div class="page-size-control">
-          <span class="manage-muted">每页显示</span>
-          <select v-model="pageSize" class="page-size-select" @change="handlePageSizeChange($event.target.value)">
-            <option v-for="item in pageSizeOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-          </select>
+          <label class="manage-filter-field batch-filter-field batch-filter-field--status">
+            <span class="manage-filter-field__label">状态</span>
+            <select v-model="filters.status">
+              <option v-for="item in statusOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+            </select>
+          </label>
+
+          <label class="manage-filter-field batch-filter-field batch-filter-field--company">
+            <span class="manage-filter-field__label">企业</span>
+            <input
+              v-model.trim="filters.companyName"
+              type="text"
+              list="company-options"
+              placeholder="输入或选择企业"
+            >
+            <datalist id="company-options">
+              <option v-for="item in companyOptions" :key="item" :value="item" />
+            </datalist>
+          </label>
+
+          <label class="manage-filter-field batch-filter-field batch-filter-field--page-size">
+            <span class="manage-filter-field__label">每页显示</span>
+            <select v-model="pageSize" class="page-size-select" @change="handlePageSizeChange($event.target.value)">
+              <option v-for="item in pageSizeOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+            </select>
+          </label>
         </div>
       </div>
+    </template>
 
-      <div class="toolbar filter-meta batch-filter-toolbar">
-        <div class="list-summary">{{ listSummary }}</div>
-        <div class="toolbar-actions filter-actions">
-          <button class="ghost" data-testid="batch-export-ledger" :disabled="loading || !visibleBatchCards.length" @click="exportCurrentLedger">
-            导出台账
-          </button>
+    <template #filterSecondary>
+      <div class="batch-filter-toolbar">
+        <div class="batch-filter-actions">
           <button class="primary" data-testid="batch-search-button" :disabled="loading" @click="fetchBatches">查询</button>
           <button class="ghost" :disabled="loading" @click="resetFilters">重置</button>
         </div>
+        <div class="batch-list-summary">
+          <span class="manage-muted">{{ listSummary }}</span>
+        </div>
       </div>
-    </section>
+    </template>
 
+    <template #message>
     <section v-if="message" class="message-bar" :class="messageType">
-      {{ message }}
-    </section>
+        {{ message }}
+      </section>
+    </template>
 
-    <section v-if="loading" class="panel empty-state">
-      <div>
-        <h3>正在加载批次列表...</h3>
-      </div>
-    </section>
-
-    <section v-else-if="!visibleBatchCards.length" class="panel empty-state">
-      <div>
-        <h3>当前条件下没有批次数据</h3>
-        <div class="toolbar-actions">
-          <button v-if="canManageBatch" class="primary" @click="openCreateDialog">新增批次</button>
-          <button class="ghost" @click="switchListMode('ALL')">查看全部</button>
-        </div>
-      </div>
-    </section>
-
-    <section v-else class="panel ledger-panel batch-ledger-panel">
-      <div class="panel-heading">
-        <div class="panel-heading__copy">
-          <h2 class="panel-heading__title">批次台账</h2>
+    <template #ledger>
+        <div class="panel-heading">
+          <div>
+            <h2 class="panel-heading__title">批次台账</h2>
         </div>
       </div>
 
-      <div class="table-scroll-shell batch-table-shell">
-        <div class="batch-table-head">
+      <div v-if="!loading && !visibleBatchCards.length" class="empty-state batch-ledger-empty">
+        <div>
+          <h3>当前条件下没有批次数据</h3>
+          <div class="toolbar-actions">
+            <button v-if="canManageBatch" class="primary" @click="openCreateDialog">新增批次</button>
+            <button class="ghost" @click="switchListMode('ALL')">查看全部</button>
+          </div>
+        </div>
+      </div>
+
+      <div v-else class="table-scroll-shell ledger-table-shell batch-table-shell" :class="{ 'is-loading': loading }">
+        <div class="batch-table-head ledger-table-head">
           <span>批次与产品</span>
           <span>企业 / 更新时间</span>
           <span>状态</span>
@@ -1759,11 +1746,36 @@ function statusClass(status) {
           <span>{{ readOnlyBatchView ? '查看' : '动作' }}</span>
         </div>
 
-        <div class="batch-row-list">
+        <div v-if="loading" class="batch-row-list ledger-row-list batch-row-list--loading" data-testid="batch-list-loading">
+          <article v-for="index in 4" :key="`batch-skeleton-${index}`" class="batch-row ledger-row batch-row--skeleton" aria-hidden="true">
+            <div class="batch-skeleton-block batch-skeleton-block--main">
+              <span></span>
+              <span></span>
+            </div>
+            <div class="batch-skeleton-block">
+              <span></span>
+              <span></span>
+            </div>
+            <div class="batch-skeleton-chips">
+              <span></span>
+              <span></span>
+            </div>
+            <div class="batch-skeleton-block">
+              <span></span>
+              <span></span>
+            </div>
+            <div class="batch-skeleton-actions">
+              <span></span>
+              <span></span>
+            </div>
+          </article>
+        </div>
+
+        <div v-else class="batch-row-list ledger-row-list">
         <article
           v-for="card in paginatedBatchCards"
           :key="card.item.id"
-          class="batch-row"
+          class="batch-row ledger-row"
           :data-testid="`batch-card-${card.item.id}`"
         >
           <div class="row-main">
@@ -1801,6 +1813,13 @@ function statusClass(status) {
               </span>
               <span
                 class="task-flag"
+                :class="{ done: card.item.todayCompleted }"
+                :data-testid="`batch-task-today-${card.item.id}`"
+              >
+                {{ resolveTodayStatusText(card.item.todayCompleted) }}
+              </span>
+              <span
+                class="task-flag"
                 :class="{ draft: card.item.draftPending }"
                 :data-testid="`batch-task-draft-${card.item.id}`"
               >
@@ -1809,19 +1828,22 @@ function statusClass(status) {
             </div>
           </div>
 
-          <div class="row-actions">
+          <div class="row-actions table-cell--actions">
+            <span class="row-next-title" :data-testid="`batch-next-${card.item.id}`">{{ card.insight.nextLabel }}</span>
             <div class="row-actions-scroll">
               <button
-                class="ghost action-primary-button"
-                :data-testid="readOnlyBatchView ? null : `batch-recommend-${card.item.id}`"
-                @click="openBatchDetail(card.item)"
+                v-if="showRecommendedAction(card)"
+                class="action-primary-button"
+                :class="recommendedActionClass(card)"
+                :data-testid="`batch-recommend-${card.item.id}`"
+                @click.stop="runRecommendedAction(card)"
               >
-                详情
+                {{ card.insight.nextLabel }}
               </button>
               <button
                 class="text-button primary-text"
                 :data-testid="`batch-open-workbench-${card.item.id}`"
-                @click="openBatchDetail(card.item)"
+                @click.stop="openBatchDetail(card.item)"
               >
                 {{ openWorkbenchLabel() }}
               </button>
@@ -1829,15 +1851,14 @@ function statusClass(status) {
                 v-if="canManageAssignment"
                 class="text-button"
                 :data-testid="`batch-assignment-open-${card.item.id}`"
-                @click="openBatchDetail(card.item, 'assignment')"
+                @click.stop="openAssignmentDialog(card.item)"
               >
                 分配
               </button>
               <el-dropdown v-if="!readOnlyBatchView" @command="(command) => handleRowCommand(card, command)">
-                <button type="button" class="text-button">更多</button>
+                <button type="button" class="text-button" @click.stop>更多</button>
                 <template #dropdown>
                   <el-dropdown-menu>
-                    <el-dropdown-item v-if="canManageAssignment" command="assignment">任务分配</el-dropdown-item>
                     <el-dropdown-item command="copy">复制为新批次</el-dropdown-item>
                     <el-dropdown-item command="edit">编辑资料</el-dropdown-item>
                     <el-dropdown-item command="trace" :disabled="!actionEnabled(card.item, 'ADD_TRACE')">补录追溯</el-dropdown-item>
@@ -1868,7 +1889,8 @@ function statusClass(status) {
         @prev="goPrevPage"
         @next="goNextPage"
       />
-    </section>
+    </template>
+    </AdminListTemplate>
 
     <div v-if="dialog.visible" class="dialog-mask" @click.self="closeDialog">
       <section class="dialog-card">
@@ -2210,26 +2232,41 @@ function statusClass(status) {
     <el-drawer
       v-model="detailDrawer.visible"
       direction="rtl"
-      size="min(460px, 92vw)"
+      :size="batchSideDrawerSize"
       append-to-body
       destroy-on-close
       :with-header="false"
-      class="batch-detail-drawer"
+      class="batch-side-drawer batch-detail-drawer"
     >
-      <BatchDetailPanel
-        v-if="detailDrawer.visible && detailDrawer.batchId"
-        :batch-id="detailDrawer.batchId"
-        :panel="detailDrawer.panel"
-        embedded
-        @close="closeBatchDetailDrawer"
-      />
-    </el-drawer>
-
-    <div v-if="assignmentDialog.visible" class="dialog-mask" @click.self="closeAssignmentDialog">
-      <section class="dialog-card assignment-dialog-card" data-testid="batch-assignment-dialog">
+      <div class="drawer-shell batch-workbench-drawer-shell" data-testid="batch-workbench-drawer">
         <div class="dialog-head">
           <div>
-            <h3>批次 {{ assignmentDialog.batchCode }}</h3>
+            <h3>批次工作台</h3>
+            <p>批次 {{ detailDrawer.batchCode || '详情查看' }}</p>
+          </div>
+          <button class="ghost icon-button" @click="closeBatchDetailDrawer">关闭</button>
+        </div>
+        <BatchWorkbenchDrawerPanel
+          v-if="detailDrawer.visible && detailDrawer.batchId"
+          :batch-id="detailDrawer.batchId"
+        />
+      </div>
+    </el-drawer>
+
+    <el-drawer
+      v-model="assignmentDialog.visible"
+      direction="rtl"
+      :size="batchSideDrawerSize"
+      append-to-body
+      destroy-on-close
+      :with-header="false"
+      class="batch-side-drawer assignment-list-drawer"
+    >
+      <div class="drawer-shell assignment-drawer-shell" data-testid="batch-assignment-drawer">
+        <div class="dialog-head">
+          <div>
+            <h3>负责人安排</h3>
+            <p>批次 {{ assignmentDialog.batchCode }}</p>
           </div>
           <button class="ghost icon-button" @click="closeAssignmentDialog">关闭</button>
         </div>
@@ -2276,7 +2313,7 @@ function statusClass(status) {
             </select>
           </label>
 
-          <div v-if="false" class="field-note">
+          <div class="field-note">
             <strong>{{ assignmentHint }}</strong>
             <small>{{ operatorLoading ? '正在加载操作员列表...' : `当前可分配 ${operatorOptions.length} 位操作员。` }}</small>
           </div>
@@ -2312,8 +2349,8 @@ function statusClass(status) {
             {{ assignmentActionLabel }}
           </button>
         </div>
-        </section>
       </div>
+    </el-drawer>
     </div>
     </div>
 </template>
@@ -2328,12 +2365,68 @@ function statusClass(status) {
   padding: var(--admin-page-shell-padding);
 }
 
+.batch-manage {
+  font-family: "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  --batch-filter-text-inset: 14px;
+  --batch-grid-inline-padding: 18px;
+  --batch-grid-column-gap: 16px;
+  --batch-filter-group-left-shift: 8px;
+  --batch-code-filter-width: 184px;
+  --batch-product-filter-width: 208px;
+  --batch-status-filter-width: 136px;
+  --batch-company-filter-width: 196px;
+  --batch-page-size-width: 148px;
+  --batch-filter-card-border: rgba(56, 134, 217, 0.14);
+  --batch-filter-card-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(247, 251, 255, 0.94) 100%);
+  --batch-filter-card-shadow: 0 16px 34px rgba(45, 113, 194, 0.1);
+  --batch-filter-control-height: 40px;
+  --batch-filter-control-radius: 12px;
+}
+
+.batch-card-stack {
+  display: grid;
+  gap: 16px;
+}
+
+:deep(.batch-filter-panel),
+:deep(.batch-ledger-card) {
+  position: relative;
+  overflow: hidden;
+}
+
+:deep(.batch-filter-panel) {
+  padding: 18px 22px 0;
+  border-color: var(--batch-filter-card-border) !important;
+  background: var(--batch-filter-card-bg) !important;
+  box-shadow: var(--batch-filter-card-shadow) !important;
+}
+
+:deep(.batch-ledger-card) {
+  padding: 20px 22px 18px;
+  border: 1px solid rgba(56, 134, 217, 0.14) !important;
+  border-radius: 24px !important;
+  background: #fff !important;
+  box-shadow: 0 18px 42px rgba(45, 113, 194, 0.08) !important;
+}
+
 .batch-mode-summary {
   margin-top: 0;
 }
 
 .batch-summary-row {
   margin-top: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.batch-summary-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex: 0 0 auto;
 }
 
 .batch-mode-summary .manage-summary-chip {
@@ -2539,15 +2632,17 @@ function statusClass(status) {
 }
 
 .profile-banner {
-  display: flex;
-  flex-direction: column;
+  display: grid;
   gap: 8px;
-  border: 1px solid rgba(48, 149, 246, 0.18);
-  background: linear-gradient(135deg, rgba(48, 149, 246, 0.12) 0%, rgba(255, 255, 255, 0.96) 100%);
+  margin-bottom: 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(29, 111, 161, 0.16);
+  background: linear-gradient(135deg, rgba(246, 251, 255, 0.96), rgba(236, 245, 255, 0.92));
 }
 
 .profile-banner strong {
   color: var(--admin-text);
+  font-size: 15px;
 }
 
 .profile-banner span {
@@ -2560,8 +2655,26 @@ function statusClass(status) {
   justify-content: space-between;
 }
 
+.batch-filter-layout {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  gap: 18px;
+  margin-left: calc(-1 * var(--batch-filter-group-left-shift));
+  padding: 0 12px 0 calc(var(--batch-grid-inline-padding) - var(--batch-filter-text-inset));
+  flex-wrap: wrap;
+}
+
 .batch-filter-toolbar {
-  justify-content: flex-end;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 14px;
+  margin-top: 14px;
+  margin-left: calc(-1 * var(--batch-filter-group-left-shift));
+  padding: 0 12px 18px var(--batch-grid-inline-padding);
+  min-width: 0;
+  flex-wrap: wrap;
 }
 
 .toolbar-actions {
@@ -2908,23 +3021,158 @@ button:not(.manage-summary-chip):disabled {
   color: var(--admin-text-soft);
 }
 
+.batch-table-shell {
+  --ledger-grid-columns:
+    minmax(220px, 1.08fr)
+    minmax(220px, 0.98fr)
+    minmax(260px, 1.02fr)
+    minmax(220px, 0.9fr)
+    minmax(286px, 1.1fr);
+  --ledger-column-gap: var(--batch-grid-column-gap);
+  --ledger-inline-padding: var(--batch-grid-inline-padding);
+  --ledger-min-width: 1360px;
+}
+
 .batch-table-head {
-  display: grid;
-  grid-template-columns:
-    minmax(220px, 1.1fr)
-    minmax(220px, 1fr)
-    minmax(260px, 1fr)
-    minmax(220px, 0.95fr)
-    minmax(280px, max-content);
-  gap: 16px;
-  padding: 0 18px 14px;
-  color: #54708d;
+  color: #6f86a4;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: #fff;
+}
+
+:deep(.batch-ledger-panel .panel-heading) {
+  padding-left: 28px;
+}
+
+:deep(.batch-ledger-card .table-scroll-shell) {
+  background: #fff !important;
+}
+
+:deep(.batch-ledger-card .table-scroll-shell .batch-table-head) {
+  background: #fff !important;
+}
+
+:deep(.batch-ledger-card .admin-list-pagination) {
+  background: #fff !important;
+}
+
+:deep(.batch-ledger-card .panel-heading),
+:deep(.batch-ledger-card .panel-heading > div) {
+  background: #fff;
 }
 
 .batch-filter-grid {
-  grid-template-columns: minmax(140px, 0.72fr) minmax(180px, 0.92fr) minmax(120px, 0.58fr) minmax(150px, 0.78fr);
+  grid-template-columns:
+    minmax(var(--batch-code-filter-width), max-content)
+    minmax(var(--batch-product-filter-width), max-content)
+    minmax(var(--batch-status-filter-width), max-content)
+    minmax(var(--batch-company-filter-width), max-content)
+    minmax(var(--batch-page-size-width), max-content) !important;
+  align-items: end;
+  column-gap: 12px;
+  row-gap: 12px;
+  padding: 0;
+  flex: 0 1 auto;
+  min-width: 0;
+  width: max-content;
+  max-width: 100%;
+}
+
+.batch-filter-grid > * {
+  min-width: 0;
+}
+
+.batch-filter-field {
+  gap: 8px;
+  width: 100%;
+  justify-self: start;
+}
+
+.batch-filter-field--code {
+  max-width: var(--batch-code-filter-width);
+}
+
+.batch-filter-field--product {
+  max-width: var(--batch-product-filter-width);
+}
+
+.batch-filter-field--status {
+  max-width: var(--batch-status-filter-width);
+}
+
+.batch-filter-field--company {
+  max-width: var(--batch-company-filter-width);
+}
+
+.batch-filter-field--page-size {
+  max-width: var(--batch-page-size-width);
+}
+
+.batch-filter-grid .manage-filter-field__label {
+  padding-inline-start: var(--batch-filter-text-inset);
+  color: var(--admin-text-mid);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.batch-filter-grid input,
+.batch-filter-grid select {
+  width: 100%;
+  min-height: var(--batch-filter-control-height);
+  box-sizing: border-box;
+  padding: 0 14px 0 var(--batch-filter-text-inset);
+  border: 0;
+  border-radius: var(--batch-filter-control-radius);
+  background: #fff;
+  color: var(--admin-text);
+  box-shadow: 0 0 0 1px rgba(56, 134, 217, 0.14) inset;
+}
+
+.batch-filter-grid input::placeholder {
+  color: var(--admin-text-faint);
+}
+
+.batch-filter-grid select {
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, #9bb0c8 50%),
+    linear-gradient(135deg, #9bb0c8 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) calc(50% - 2px),
+    calc(100% - 12px) calc(50% - 2px);
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+}
+
+.page-size-select {
+  width: 100%;
+}
+
+.batch-filter-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: nowrap;
+}
+
+.batch-filter-actions {
+  min-width: 0;
+}
+
+.batch-filter-actions button {
+  min-height: 38px;
+  padding-inline: 16px;
+  border-radius: 12px;
+}
+
+.batch-list-summary .manage-muted {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  color: var(--admin-text-soft);
+  font-size: 13px;
 }
 
 .batch-row-list {
@@ -2933,23 +3181,26 @@ button:not(.manage-summary-chip):disabled {
   overflow: hidden;
   border: 1px solid rgba(56, 134, 217, 0.14);
   border-radius: 26px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 252, 255, 0.98) 100%);
+  background: #fff;
+}
+
+.batch-row-list.ledger-row-list {
+  background: #fff;
+}
+
+.batch-row-list--loading {
+  min-height: 428px;
 }
 
 .batch-row {
-  display: grid;
-  grid-template-columns:
-    minmax(220px, 1.1fr)
-    minmax(220px, 1fr)
-    minmax(260px, 1fr)
-    minmax(220px, 0.95fr)
-    minmax(280px, max-content);
-  gap: 14px;
   align-items: center;
-  padding: 20px 18px;
   border-top: 1px solid rgba(56, 134, 217, 0.1);
-  background: transparent;
+  background: #fff;
   transition: background-color 0.18s ease;
+}
+
+.batch-row.ledger-row {
+  background: #fff;
 }
 
 .batch-row:first-child {
@@ -2958,6 +3209,69 @@ button:not(.manage-summary-chip):disabled {
 
 .batch-row:hover {
   background: rgba(48, 149, 246, 0.03);
+}
+
+.batch-row--skeleton {
+  pointer-events: none;
+}
+
+.batch-skeleton-block,
+.batch-skeleton-actions,
+.batch-skeleton-chips {
+  display: grid;
+  gap: 10px;
+}
+
+.batch-skeleton-block span,
+.batch-skeleton-actions span,
+.batch-skeleton-chips span {
+  display: block;
+  height: 14px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(226, 236, 247, 0.9) 0%, rgba(241, 246, 252, 0.98) 50%, rgba(226, 236, 247, 0.9) 100%);
+  background-size: 220px 100%;
+  animation: batch-skeleton-pulse 1.35s ease-in-out infinite;
+}
+
+.batch-skeleton-block--main span:first-child {
+  width: 76%;
+  height: 18px;
+}
+
+.batch-skeleton-block--main span:last-child,
+.batch-skeleton-block span:last-child {
+  width: 56%;
+}
+
+.batch-skeleton-chips {
+  grid-auto-flow: column;
+  grid-auto-columns: 74px;
+  justify-content: start;
+}
+
+.batch-skeleton-chips span {
+  width: 74px;
+  height: 30px;
+}
+
+.batch-skeleton-actions {
+  grid-auto-flow: column;
+  grid-auto-columns: 88px;
+  justify-content: start;
+}
+
+.batch-skeleton-actions span {
+  width: 88px;
+  height: 36px;
+}
+
+@keyframes batch-skeleton-pulse {
+  0% {
+    background-position: 220px 0;
+  }
+  100% {
+    background-position: -40px 0;
+  }
 }
 
 .row-main,
@@ -3066,14 +3380,6 @@ button:not(.manage-summary-chip):disabled {
   width: max-content;
 }
 
-.batch-row .row-status .status-badge {
-  margin-left: -14px;
-}
-
-.batch-row .row-actions .row-actions-scroll {
-  margin-left: -10px;
-}
-
 .row-health-scroll::-webkit-scrollbar,
 .row-actions-scroll::-webkit-scrollbar {
   display: none;
@@ -3171,12 +3477,6 @@ button:not(.manage-summary-chip):disabled {
   font-size: 13px;
 }
 
-.batch-table-shell .batch-table-head,
-.batch-table-shell .batch-row-list {
-  width: 100%;
-  min-width: 0;
-}
-
 .text-button:hover {
   transform: translateY(-1px);
   color: var(--admin-primary-deep);
@@ -3187,8 +3487,18 @@ button:not(.manage-summary-chip):disabled {
   font-weight: 600;
 }
 
-.assignment-dialog-card {
-  max-width: 760px;
+.batch-side-drawer :deep(.el-drawer__body) {
+  padding: 18px 18px 22px;
+  overflow: auto;
+}
+
+.assignment-drawer-shell {
+  display: grid;
+  gap: 20px;
+}
+
+.batch-workbench-drawer-shell {
+  align-content: start;
 }
 
 .assignment-overview {
@@ -3482,6 +3792,18 @@ button:not(.manage-summary-chip):disabled {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .batch-filter-layout,
+  .batch-filter-toolbar {
+    margin-left: 0;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .batch-filter-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
   .template-grid {
     grid-template-columns: 1fr;
   }
@@ -3492,6 +3814,15 @@ button:not(.manage-summary-chip):disabled {
 }
 
 @media (max-width: 820px) {
+  .batch-summary-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .batch-summary-actions {
+    justify-content: flex-start;
+  }
+
   .page-shell {
     padding: var(--admin-page-shell-padding-mobile);
   }
@@ -3529,6 +3860,11 @@ button:not(.manage-summary-chip):disabled {
     align-items: flex-start;
   }
 
+  .batch-filter-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
   .mode-banner-note {
     align-items: flex-start;
   }
@@ -3561,6 +3897,14 @@ button:not(.manage-summary-chip):disabled {
 
   .batch-filter-grid {
     grid-template-columns: 1fr;
+  }
+
+  .batch-filter-actions {
+    width: 100%;
+  }
+
+  .batch-filter-actions button {
+    flex: 1 1 auto;
   }
 
   .batch-copy h3 {

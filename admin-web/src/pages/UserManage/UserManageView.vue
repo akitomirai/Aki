@@ -1,5 +1,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
+import AdminListTemplate from '../../components/AdminListTemplate.vue'
+import AdminListPagination from '../../components/AdminListPagination.vue'
 import { createUser, getUserList, resetUserPassword, updateUser, updateUserStatus } from '../../api/user'
 import { getCompanyOptions } from '../../api/batch'
 import { useAuthStore } from '../../stores/auth'
@@ -405,8 +407,16 @@ async function submitResetPassword() {
 <template>
   <div class="page-shell">
   <div class="manage-page user-manage" data-testid="users-page">
-    <el-card shadow="never" class="manage-filter-card">
+    <AdminListTemplate
+      template-class="user-card-stack"
+      filter-card-class="user-filter-card"
+      ledger-card-class="user-ledger-panel user-ledger-card"
+    >
+    <template #filterPrimary>
+      <div class="user-filter-layout">
       <div class="manage-filter-grid user-filter-grid">
+        <label class="manage-filter-field user-filter-field user-filter-field--keyword">
+          <span class="manage-filter-field__label">关键词</span>
         <el-input
           v-model.trim="filters.keyword"
           clearable
@@ -415,7 +425,10 @@ async function submitResetPassword() {
           placeholder="输入用户名或姓名"
           @keyup.enter="fetchRows"
         />
+        </label>
 
+        <label class="manage-filter-field user-filter-field user-filter-field--company">
+          <span class="manage-filter-field__label">所属企业</span>
         <el-select
           v-if="isPlatformAdmin"
           v-model="filters.companyId"
@@ -436,7 +449,10 @@ async function submitResetPassword() {
           :model-value="currentCompanyName"
           disabled
         />
+        </label>
 
+        <label class="manage-filter-field user-filter-field user-filter-field--status">
+          <span class="manage-filter-field__label">用户状态</span>
         <el-select
           v-model="filters.status"
           class="manage-filter-item"
@@ -447,27 +463,36 @@ async function submitResetPassword() {
           <el-option value="1" label="启用" />
           <el-option value="0" label="停用" />
         </el-select>
+        </label>
 
-        <el-button type="primary" data-testid="users-search-button" @click="fetchRows">查询</el-button>
-        <el-button data-testid="users-reset-button" @click="resetFilters">重置</el-button>
-        <div class="user-page-size-control">
-          <span class="manage-muted">每页显示</span>
+        <label class="manage-filter-field user-filter-field user-filter-field--page-size">
+          <span class="manage-filter-field__label">每页显示</span>
           <el-select
             :model-value="pageSize"
-            class="user-page-size-select"
+            class="manage-filter-item user-page-size-select"
             data-testid="users-page-size"
             @change="handlePageSizeChange"
           >
             <el-option v-for="item in pageSizeOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
+        </label>
+      </div>
+      </div>
+    </template>
+
+    <template #filterSecondary>
+      <div class="user-filter-toolbar">
+        <div class="user-filter-actions">
+          <el-button type="primary" data-testid="users-search-button" @click="fetchRows">查询</el-button>
+          <el-button data-testid="users-reset-button" @click="resetFilters">重置</el-button>
         </div>
-        <div class="summary-slot">
+        <div class="user-list-summary">
           <span class="manage-muted">{{ listSummary }}</span>
         </div>
       </div>
-    </el-card>
+    </template>
 
-    <div class="manage-summary-row">
+    <template #summary>
       <div class="manage-summary">
         <button
           v-for="tab in roleTabs"
@@ -510,15 +535,18 @@ async function submitResetPassword() {
         </div>
       </div>
 
-      <div class="manage-summary-actions">
+    </template>
+
+    <template #actions>
         <el-button data-testid="users-refresh-button" :loading="loading" @click="fetchRows">刷新</el-button>
         <el-button type="primary" data-testid="users-open-create" @click="openCreateDialog">新增用户</el-button>
-      </div>
-    </div>
+    </template>
 
-    <section v-if="message" class="message-bar" :class="messageType">{{ message }}</section>
+    <template #message>
+      <section v-if="message" class="message-bar" :class="messageType">{{ message }}</section>
+    </template>
 
-    <section class="panel ledger-panel user-ledger-panel">
+    <template #ledger>
       <div class="panel-heading">
         <div>
           <h2 class="panel-heading__title">用户台账</h2>
@@ -544,13 +572,13 @@ async function submitResetPassword() {
         <div class="ledger-table-head user-table-head">
           <span>用户</span>
           <span>角色 / 企业</span>
-          <span>状态</span>
-          <span>密码状态</span>
+          <span class="table-head-cell--center">状态</span>
+          <span class="table-head-cell--center">密码状态</span>
           <span>最近更新时间</span>
           <span>操作</span>
         </div>
 
-        <div class="ledger-row-list" data-testid="users-table">
+        <div class="ledger-row-list user-row-list" data-testid="users-table">
           <article
             v-for="row in visibleRows"
             :key="row.id"
@@ -567,24 +595,24 @@ async function submitResetPassword() {
               <small>{{ companyText(row) }}</small>
             </div>
 
-            <div class="row-status">
+            <div class="row-status table-cell--center">
               <span class="ledger-status-pill" :class="resolveStatusTone(row.status)">
                 {{ row.statusLabel }}
               </span>
             </div>
 
-            <div class="row-status">
+            <div class="row-status table-cell--center">
               <span class="ledger-status-pill" :class="resolvePasswordTone(row)">
                 {{ row.passwordStatusLabel }}
               </span>
             </div>
 
-            <div class="row-meta">
+            <div class="row-meta user-update-cell">
               <strong>{{ row.updatedAt || '暂无更新' }}</strong>
               <small>{{ row.passwordUpdatedAt || '暂无改密记录' }}</small>
             </div>
 
-            <div class="row-actions">
+            <div class="row-actions table-cell--actions">
               <div class="ledger-actions-scroll">
                 <button class="text-button primary-text" :data-testid="`user-edit-${row.id}`" @click="openEditDialog(row)">编辑</button>
                 <button
@@ -609,14 +637,17 @@ async function submitResetPassword() {
         </div>
       </div>
 
-      <div class="toolbar user-pagination">
-        <span class="list-summary">第 {{ page }} / {{ pageCount }} 页</span>
-        <div class="toolbar-actions">
-          <el-button data-testid="users-prev-page" :disabled="loading || page <= 1" @click="goPrevPage">上一页</el-button>
-          <el-button data-testid="users-next-page" :disabled="loading || page >= pageCount" @click="goNextPage">下一页</el-button>
-        </div>
-      </div>
-    </section>
+      <AdminListPagination
+        :summary="`第 ${page} / ${pageCount} 页`"
+        :prev-disabled="loading || page <= 1"
+        :next-disabled="loading || page >= pageCount"
+        prev-testid="users-prev-page"
+        next-testid="users-next-page"
+        @prev="goPrevPage"
+        @next="goNextPage"
+      />
+    </template>
+    </AdminListTemplate>
 
     <div v-if="dialog.visible" class="dialog-mask" @click.self="closeDialog">
       <section class="dialog-card user-dialog" data-testid="user-form-dialog">
@@ -723,56 +754,248 @@ async function submitResetPassword() {
 </template>
 
 <style scoped>
-.user-filter-grid {
-  grid-template-columns: minmax(0, 1.6fr) minmax(180px, 1fr) minmax(180px, 1fr) auto auto minmax(180px, max-content) minmax(240px, 1fr);
+.user-manage {
+  font-family: "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  --user-filter-text-inset: 14px;
+  --user-grid-inline-padding: 18px;
+  --user-grid-column-gap: 16px;
+  --user-filter-group-left-shift: 8px;
+  --user-keyword-filter-width: 248px;
+  --user-company-filter-width: 220px;
+  --user-status-filter-width: 132px;
+  --user-page-size-width: 148px;
+  --user-filter-card-border: rgba(56, 134, 217, 0.14);
+  --user-filter-card-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(247, 251, 255, 0.94) 100%);
+  --user-filter-card-shadow: 0 16px 34px rgba(45, 113, 194, 0.1);
+  --user-filter-control-height: 40px;
+  --user-filter-control-radius: 12px;
 }
 
-.summary-slot {
+.user-card-stack {
+  display: grid;
+  gap: 16px;
+}
+
+:deep(.user-filter-card),
+:deep(.user-ledger-card) {
+  position: relative;
+  overflow: hidden;
+}
+
+:deep(.user-filter-card) {
+  padding: 18px 22px 0;
+  border-color: var(--user-filter-card-border) !important;
+  background: var(--user-filter-card-bg) !important;
+  box-shadow: var(--user-filter-card-shadow) !important;
+}
+
+.user-filter-layout {
   display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding-right: 8px;
+  align-items: flex-end;
+  justify-content: flex-start;
+  gap: 18px;
+  margin-left: calc(-1 * var(--user-filter-group-left-shift));
+  padding: 0 12px 0 calc(var(--user-grid-inline-padding) - var(--user-filter-text-inset));
+  flex-wrap: wrap;
 }
 
-.user-page-size-control {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 188px;
+.user-filter-grid {
+  grid-template-columns:
+    minmax(var(--user-keyword-filter-width), max-content)
+    minmax(var(--user-company-filter-width), max-content)
+    minmax(var(--user-status-filter-width), max-content)
+    minmax(var(--user-page-size-width), max-content);
+  align-items: end;
+  column-gap: 12px;
+  row-gap: 12px;
+  padding: 0;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.user-filter-field {
+  gap: 8px;
+  width: 100%;
+  justify-self: start;
+}
+
+.user-filter-field--keyword {
+  max-width: var(--user-keyword-filter-width);
+}
+
+.user-filter-field--company {
+  max-width: var(--user-company-filter-width);
+}
+
+.user-filter-field--status {
+  max-width: var(--user-status-filter-width);
+}
+
+.user-filter-field--page-size {
+  max-width: var(--user-page-size-width);
+}
+
+.user-filter-grid .manage-filter-field__label {
+  padding-inline-start: var(--user-filter-text-inset);
+  color: var(--admin-text-mid);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.user-filter-grid :deep(.manage-filter-item .el-input__wrapper),
+.user-filter-grid :deep(.manage-filter-item .el-select__wrapper) {
+  min-height: var(--user-filter-control-height);
+  padding-inline-start: var(--user-filter-text-inset);
+  padding-inline-end: 14px;
+  border-radius: var(--user-filter-control-radius);
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(56, 134, 217, 0.14) inset !important;
+}
+
+.user-filter-grid :deep(.manage-filter-item .el-input__inner),
+.user-filter-grid :deep(.manage-filter-item .el-select__selected-item),
+.user-filter-grid :deep(.manage-filter-item .el-select__placeholder) {
+  text-align: left;
+}
+
+.user-filter-grid :deep(.manage-filter-item .el-select__placeholder),
+.user-filter-grid :deep(.manage-filter-item .el-input__inner::placeholder) {
+  color: var(--admin-text-faint);
 }
 
 .user-page-size-select {
-  width: 128px;
+  width: 100%;
 }
 
-.user-ledger-panel {
-  margin-top: 0;
+.user-page-size-select :deep(.el-select__wrapper) {
+  min-height: var(--user-filter-control-height);
 }
 
-.user-pagination {
-  margin-top: 18px;
-  padding: 0 28px;
+.user-filter-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 14px;
+  margin-top: 14px;
+  margin-left: calc(-1 * var(--user-filter-group-left-shift));
+  padding: 0 12px 18px var(--user-grid-inline-padding);
+  min-width: 0;
+  flex-wrap: wrap;
 }
 
-.user-pagination .list-summary {
+.user-filter-actions {
   display: inline-flex;
   align-items: center;
-  min-height: 40px;
+  gap: 10px;
+  flex-wrap: nowrap;
 }
 
-.user-pagination .toolbar-actions {
+.user-filter-actions :deep(.el-button) {
+  min-height: 38px;
+  padding-inline: 16px;
+  border-radius: 12px;
+}
+
+.user-list-summary {
+  margin: 0;
+  padding: 0;
+}
+
+.user-list-summary .manage-muted {
+  display: inline-flex;
   align-items: center;
+  min-height: 22px;
+  color: var(--admin-text-soft);
+  font-size: 13px;
 }
 
-.user-table-head,
-.user-row {
-  grid-template-columns:
-    minmax(220px, 1fr)
-    minmax(220px, 0.95fr)
-    minmax(120px, 0.52fr)
-    minmax(150px, 0.65fr)
-    minmax(180px, 0.8fr)
-    minmax(250px, max-content);
+:deep(.user-ledger-panel .panel-heading) {
+  padding-left: 28px;
+}
+
+:deep(.user-ledger-card) {
+  padding: 20px 22px 18px;
+  border: 1px solid rgba(56, 134, 217, 0.14) !important;
+  border-radius: 24px !important;
+  background: #fff !important;
+  box-shadow: 0 18px 42px rgba(45, 113, 194, 0.08) !important;
+}
+
+.user-table-shell {
+  --ledger-grid-columns:
+    minmax(220px, 1.08fr)
+    minmax(220px, 0.98fr)
+    minmax(112px, 0.48fr)
+    minmax(136px, 0.56fr)
+    minmax(192px, 0.82fr)
+    minmax(268px, 1.02fr);
+  --ledger-column-gap: var(--user-grid-column-gap);
+  --ledger-inline-padding: var(--user-grid-inline-padding);
+  --ledger-min-width: 1300px;
+}
+
+.user-table-head {
+  color: #6f86a4;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: #fff;
+}
+
+.user-row-list,
+.user-row-list.ledger-row-list {
+  display: grid;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid rgba(56, 134, 217, 0.14);
+  border-radius: 26px;
+  background: #fff;
+}
+
+:deep(.user-ledger-card .table-scroll-shell) {
+  background: #fff !important;
+}
+
+:deep(.user-ledger-card .admin-list-pagination) {
+  background: #fff !important;
+}
+
+:deep(.user-ledger-card .table-scroll-shell .user-table-head) {
+  background: #fff !important;
+}
+
+:deep(.user-ledger-card .panel-heading),
+:deep(.user-ledger-card .panel-heading > div) {
+  background: #fff;
+}
+
+.user-row,
+.user-row.ledger-row {
+  align-items: center;
+  border-top: 1px solid rgba(56, 134, 217, 0.1);
+  background: #fff;
+}
+
+.user-row:first-child {
+  border-top: 0;
+}
+
+.user-row:hover {
+  background: rgba(48, 149, 246, 0.03);
+}
+
+.user-update-cell {
+  min-width: 0;
+}
+
+.user-update-cell strong,
+.user-update-cell small {
+  display: block;
+}
+
+.user-row .table-cell--center .ledger-status-pill {
+  min-width: 92px;
 }
 
 .dialog-card.user-dialog {
@@ -935,27 +1158,45 @@ async function submitResetPassword() {
 }
 
 @media (max-width: 960px) {
+  .user-filter-layout {
+    align-items: flex-end;
+    gap: 14px;
+    margin-left: 0;
+    padding-inline: 0;
+  }
+
   .user-filter-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .user-page-size-control {
-    min-width: 0;
+  .user-filter-toolbar {
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-start;
   }
 }
 
 @media (max-width: 768px) {
+  :deep(.user-ledger-panel) {
+    padding: 16px;
+  }
+
+  :deep(.user-ledger-panel .panel-heading) {
+    padding-left: 0;
+  }
+
   .dialog-mask {
     padding: 14px;
   }
 
-  .summary-slot {
-    justify-content: flex-start;
-    padding-right: 0;
+  :deep(.user-filter-card) {
+    padding-bottom: 0;
   }
 
-  .user-page-size-control {
-    justify-content: space-between;
+  .user-filter-toolbar {
+    justify-content: flex-start;
+    min-width: 0;
+    width: 100%;
   }
 
   .user-page-size-select {
