@@ -1,0 +1,61 @@
+{
+  "screenshotDir": "D:\\Users\\Lenovo\\Desktop\\traceability-system\\screenshots\\test-cases-batch-review",
+  "files": [
+    "01-01-企业管理员登录.png",
+    "01-02-新建批次表单.png",
+    "03-01-发布前校验阻断.png",
+    "06-01-监管视角-首页或列表.png",
+    "07-01-公开查询-无效态.png",
+    "06-02-监管视角-批次查看.png",
+    "06-03-监管视角-风险或公开信息查看.png",
+    "01-03-批次创建成功.png"
+  ],
+  "cases": {
+    "1": {
+      "partial": true,
+      "batchCodesObserved": [
+        "CASEDEBUG1776855529103",
+        "CASE20260422185701",
+        "CASE20260422190406",
+        "CASE20260422190759"
+      ],
+      "verified": "企业管理员登录并创建新批次成功",
+      "reason": "当前系统实际页面未提供把新建批次无损分配给 operator 的可用入口；operator 直接进入新批次会被提示“当前批次未分配给你，不能查看或提交现场记录”，因此无法继续完成你要求的操作员补录、质检发布、公众正常态闭环。"
+    },
+    "2": {
+      "skipped": true,
+      "reason": "真实支持草稿保存/续写，但 operator 当前无可处理待办，且新建批次无法在现有页面中无损分配给 operator，因此不能按指定账号完成草稿演示。"
+    },
+    "3": {
+      "batchCode": "ORANGE-202604-Q1",
+      "verified": "二维码发布页存在不可发布阻断态",
+      "note": "当前页以不可发布状态和阻断标签体现门槛，没有可点击的发布按钮"
+    },
+    "4": {
+      "skipped": true,
+      "reason": "enterprise_admin /risk 未发现可用风险批次"
+    },
+    "5": {
+      "skipped": true,
+      "reason": "当前恢复/整改会改写现有风险演示批次状态，可能破坏 demo 基线，本轮按要求不做破坏性风险恢复操作。"
+    },
+    "6": {
+      "verified": "监管账号可读风险列表、批次只读工作台、质检列表，未执行编辑发布动作"
+    },
+    "7": {
+      "token": "invalid-demo-token-2026",
+      "publicUrl": "http://127.0.0.1:5173/t/invalid-demo-token-2026",
+      "verified": "公开页显示无效/不可查询态"
+    }
+  },
+  "success": [
+    "案例3",
+    "案例7",
+    "案例6"
+  ],
+  "skipped": [
+    "案例2",
+    "案例4",
+    "案例5"
+  ]
+}
