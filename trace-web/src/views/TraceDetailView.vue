@@ -273,15 +273,13 @@ function shortSummary(text, length = 72) {
 
       <section class="hero-card" data-testid="public-summary">
         <div class="hero-card__main">
-          <div class="hero-product">
-            <img class="product-image" :src="summary.productImageUrl" :alt="summary.productName">
-            <div class="hero-copy">
-              <p class="eyebrow">消费者追溯</p>
-              <h1 data-testid="public-product-name">{{ summary.productName }}</h1>
-              <p class="verdict-title">{{ verdict.title }}</p>
-              <p class="verdict-copy">{{ verdict.copy }}</p>
+            <div class="hero-product">
+              <img class="product-image" :src="summary.productImageUrl" :alt="summary.productName">
+              <div class="hero-copy">
+                <p class="eyebrow">消费者追溯</p>
+                <h1 data-testid="public-product-name">{{ summary.productName }}</h1>
+              </div>
             </div>
-          </div>
 
           <div class="hero-kpi-grid summary-grid">
             <div class="kpi-card">
@@ -312,9 +310,13 @@ function shortSummary(text, length = 72) {
         </div>
 
         <aside class="trust-card">
-          <p class="state-eyebrow state-eyebrow--muted">可信依据</p>
+          <p class="state-eyebrow state-eyebrow--muted">当前状态</p>
           <ul class="trust-list">
-            <li v-for="item in trustSignals" :key="item.label">
+            <li>
+              <span>状态结论</span>
+              <strong>{{ verdict.title }}</strong>
+            </li>
+            <li v-for="item in trustSignals.slice(0, 2)" :key="item.label">
               <span>{{ item.label }}</span>
               <strong>{{ item.value }}</strong>
             </li>
@@ -326,14 +328,12 @@ function shortSummary(text, length = 72) {
         <article class="card">
           <div class="section-head">
             <div>
-              <h2>消费者最关心的信息</h2>
-              <p>首屏只保留状态、来源和使用判断，方便扫完码后快速理解。</p>
+              <h2>产品与批次身份</h2>
             </div>
-            <span>扫码首屏</span>
           </div>
 
           <div class="fact-grid">
-            <div v-for="item in consumerFacts" :key="item.label" class="fact-card">
+            <div v-for="item in consumerFacts.slice(0, 2)" :key="item.label" class="fact-card">
               <span>{{ item.label }}</span>
               <strong>{{ item.value }}</strong>
             </div>
@@ -343,73 +343,35 @@ function shortSummary(text, length = 72) {
         <article class="card">
           <div class="section-head">
             <div>
-              <h2>企业与检测说明</h2>
-              <p>弱化后台字段感，只保留能支撑“可信度”的关键信息。</p>
+              <h2>当前状态</h2>
             </div>
-            <span>可信说明</span>
           </div>
 
           <div class="fact-grid">
             <div class="fact-card">
-              <span>企业备案</span>
+              <span>批次状态</span>
+              <strong>{{ publicStatusText }}</strong>
+            </div>
+            <div class="fact-card">
+              <span>质检结论</span>
+              <strong>{{ publicQualityText }}</strong>
+            </div>
+            <div class="fact-card">
+              <span>主体企业</span>
               <strong>{{ company.name || summary.companyName || '企业信息待补充' }}</strong>
             </div>
             <div class="fact-card">
-              <span>许可证号</span>
-              <strong>{{ company.licenseNo || '待补充' }}</strong>
+              <span>公开时间</span>
+              <strong>{{ publicPublishedAtText }}</strong>
             </div>
           </div>
-
-          <p class="section-copy">{{ qualitySummaryText }}</p>
-
-          <div v-if="qualityHighlights.length" class="pill-row">
-            <span v-for="item in qualityHighlights" :key="item">{{ item }}</span>
-          </div>
-
-          <p class="address-copy">{{ localizeVisibleText(company.address) || '企业地址待补充。' }}</p>
         </article>
-      </section>
-
-      <section class="card verification-card" data-testid="public-trace-verification">
-        <div class="section-head">
-          <div>
-            <h2>溯源可信性校验</h2>
-            <p>系统会把每条追溯记录与上一条记录摘要一起做 SHA-256 链式加密存储与校验，中间内容一旦被改动，整条链都会暴露异常。</p>
-          </div>
-          <span>Hash链</span>
-        </div>
-
-        <div class="verification-layout">
-          <article class="verification-status" :class="verificationClass(verification)">
-            <span>校验结果</span>
-            <strong data-testid="public-trace-verification-status">{{ verificationStatusText }}</strong>
-            <p>{{ verification.message || '当前批次的链式摘要已经完成核验。' }}</p>
-          </article>
-
-          <div class="fact-grid verification-facts">
-            <div
-              v-for="item in verificationFacts"
-              :key="item.label"
-              class="fact-card fact-card--compact"
-            >
-              <span>{{ item.label }}</span>
-              <strong :title="item.fullValue || item.value" :class="{ 'hash-text': item.label === '链摘要' }">
-                {{ item.value }}
-              </strong>
-            </div>
-          </div>
-        </div>
-
-        <p class="verification-note">
-          答辩说明：这里不是重型区块链网络，而是把追溯记录按时间串成一条轻量 Hash 链，用更低成本展示“可校验、防篡改”的特色能力。
-        </p>
       </section>
 
       <section class="card timeline-card" data-testid="public-timeline">
         <div class="section-head">
           <div>
-            <h2>关键追溯过程</h2>
-            <p>先看最近动态，再按时间回看关键节点，手机端也能顺着往下滑动查看。</p>
+            <h2>关键追溯节点时间线</h2>
           </div>
           <span>{{ timelineItems.length }} 个节点</span>
         </div>
@@ -451,6 +413,63 @@ function shortSummary(text, length = 72) {
         >
           {{ showFullTimeline ? '收起完整过程' : '展开更多追溯节点' }}
         </button>
+      </section>
+
+      <section class="detail-grid">
+        <article class="card">
+          <div class="section-head">
+            <div>
+              <h2>质检摘要</h2>
+            </div>
+          </div>
+
+          <div class="fact-grid">
+            <div class="fact-card">
+              <span>检测结论</span>
+              <strong>{{ publicQualityText }}</strong>
+            </div>
+            <div class="fact-card">
+              <span>检测机构</span>
+              <strong>{{ quality.agency || '未填写' }}</strong>
+            </div>
+            <div class="fact-card">
+              <span>报告编号</span>
+              <strong>{{ quality.reportNo || '未生成' }}</strong>
+            </div>
+            <div class="fact-card">
+              <span>检测时间</span>
+              <strong>{{ quality.reportDate || '未填写' }}</strong>
+            </div>
+          </div>
+
+          <p class="section-copy">{{ qualitySummaryText }}</p>
+
+          <div v-if="qualityHighlights.length" class="pill-row">
+            <span v-for="item in qualityHighlights" :key="item">{{ item }}</span>
+          </div>
+        </article>
+
+        <article v-if="risk.hasRisk" class="card">
+          <div class="section-head">
+            <div>
+              <h2>风险提示</h2>
+            </div>
+          </div>
+
+          <div class="fact-grid">
+            <div class="fact-card">
+              <span>当前状态</span>
+              <strong>{{ risk.statusLabel }}</strong>
+            </div>
+            <div class="fact-card">
+              <span>更新时间</span>
+              <strong>{{ risk.updatedAt || '未记录' }}</strong>
+            </div>
+          </div>
+
+          <p class="section-copy">{{ localizeVisibleText(risk.reason) }}</p>
+          <p v-if="risk.tip" class="address-copy">{{ localizeVisibleText(risk.tip) }}</p>
+        </article>
       </section>
     </template>
   </div>

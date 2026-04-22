@@ -1,7 +1,10 @@
 <script setup>
-import BatchDetailPanel from '../components/BatchDetailPanel.vue'
+import { useRoute } from 'vue-router'
+import BatchWorkbenchDrawerPanel from '../components/BatchWorkbenchDrawerPanel.vue'
+
+const route = useRoute()
 </script>
 
 <template>
-  <BatchDetailPanel />
+  <BatchWorkbenchDrawerPanel :batch-id="route.params.id" />
 </template>

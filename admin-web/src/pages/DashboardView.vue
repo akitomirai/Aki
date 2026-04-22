@@ -1,14 +1,14 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useAuthStore } from '../stores/auth'
-import { getDashboardOverview } from '../api/dashboard'
 import { getBatchList } from '../api/batch'
+import { getProductList } from '../api/master-data'
 import { hasRoleAccess } from '../utils/access'
 
 const authStore = useAuthStore()
 const loading = ref(true)
-const overview = ref(null)
 const batches = ref([])
+const products = ref([])
 
 const quickEntries = computed(() => {
   const roleCode = authStore.user?.roleCode
@@ -31,67 +31,49 @@ const quickEntries = computed(() => {
   return entries
 })
 
-const todoItems = computed(() => {
+const productCount = computed(() => products.value.length)
+const pendingQualityCount = computed(() => {
+  return batches.value.filter((item) => String(item.qualityStatusCode || 'PENDING').toUpperCase() === 'PENDING').length
+})
+const publishedBatchCount = computed(() => {
+  return batches.value.filter((item) => String(item.status || '').toUpperCase() === 'PUBLISHED').length
+})
+const riskBatchCount = computed(() => {
+  return batches.value.filter((item) => ['FROZEN', 'RECALLED'].includes(String(item.status || '').toUpperCase())).length
+})
+
+const recentActivities = computed(() => {
   return [...batches.value]
-    .filter((item) => item.status === 'DRAFT')
-    .sort((left, right) => (right.id ?? 0) - (left.id ?? 0))
-    .slice(0, 4)
+    .sort((left, right) => {
+      const leftTime = new Date(left.lastUpdatedAt || left.latestTraceTime || left.marketDate || 0).getTime()
+      const rightTime = new Date(right.lastUpdatedAt || right.latestTraceTime || right.marketDate || 0).getTime()
+      return rightTime - leftTime || (right.id ?? 0) - (left.id ?? 0)
+    })
+    .slice(0, 6)
     .map((item) => ({
       id: item.id,
       batchCode: item.batchCode,
       productName: item.productName,
-      nextStep: getTodoText(item)
+      companyName: item.companyName,
+      statusLabel: item.statusLabel || '状态待确认'
     }))
 })
 
-const riskItems = computed(() => {
-  return [...batches.value]
-    .filter((item) => ['FROZEN', 'RECALLED'].includes(item.status))
-    .sort((left, right) => (right.id ?? 0) - (left.id ?? 0))
-    .slice(0, 4)
-    .map((item) => ({
-      id: item.id,
-      batchCode: item.batchCode,
-      productName: item.productName,
-      statusLabel: item.statusLabel || '风险中'
-    }))
-})
-
-const recentBatches = computed(() => {
-  return [...batches.value]
-    .sort((left, right) => (right.id ?? 0) - (left.id ?? 0))
-    .slice(0, 5)
-})
-
-const overviewRows = computed(() => {
-  const data = overview.value
-  if (!data) return []
-  return [
-    { label: '批次总数', value: data.totalBatches, tone: 'normal' },
-    { label: '已发布', value: data.publishedBatches, tone: 'info' },
-    { label: '草稿待办', value: data.draftBatches, tone: 'warning' },
-    { label: '风险批次', value: data.riskBatches, tone: 'danger' }
-  ]
-})
-
-function getTodoText(item) {
-  const qualityText = String(item.qualityStatus || '')
-  const hasQr = item.qrStatus && item.qrStatus !== 'NOT_GENERATED'
-  const needsTrace = /待补录/.test(item.currentNode || '')
-  if (needsTrace) return '补录追溯'
-  if (/待上传|pending/i.test(qualityText)) return '上传质检'
-  if (!hasQr) return '生成二维码'
-  return '准备发布'
-}
+const statusDistributionRows = computed(() => ([
+  { label: '草稿批次', value: batches.value.filter((item) => String(item.status || '').toUpperCase() === 'DRAFT').length, tone: 'warning' },
+  { label: '已发布批次', value: publishedBatchCount.value, tone: 'info' },
+  { label: '风险批次', value: riskBatchCount.value, tone: 'danger' },
+  { label: '待质检批次', value: pendingQualityCount.value, tone: 'normal' }
+]))
 
 async function loadDashboard() {
   loading.value = true
   try {
-    const [overviewResponse, batchResponse] = await Promise.all([
-      getDashboardOverview(),
+    const [productResponse, batchResponse] = await Promise.all([
+      getProductList(),
       getBatchList()
     ])
-    overview.value = overviewResponse.data
+    products.value = productResponse.data ?? []
     batches.value = batchResponse.data ?? []
   } finally {
     loading.value = false
@@ -108,7 +90,6 @@ onMounted(() => {
     <section class="manage-page-header">
       <div>
         <h1 class="manage-page-title">首页总览</h1>
-        <p class="manage-page-subtitle">围绕最终答辩基线，快速查看批次全局状态、风险提醒和主链路入口。</p>
       </div>
       <div class="manage-page-actions">
         <el-button :loading="loading" @click="loadDashboard">刷新</el-button>
@@ -119,71 +100,37 @@ onMounted(() => {
       正在加载首页数据...
     </section>
 
-    <template v-else-if="overview">
+    <template v-else>
       <section class="stats-grid">
         <article class="stat-card">
+          <span>产品总数</span>
+          <strong>{{ productCount }}</strong>
+        </article>
+        <article class="stat-card">
           <span>批次总数</span>
-          <strong>{{ overview.totalBatches }}</strong>
+          <strong>{{ batches.length }}</strong>
+        </article>
+        <article class="stat-card">
+          <span>待质检批次</span>
+          <strong>{{ pendingQualityCount }}</strong>
         </article>
         <article class="stat-card">
           <span>已发布批次</span>
-          <strong>{{ overview.publishedBatches }}</strong>
-        </article>
-        <article class="stat-card">
-          <span>草稿待办</span>
-          <strong>{{ overview.draftBatches }}</strong>
+          <strong>{{ publishedBatchCount }}</strong>
         </article>
         <article class="stat-card risk">
           <span>风险批次</span>
-          <strong>{{ overview.riskBatches }}</strong>
+          <strong>{{ riskBatchCount }}</strong>
         </article>
       </section>
 
       <section class="dashboard-grid">
         <article class="section-card">
           <div class="section-head">
-            <h2>待办事项</h2>
-          </div>
-          <ul v-if="todoItems.length" class="item-list">
-            <li v-for="item in todoItems" :key="item.id">
-              <div>
-                <strong>{{ item.batchCode }}</strong>
-                <span>{{ item.productName }}</span>
-              </div>
-              <div class="item-meta">
-                <em>{{ item.nextStep }}</em>
-                <RouterLink :to="`/batches/${item.id}`">查看工作台</RouterLink>
-              </div>
-            </li>
-          </ul>
-          <p v-else class="empty-text">当前没有待办批次。</p>
-        </article>
-
-        <article class="section-card">
-          <div class="section-head">
-            <h2>风险提醒</h2>
-          </div>
-          <ul v-if="riskItems.length" class="item-list">
-            <li v-for="item in riskItems" :key="item.id">
-              <div>
-                <strong>{{ item.batchCode }}</strong>
-                <span>{{ item.productName }}</span>
-              </div>
-              <div class="item-meta">
-                <em class="risk-text">{{ item.statusLabel }}</em>
-                <RouterLink :to="`/batches/${item.id}`">查看工作台</RouterLink>
-              </div>
-            </li>
-          </ul>
-          <p v-else class="empty-text">当前没有风险批次。</p>
-        </article>
-
-        <article class="section-card">
-          <div class="section-head">
-            <h2>系统概览</h2>
+            <h2>状态分布</h2>
           </div>
           <div class="overview-list">
-            <div v-for="item in overviewRows" :key="item.label" class="overview-row">
+            <div v-for="item in statusDistributionRows" :key="item.label" class="overview-row">
               <span>{{ item.label }}</span>
               <strong :class="item.tone">{{ item.value }}</strong>
             </div>
@@ -192,21 +139,21 @@ onMounted(() => {
 
         <article class="section-card">
           <div class="section-head">
-            <h2>最近批次</h2>
+            <h2>最近动态</h2>
           </div>
-          <ul v-if="recentBatches.length" class="item-list">
-            <li v-for="item in recentBatches" :key="item.id">
+          <ul v-if="recentActivities.length" class="item-list">
+            <li v-for="item in recentActivities" :key="item.id">
               <div>
                 <strong>{{ item.batchCode }}</strong>
                 <span>{{ item.productName }} / {{ item.companyName }}</span>
               </div>
               <div class="item-meta">
-                <em>{{ item.statusLabel }}</em>
+                <em :class="{ 'risk-text': ['已冻结', '已召回'].includes(item.statusLabel) }">{{ item.statusLabel }}</em>
                 <RouterLink :to="`/batches/${item.id}`">查看工作台</RouterLink>
               </div>
             </li>
           </ul>
-          <p v-else class="empty-text">当前没有批次数据。</p>
+          <p v-else class="empty-text">当前没有最近动态。</p>
         </article>
 
         <article class="section-card quick-entry-card">

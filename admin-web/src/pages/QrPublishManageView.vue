@@ -886,28 +886,6 @@ async function submitPublish() {
 
       <template #actions>
         <el-button data-testid="qr-refresh-button" :loading="loading" @click="fetchRows">刷新</el-button>
-        <el-button
-          data-testid="qr-bulk-select-all"
-          :disabled="!selectableVisibleRows.length"
-          @click="toggleSelectAllPrintable(!allSelectableVisibleChecked)"
-        >
-          {{ allSelectableVisibleChecked ? '取消本页全选' : '全选本页已有码批次' }}
-        </el-button>
-        <el-button
-          data-testid="qr-bulk-clear"
-          :disabled="!selectedIds.length"
-          @click="clearSelection"
-        >
-          清空选择
-        </el-button>
-        <el-button
-          type="primary"
-          data-testid="qr-bulk-print"
-          :disabled="bulkPrintSubmitting || !selectedPrintableRows.length"
-          @click="openBulkPrintPreview"
-        >
-          {{ bulkPrintSubmitting ? '正在生成打印页...' : `批量打印预览（${selectedPrintableRows.length}）` }}
-        </el-button>
       </template>
 
     <template #filterPrimary>
@@ -1001,7 +979,6 @@ async function submitPublish() {
 
       <div v-else class="table-scroll-shell ledger-table-shell qr-table-shell">
         <div class="ledger-table-head qr-head">
-          <span class="table-head-cell--center">选择</span>
           <span>批次</span>
           <span>企业 / 更新时间</span>
           <span>状态</span>
@@ -1016,18 +993,6 @@ async function submitPublish() {
           class="ledger-row qr-row"
           :data-testid="`qr-row-${item.id}`"
         >
-          <div class="row-select table-cell--center">
-            <label class="selection-check">
-              <input
-                :checked="selectedIds.includes(item.id)"
-                :disabled="!hasQr(item)"
-                :data-testid="`qr-select-row-${item.id}`"
-                type="checkbox"
-                @change="toggleRowSelection(item, $event.target.checked)"
-              >
-            </label>
-          </div>
-
           <div class="row-main">
             <strong>{{ item.productName }}</strong>
             <small>{{ item.batchCode }}</small>
@@ -1387,7 +1352,6 @@ async function submitPublish() {
 
 .qr-table-shell {
   --ledger-grid-columns:
-    minmax(40px, 0.18fr)
     minmax(184px, 1.16fr)
     minmax(176px, 0.98fr)
     minmax(196px, 1.08fr)
@@ -1395,7 +1359,7 @@ async function submitPublish() {
     minmax(272px, 1.12fr);
   --ledger-column-gap: var(--qr-grid-column-gap);
   --ledger-inline-padding: var(--qr-grid-inline-padding);
-  --ledger-min-width: 1360px;
+  --ledger-min-width: 1280px;
 }
 
 .qr-head {

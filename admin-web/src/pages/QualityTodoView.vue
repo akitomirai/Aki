@@ -5,6 +5,7 @@ import { createQualityReport, getBatchDetail, getBatchList, uploadBatchFiles } f
 import AdminListPagination from '../components/AdminListPagination.vue'
 import AdminListTemplate from '../components/AdminListTemplate.vue'
 import AdminOverviewCards from '../components/AdminOverviewCards.vue'
+import BatchWorkbenchDrawerPanel from '../components/BatchWorkbenchDrawerPanel.vue'
 import StatusTag from '../components/StatusTag.vue'
 import { useAuthStore } from '../stores/auth'
 import { createQualityForm, getFriendlyErrorMessage, getFriendlyUploadError, qualityOptions, splitHighlights } from '../utils/batchExperience'
@@ -27,8 +28,10 @@ const qualitySubmitting = ref(false)
 const qualityForm = ref(createQualityForm())
 const resultDialog = ref(createResultDialogState())
 const uploadDialog = ref(createUploadDialogState())
+const detailDrawer = ref(createWorkbenchDrawerState())
 const page = ref(1)
 const pageSize = ref(DEFAULT_PAGE_SIZE)
+const batchSideDrawerSize = 'min(460px, 92vw)'
 const pageTitle = computed(() => readOnlyQualityView.value ? '质检查看' : '质检待办')
 const pageSubtitle = computed(() => {
   if (readOnlyQualityView.value) {
@@ -185,6 +188,14 @@ function createUploadDialogState() {
   return {
     visible: false,
     batch: null
+  }
+}
+
+function createWorkbenchDrawerState() {
+  return {
+    visible: false,
+    batchId: null,
+    batchCode: ''
   }
 }
 
@@ -590,7 +601,15 @@ function goNextPage() {
 }
 
 function openWorkbench(item) {
-  router.push(`/batches/${item.id}`)
+  detailDrawer.value = {
+    visible: true,
+    batchId: item?.id ?? null,
+    batchCode: item?.batchCode ?? ''
+  }
+}
+
+function closeWorkbenchDrawer() {
+  detailDrawer.value = createWorkbenchDrawerState()
 }
 
 async function openResultDialog(item) {
@@ -731,13 +750,6 @@ function formatFileSize(size) {
         />
       </template>
 
-      <template #banner>
-        <section v-if="readOnlyQualityView" class="panel readonly-banner" data-testid="quality-readonly-banner">
-      <strong>监管查看模式</strong>
-      <span>{{ readOnlyBannerText }}</span>
-        </section>
-      </template>
-
       <template #actions>
         <button class="ghost" data-testid="quality-refresh-button" :disabled="loading" @click="fetchRows">刷新</button>
       </template>
@@ -818,7 +830,7 @@ function formatFileSize(size) {
           <span>批次与产品</span>
           <span>企业 / 更新时间</span>
           <span class="table-head-cell--center">质检结果</span>
-          <span>批次状态</span>
+          <span>发布校验状态</span>
           <span>动作</span>
         </div>
 
@@ -846,9 +858,9 @@ function formatFileSize(size) {
           <div class="row-status row-next quality-next">
             <div class="quality-preparation-tags">
               <StatusTag
-                v-for="tag in qualityBatchStatusTags(item)"
+                v-for="tag in qualityReadinessTags(item)"
                 :key="tag.key"
-                :text="tag.text"
+                :text="tag.label || tag.text"
                 :tone="tag.tone"
               />
             </div>
@@ -1002,18 +1014,18 @@ function formatFileSize(size) {
             <input v-model="qualityForm.reportTime" type="datetime-local">
           </label>
           <label class="full-width">
-            <span>质检摘要</span>
+            <span>关键指标摘要</span>
             <textarea
               v-model.trim="qualityForm.highlightsText"
               rows="4"
-              placeholder="每行一个重点，例如：关键指标合格 / 样品抽检正常 / 允许进入发布流程"
+              placeholder="每行一条摘要"
             />
           </label>
           <label class="full-width">
             <span>附件</span>
             <div class="upload-box">
               <input type="file" accept=".pdf,image/png,image/jpeg,image/webp" multiple @change="handleQualityFilesChange">
-              <small class="empty-copy">支持上传 PDF 或图片，上传成功后会随本次质检一起绑定。</small>
+              <small class="empty-copy">支持 PDF 或图片附件。</small>
             </div>
           </label>
           <div v-if="qualityUploading" class="full-width upload-hint">正在上传质检附件...</div>
@@ -1042,6 +1054,30 @@ function formatFileSize(size) {
         </section>
       </div>
     </div>
+
+    <el-drawer
+      v-model="detailDrawer.visible"
+      direction="rtl"
+      :size="batchSideDrawerSize"
+      append-to-body
+      destroy-on-close
+      :with-header="false"
+      data-testid="quality-workbench-drawer"
+    >
+      <div>
+        <div class="dialog-head">
+          <div>
+            <h3>批次工作台</h3>
+            <p>批次 {{ detailDrawer.batchCode || '详情查看' }}</p>
+          </div>
+          <button class="ghost" @click="closeWorkbenchDrawer">关闭</button>
+        </div>
+        <BatchWorkbenchDrawerPanel
+          v-if="detailDrawer.visible && detailDrawer.batchId"
+          :batch-id="detailDrawer.batchId"
+        />
+      </div>
+    </el-drawer>
     </div>
 </template>
 

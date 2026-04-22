@@ -6,13 +6,6 @@
       filter-card-class="product-filter-card"
       ledger-card-class="product-ledger-panel product-ledger-card"
     >
-    <template #banner>
-      <el-card v-if="isEnterpriseAdmin" shadow="never" class="profile-banner" data-testid="products-self-mode">
-        <strong>当前为本企业产品模式</strong>
-        <span>{{ scopedModeHint }}</span>
-      </el-card>
-    </template>
-
     <template #filterPrimary>
       <div class="product-filter-layout">
         <div class="manage-filter-grid product-filter-grid">
@@ -42,7 +35,7 @@
               v-model.trim="searchForm.keyword"
               clearable
               class="manage-filter-item"
-              placeholder="按产品名称、编码、分类、规格搜索"
+              placeholder="按产品名称、分类、产地、规格搜索"
               @keyup.enter="handleSearch"
             />
           </label>
@@ -144,7 +137,7 @@
           <span>分类 / 产地</span>
           <span>规格 / 单位</span>
           <span class="table-head-cell--center">状态</span>
-          <span class="table-head-cell--center">批次</span>
+          <span>创建时间</span>
           <span v-if="canManage">操作</span>
         </div>
 
@@ -157,7 +150,6 @@
           >
             <div class="row-main">
               <strong>{{ textOf(row.productName, '未命名产品') }}</strong>
-              <span>{{ textOf(row.productCode, '未设置产品编码') }}</span>
             </div>
 
             <div class="row-meta">
@@ -177,8 +169,8 @@
               <span class="ledger-status-pill" :class="statusClass(row.status)">{{ statusText(row.statusLabel || row.status) }}</span>
             </div>
 
-            <div class="row-meta table-cell--center">
-              <strong>{{ row.batchCount ?? 0 }}</strong>
+            <div class="row-meta">
+              <strong>{{ textOf(row.createdAt, '暂无时间') }}</strong>
             </div>
 
             <div v-if="canManage" class="row-actions table-cell--actions">
@@ -232,8 +224,6 @@
       @closed="resetForm"
     >
       <el-form :model="form" label-position="top" class="dialog-form dialog-form--grouped" data-testid="products-form-dialog">
-        <div class="dialog-section-title">归属关系</div>
-
         <el-form-item label="所属企业（必填）" required>
           <el-select
             v-model="form.companyId"
@@ -260,18 +250,6 @@
             data-testid="products-form-name"
           />
         </el-form-item>
-
-        <el-form-item label="产品编码（选填）">
-          <el-input
-            v-model.trim="form.productCode"
-            maxlength="64"
-            show-word-limit
-            placeholder="可选，便于内部台账和打印标识"
-            data-testid="products-form-code"
-          />
-        </el-form-item>
-
-        <div class="dialog-section-title">产品资料</div>
 
         <el-form-item label="产品分类（必填）" required>
           <el-input
@@ -312,8 +290,6 @@
             data-testid="products-form-unit"
           />
         </el-form-item>
-
-        <div class="dialog-section-title">状态设置</div>
 
         <el-form-item label="当前状态">
           <el-select v-model="form.status" placeholder="请选择状态">

@@ -5,6 +5,7 @@ import { changeBatchStatus, createRiskAction, getBatchDetail, getBatchList } fro
 import AdminListPagination from '../components/AdminListPagination.vue'
 import AdminListTemplate from '../components/AdminListTemplate.vue'
 import AdminOverviewCards from '../components/AdminOverviewCards.vue'
+import BatchWorkbenchDrawerPanel from '../components/BatchWorkbenchDrawerPanel.vue'
 import StatusTag from '../components/StatusTag.vue'
 import { getFriendlyErrorMessage, riskActionOptions } from '../utils/batchExperience'
 import { mapBackendRecommendedRiskActionCode } from '../utils/batchStatusFlow'
@@ -20,14 +21,16 @@ const rows = ref([])
 const allRows = ref([])
 const message = ref('')
 const messageType = ref('info')
-const activeTab = ref('FROZEN')
+const activeTab = ref('PROCESSING')
 const filters = ref(createFilterState())
 const riskSubmitting = ref(false)
 const resumeSubmitting = ref(false)
 const riskDialog = ref(createRiskDialogState())
 const resumeDialog = ref(createResumeDialogState())
+const detailDrawer = ref(createWorkbenchDrawerState())
 const page = ref(1)
 const pageSize = ref(DEFAULT_PAGE_SIZE)
+const batchSideDrawerSize = 'min(460px, 92vw)'
 const pageSizeOptions = [
   { value: 10, label: '10 条 / 页' },
   { value: 20, label: '20 条 / 页' },
@@ -209,6 +212,14 @@ function createResumeDialogState() {
     batch: null,
     reason: '整改已完成，恢复批次公开流通。',
     operatorName: '平台管理员'
+  }
+}
+
+function createWorkbenchDrawerState() {
+  return {
+    visible: false,
+    batchId: null,
+    batchCode: ''
   }
 }
 
@@ -621,7 +632,15 @@ function goNextPage() {
 }
 
 function openWorkbench(item) {
-  router.push(`/batches/${item.id}`)
+  detailDrawer.value = {
+    visible: true,
+    batchId: item?.id ?? null,
+    batchCode: item?.batchCode ?? ''
+  }
+}
+
+function closeWorkbenchDrawer() {
+  detailDrawer.value = createWorkbenchDrawerState()
 }
 
 function openRiskDialog(item, actionType) {
@@ -747,13 +766,6 @@ async function openWorkbenchAfterRefresh(item) {
           test-id-prefix="risk-tab"
           @select="activeTab = $event"
         />
-      </template>
-
-      <template #banner>
-        <section v-if="readOnlyRiskView" class="panel readonly-banner" data-testid="risk-readonly-banner">
-      <strong>监管查看模式</strong>
-      <span>{{ readOnlyBannerText }}</span>
-        </section>
       </template>
 
       <template #actions>
@@ -944,27 +956,19 @@ async function openWorkbenchAfterRefresh(item) {
             <input v-model.trim="riskDialog.operatorName" type="text" placeholder="例如 平台管理员">
           </label>
           <label class="full-width">
-            <span>动作提示</span>
-            <textarea v-if="false" :value="riskActionHint(riskDialog.actionType)" rows="2" disabled></textarea>
-          </label>
-          <label class="full-width">
             <span>处理说明</span>
             <textarea
               v-model.trim="riskDialog.reason"
               rows="4"
-              :placeholder="riskDialog.actionType === 'PROCESSING' || riskDialog.actionType === 'RECTIFIED'
-                ? '这里是必填项，请写清当前阶段判断或整改完成结论。'
-                : '可选补充当前风险原因、范围和判断。'"
+              placeholder="请填写处理说明"
             />
           </label>
           <label class="full-width">
-            <span>补充记录</span>
+            <span>备注</span>
             <textarea
               v-model.trim="riskDialog.comment"
               rows="4"
-              :placeholder="riskDialog.actionType === 'COMMENT' || riskDialog.actionType === 'RECTIFICATION'
-                ? '这里是必填项，请写清处理说明或整改留痕。'
-                : '可选补充当前处理动作、现场情况和下一步安排。'"
+              placeholder="请填写备注"
             />
           </label>
         </div>
@@ -1047,6 +1051,30 @@ async function openWorkbenchAfterRefresh(item) {
         </section>
       </div>
     </div>
+
+    <el-drawer
+      v-model="detailDrawer.visible"
+      direction="rtl"
+      :size="batchSideDrawerSize"
+      append-to-body
+      destroy-on-close
+      :with-header="false"
+      data-testid="risk-workbench-drawer"
+    >
+      <div>
+        <div class="dialog-head">
+          <div>
+            <h3>批次工作台</h3>
+            <p>批次 {{ detailDrawer.batchCode || '详情查看' }}</p>
+          </div>
+          <button class="ghost" @click="closeWorkbenchDrawer">关闭</button>
+        </div>
+        <BatchWorkbenchDrawerPanel
+          v-if="detailDrawer.visible && detailDrawer.batchId"
+          :batch-id="detailDrawer.batchId"
+        />
+      </div>
+    </el-drawer>
     </div>
 </template>
 

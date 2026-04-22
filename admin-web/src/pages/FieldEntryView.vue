@@ -1034,7 +1034,6 @@ async function submitFieldRecord() {
         <div class="shell-copy">
           <p class="eyebrow">操作员手机端</p>
           <h1>现场作业工作台</h1>
-          <p>先从任务列表进入批次，草稿单独收进草稿箱，今天做过的批次也能继续补录。</p>
         </div>
         <div class="summary-strip">
           <article>
@@ -1094,21 +1093,12 @@ async function submitFieldRecord() {
               <small>当前待处理环节</small>
               <strong>{{ item.currentNode || '待补现场记录' }}</strong>
             </div>
-            <p class="task-copy">{{ getTaskCopy(item) }}</p>
             <div class="task-flags">
               <span class="meta-tag">{{ item.hasDraft ? '有草稿' : '无草稿' }}</span>
               <span class="meta-tag">{{ resolveTodayStatusText(item.todayCompleted) }}</span>
               <span v-if="item.assignedAt" class="meta-tag">分配于 {{ formatDraftTime(item.assignedAt) }}</span>
             </div>
             <dl class="task-meta">
-              <div>
-                <dt>批次名称/编号</dt>
-                <dd>{{ item.productName }} / {{ item.batchCode }}</dd>
-              </div>
-              <div>
-                <dt>任务状态</dt>
-                <dd>{{ resolveTaskStatusLabel(item) }}</dd>
-              </div>
               <div>
                 <dt>分配时间</dt>
                 <dd>{{ item.assignedAt ? formatDraftTime(item.assignedAt) : '未记录' }}</dd>
@@ -1207,7 +1197,6 @@ async function submitFieldRecord() {
           <div class="section-head">
             <div>
               <h2>当前任务</h2>
-              <p>先把当前环节、现场一句话和关键图片补齐，低频设置已经收进更多设置。</p>
             </div>
             <button class="ghost-button compact" @click="openBatchWorkbench()">查看批次工作台</button>
           </div>
@@ -1238,17 +1227,6 @@ async function submitFieldRecord() {
               <strong>{{ latestRecord?.eventTime || '暂无现场记录' }}</strong>
             </div>
           </div>
-
-          <ul v-if="entryHints.length" class="pending-list">
-            <li v-for="item in entryHints" :key="item">{{ item }}</li>
-          </ul>
-
-          <div class="demo-path-card">
-            <small>演示顺序</small>
-            <div class="demo-path-flow">
-              <span v-for="step in demoFlowSteps" :key="step">{{ step }}</span>
-            </div>
-          </div>
         </section>
 
         <section v-if="draftMeta" class="shell-card draft-banner" data-testid="field-entry-draft-banner">
@@ -1264,7 +1242,6 @@ async function submitFieldRecord() {
             <div class="section-head">
               <div>
                 <h2>选择环节</h2>
-                <p>先点一个最贴近现场状态的环节，再补一句说明和图片就能继续提交。</p>
               </div>
               <span class="pill">{{ formatStageLabel(traceForm.stage) }}</span>
             </div>
@@ -1285,19 +1262,10 @@ async function submitFieldRecord() {
             <div class="section-head">
               <div>
                 <h2>当前要录什么</h2>
-                <p>先补一句现场说明和图片，时间、地点、操作人默认已带入，不必一上来填满整张表单。</p>
               </div>
               <button class="ghost-button compact" type="button" @click="showAdvancedFields = !showAdvancedFields">
                 {{ showAdvancedFields ? '收起更多设置' : '更多设置' }}
               </button>
-            </div>
-
-            <div class="entry-guide-grid">
-              <article v-for="card in entryGuideCards" :key="card.key" class="entry-guide-card">
-                <small>{{ card.label }}</small>
-                <strong>{{ card.value }}</strong>
-                <p>{{ card.detail }}</p>
-              </article>
             </div>
 
             <p v-if="detailLoading" class="field-note">正在载入批次详情，表单就绪后再开始填写。</p>
@@ -1348,11 +1316,6 @@ async function submitFieldRecord() {
               </div>
             </div>
 
-            <div class="advanced-summary full-width">
-              <small>更多设置默认值</small>
-              <strong>{{ advancedFieldSummary }}</strong>
-            </div>
-
             <section v-if="showAdvancedFields" class="advanced-fields full-width">
               <label>
                 <span>记录标题</span>
@@ -1393,29 +1356,10 @@ async function submitFieldRecord() {
           </section>
         </fieldset>
 
-        <section v-if="latestRecord" class="shell-card">
-          <div class="section-head">
-            <div>
-              <h2>最近一条记录</h2>
-              <p>进场前先看一眼最近记录，现场补录更不容易串环节。</p>
-            </div>
-          </div>
-          <article class="latest-card">
-            <strong>{{ latestRecord.title }}</strong>
-            <small>{{ latestRecord.eventTime }} / {{ latestRecord.operatorName }}</small>
-            <p>{{ latestRecord.summary }}</p>
-          </article>
-        </section>
-
         <section v-if="lastSuccess" class="shell-card success-card" data-testid="field-entry-success">
           <div class="section-head">
             <div>
               <h2>提交成功</h2>
-              <p>
-                这条记录已经同步到批次工作台
-                <template v-if="lastSuccess.imageCount">，共带上 {{ lastSuccess.imageCount }} 张图片</template>
-                <template v-if="lastSuccess.clearedDraft">，原草稿也已自动清除</template>。
-              </p>
             </div>
             <span class="pill success">已提交</span>
           </div>

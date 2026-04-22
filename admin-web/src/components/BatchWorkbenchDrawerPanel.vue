@@ -156,6 +156,30 @@ const coreStatusCards = computed(() => [
   { key: 'task-status', title: '任务执行', value: taskStatusText.value, tag: detail.value?.task?.draftPending ? '有草稿' : todayProgressText.value },
   { key: 'risk-status', title: '风险事项', value: canHandleRisk.value ? riskStageText.value : '当前无风险', tag: canHandleRisk.value ? (riskResolved.value ? '可恢复' : '处理中') : '' }
 ])
+const traceSummaryRows = computed(() => recentRecords.value.slice(0, 3))
+const qualitySummaryRows = computed(() => ([
+  { label: '质检状态', value: detail.value?.quality?.label || '待上传' },
+  { label: '检测机构', value: latestQualityReport.value?.agency || '未填写' },
+  { label: '报告编号', value: latestQualityReport.value?.reportNo || '未生成' },
+  { label: '检测时间', value: formatDateTime(latestQualityReport.value?.reportTime) }
+]))
+const qrSummaryRows = computed(() => ([
+  { label: '二维码状态', value: qrStatusText.value },
+  { label: '公开状态', value: canPreviewPublic.value ? '已公开' : '未公开' },
+  {
+    label: '发布校验',
+    value: String(detail.value?.status?.code || '').toUpperCase() === 'PUBLISHED'
+      ? '已发布'
+      : (publishReady.value ? (resumeAction.value.enabled ? '可恢复发布' : '可发布') : '未满足')
+  },
+  { label: '公开入口', value: detail.value?.qr?.publicUrl || '未生成' }
+]))
+const riskSummaryRows = computed(() => ([
+  { label: '风险状态', value: canHandleRisk.value ? riskStageText.value : '当前无风险' },
+  { label: '异常原因', value: detail.value?.risk?.reason || detail.value?.status?.reason || '未记录' },
+  { label: '处理措施', value: latestRiskActionLabel.value },
+  { label: '是否恢复公开', value: canHandleRisk.value ? (detail.value?.riskHandling?.canResume ? '可恢复' : '未恢复') : '正常公开' }
+]))
 const ownerInfoRows = computed(() => [
   { label: '当前负责人', value: detail.value?.task?.assigneeName || '未分配' },
   { label: '任务状态', value: taskStatusText.value },
@@ -363,6 +387,23 @@ function openAssignmentDrawer() {
 function openRiskDrawer() {
   switchTab('timeline')
   scrollToSection(riskSectionRef)
+}
+
+function openFieldEntryPage() {
+  if (!resolvedBatchId.value) return
+  router.push({ path: '/field-entry', query: { batchId: resolvedBatchId.value } })
+}
+
+function openQualityPage() {
+  router.push('/quality')
+}
+
+function openQrPage() {
+  router.push('/qr')
+}
+
+function openRiskPage() {
+  router.push('/risk')
 }
 
 async function loadAssignableOperators() {
@@ -609,265 +650,121 @@ onMounted(async () => {
     </div>
 
     <template v-else>
-      <div class="drawer-tab-switcher" role="tablist" aria-label="批次工作台页签">
-        <button class="tab-chip" :class="{ active: activeTab === 'overview' }" @click="switchTab('overview')">概览</button>
-        <button class="tab-chip" :class="{ active: activeTab === 'timeline' }" @click="switchTab('timeline')">时间线</button>
-      </div>
+      <article class="drawer-card summary-card">
+        <div class="summary-main">
+          <div class="summary-copy">
+            <h2>{{ batchName }}</h2>
+            <div class="summary-meta">
+              <div v-for="item in topSummaryMeta" :key="item.label" class="summary-meta-item">
+                <span>{{ item.label }}</span>
+                <strong>{{ item.value }}</strong>
+              </div>
+            </div>
+          </div>
+          <div class="summary-side">
+            <span class="status-badge" :class="String(detail.status?.code || '').toLowerCase()">{{ batchStatusText }}</span>
+            <div class="summary-actions">
+              <button v-if="canManageBatch" class="ghost" @click="openCopyBatch">复制批次</button>
+              <button class="ghost" :disabled="!canPreviewPublic" @click="openPublicPreview">查看公开页</button>
+            </div>
+          </div>
+        </div>
+      </article>
 
-      <section v-show="activeTab === 'overview'" class="drawer-tab-panel">
-        <article class="drawer-card summary-card">
-          <div class="summary-main">
-            <div class="summary-copy">
-              <h2>{{ batchName }}</h2>
-              <div class="summary-meta">
-                <div v-for="item in topSummaryMeta" :key="item.label" class="summary-meta-item">
+      <section class="drawer-section">
+        <div class="section-head"><h3>批次基础信息</h3></div>
+        <div class="info-columns">
+          <article class="drawer-card info-panel">
+            <header>负责人信息</header>
+            <div class="info-list">
+              <div v-for="item in ownerInfoRows" :key="item.label" class="info-row">
+                <div class="info-row-main">
                   <span>{{ item.label }}</span>
                   <strong>{{ item.value }}</strong>
                 </div>
               </div>
             </div>
-            <div class="summary-side">
-              <span class="status-badge" :class="String(detail.status?.code || '').toLowerCase()">{{ batchStatusText }}</span>
-              <div class="summary-actions">
-                <button v-if="canManageBatch" class="ghost" @click="openCopyBatch">复制批次</button>
-                <button class="ghost" :disabled="!canPreviewPublic" @click="openPublicPreview">查看公开页</button>
-              </div>
-            </div>
-          </div>
-        </article>
+          </article>
 
-        <section class="drawer-section">
-          <div class="section-head"><h3>主操作区</h3></div>
-          <div class="action-grid">
-            <button
-              v-for="action in overviewActionTiles"
-              :key="action.key"
-              class="action-card"
-              :class="{ 'is-disabled': action.disabled }"
-              :disabled="action.disabled"
-              @click="action.handler"
-            >
-              <strong>{{ action.label }}</strong>
-              <span>{{ action.status }}</span>
-            </button>
-          </div>
-        </section>
-
-        <section class="drawer-section">
-          <div class="section-head"><h3>核心状态总览</h3></div>
-          <div class="status-grid">
-            <article v-for="card in coreStatusCards" :key="card.key" class="drawer-card status-card">
-              <div class="status-card-top">
-                <span>{{ card.title }}</span>
-                <em v-if="card.tag">{{ card.tag }}</em>
-              </div>
-              <strong>{{ card.value }}</strong>
-            </article>
-          </div>
-        </section>
-
-        <section ref="assignmentSectionRef" class="drawer-section">
-          <div class="section-head"><h3>基础信息与负责人</h3></div>
-
-          <div class="info-columns">
-            <article class="drawer-card info-panel">
-              <header>负责人信息</header>
-              <div class="info-list">
-                <div v-for="item in ownerInfoRows" :key="item.label" class="info-row">
-                  <div class="info-row-main">
-                    <span>{{ item.label }}</span>
-                    <strong>{{ item.value }}</strong>
-                  </div>
+          <article class="drawer-card info-panel">
+            <header>批次基础信息</header>
+            <div class="info-list">
+              <div v-for="item in baseInfoRows" :key="item.label" class="info-row">
+                <div class="info-row-main">
+                  <span>{{ item.label }}</span>
+                  <strong>{{ item.value }}</strong>
+                  <small v-if="item.meta">{{ item.meta }}</small>
                 </div>
               </div>
-            </article>
-
-            <article class="drawer-card info-panel">
-              <header>批次基础信息</header>
-              <div class="info-list">
-                <div v-for="item in baseInfoRows" :key="item.label" class="info-row">
-                  <div class="info-row-main">
-                    <span>{{ item.label }}</span>
-                    <strong>{{ item.value }}</strong>
-                    <small v-if="item.meta">{{ item.meta }}</small>
-                  </div>
-                  <button
-                    v-if="item.actionLabel"
-                    class="ghost info-inline-action"
-                    :disabled="item.actionDisabled"
-                    @click="item.handler"
-                  >
-                    {{ item.actionLabel }}
-                  </button>
-                </div>
-              </div>
-            </article>
-          </div>
-
-          <div v-if="canManageAssignment" class="assignment-controls">
-            <label class="form-label">
-              <span>指派操作员</span>
-              <select v-model="assignmentForm.assigneeUserId" :disabled="assignmentSelectDisabled">
-                <option value="">{{ currentAssigneeId ? '清空分配' : '保持未分配' }}</option>
-                <option v-if="!hasAssignableOperators && !operatorLoading" value="" disabled>暂无可分配操作员</option>
-                <option v-for="item in operatorOptions" :key="item.id" :value="String(item.id)">{{ item.realName || item.username }}</option>
-              </select>
-            </label>
-            <p class="helper-copy">{{ assignmentHelperText }}</p>
-            <div class="button-row assignment-action-row">
-              <button class="primary" :disabled="assignmentSaveDisabled" @click="submitAssignment(false)">{{ assignmentActionLabel }}</button>
-              <button class="ghost danger" :disabled="!assignmentCanClear" @click="clearAssignment">清空分配</button>
             </div>
-            <div v-if="assignmentConfirm.visible" class="warning-box">
-              <strong>发现未提交草稿</strong>
-              <p>{{ assignmentConfirm.message }}</p>
-              <div class="button-row">
-                <button class="ghost" @click="cancelAssignmentConfirm">取消改派</button>
-                <button class="primary" :disabled="assignmentSaving" @click="forceAssignmentChange">{{ assignmentConfirmActionLabel }}</button>
-              </div>
-            </div>
-          </div>
-        </section>
-      </section>
-
-      <section v-show="activeTab === 'timeline'" class="drawer-tab-panel">
-        <section ref="riskSectionRef" class="drawer-section">
-          <div class="section-head"><h3>风险处理摘要</h3></div>
-          <div class="risk-summary-grid">
-            <article v-for="item in riskInfoCards" :key="item.label" class="drawer-card risk-summary-card">
-              <span>{{ item.label }}</span>
-              <strong>{{ item.value }}</strong>
-            </article>
-          </div>
-          <div class="risk-action-row">
-            <button
-              v-for="action in riskActionButtons"
-              :key="action.key"
-              class="ghost"
-              :disabled="action.disabled"
-              @click="action.handler"
-            >
-              {{ action.label }}
-            </button>
-          </div>
-        </section>
-
-        <section class="drawer-section">
-          <div class="section-head"><h3>完整时间线</h3></div>
-          <div v-if="timelineEntries.length" class="timeline-list">
-            <article v-for="(item, index) in timelineEntries" :key="item.key || item.id || `${item.phaseCode}-${index}`" class="timeline-item">
-              <div class="timeline-item-top">
-                <div class="timeline-item-copy">
-                  <div class="timeline-item-heading">
-                    <strong>{{ item.title || item.phaseLabel || '流程记录' }}</strong>
-                    <span class="phase-chip">{{ item.phaseLabel || item.phaseCode || '记录' }}</span>
-                  </div>
-                  <div class="timeline-meta">
-                    <span>{{ formatDateTime(item.eventTime) }}</span>
-                    <span>{{ item.operatorName || '未记录操作人' }}</span>
-                  </div>
-                </div>
-                <span class="timeline-result" :class="`is-${timelineResultTone(item)}`">{{ item.resultLabel || item.resultCode || '已记录' }}</span>
-              </div>
-              <p class="timeline-summary">{{ item.summary || '暂无说明。' }}</p>
-            </article>
-          </div>
-          <div v-else class="state-card compact">当前还没有时间线记录。</div>
-        </section>
-      </section>
-
-      <el-dialog
-        v-model="dialog.visible"
-        width="760px"
-        append-to-body
-        :close-on-click-modal="!dialogSubmitting"
-        class="detail-dialog"
-        :title="dialogTitle"
-        @close="closeDialog(true)"
-      >
-        <div class="form-shell">
-          <p v-if="dialog.type === 'trace'" class="form-intro">补一条关键现场记录，概览页会同步展示状态变化。</p>
-          <p v-else-if="dialog.type === 'quality'" class="form-intro">上传质检摘要后，概览页会同步更新质检状态和发布准备度。</p>
-          <p v-else-if="dialog.type === 'risk'" class="form-intro">风险动作会进入时间线页签，方便集中查看。</p>
-          <p v-else-if="dialog.type === 'status'" class="form-intro">状态流转会直接反映到概览中的核心状态卡。</p>
-
-          <div v-if="dialog.type === 'trace'" class="form-grid">
-            <label class="form-label"><span>记录阶段</span><select v-model="traceForm.stage"><option v-for="item in stageOptions" :key="item.value" :value="item.value">{{ item.label }}</option></select></label>
-            <label class="form-label"><span>记录标题</span><input v-model.trim="traceForm.title" type="text"></label>
-            <label class="form-label"><span>记录时间</span><input v-model="traceForm.eventTime" type="datetime-local"></label>
-            <label class="form-label"><span>操作人</span><input v-model.trim="traceForm.operatorName" type="text"></label>
-            <label class="form-label"><span>地点</span><input v-model.trim="traceForm.location" type="text"></label>
-            <label class="form-label form-label-full"><span>现场说明</span><textarea v-model.trim="traceForm.summary" rows="4"></textarea></label>
-            <label class="form-label form-label-full">
-              <span>上传图片</span>
-              <div class="upload-box">
-                <input type="file" accept="image/*" multiple @change="handleTraceFilesChange">
-                <small>支持多图上传，保存记录后会一起绑定。</small>
-              </div>
-            </label>
-            <div v-if="traceUploading" class="form-label-full inline-tip">正在上传现场图片...</div>
-            <div v-if="traceForm.uploadedFiles.length" class="form-label-full uploaded-file-list">
-              <article v-for="file in traceForm.uploadedFiles" :key="file.id" class="uploaded-file-item">
-                <div>
-                  <strong>{{ fileLabel(file) }}</strong>
-                  <small>{{ formatFileSize(file.fileSize || file.size) }}</small>
-                </div>
-                <button class="ghost" @click="removeTraceAttachment(file.id)">移除</button>
-              </article>
-            </div>
-          </div>
-
-          <div v-else-if="dialog.type === 'quality'" class="form-grid">
-            <label class="form-label"><span>报告编号</span><input v-model.trim="qualityForm.reportNo" type="text"></label>
-            <label class="form-label"><span>检测机构</span><input v-model.trim="qualityForm.agency" type="text"></label>
-            <label class="form-label"><span>检测时间</span><input v-model="qualityForm.reportTime" type="datetime-local"></label>
-            <label class="form-label"><span>检测结果</span><select v-model="qualityForm.result"><option v-for="item in qualityOptions" :key="item.value" :value="item.value">{{ item.label }}</option></select></label>
-            <label class="form-label form-label-full"><span>质检摘要</span><textarea v-model.trim="qualityForm.highlightsText" rows="5"></textarea></label>
-            <label class="form-label form-label-full">
-              <span>附件上传</span>
-              <div class="upload-box">
-                <input type="file" multiple @change="handleQualityFilesChange">
-                <small>建议上传 PDF 或图片附件。</small>
-              </div>
-            </label>
-            <div v-if="qualityUploading" class="form-label-full inline-tip">正在上传质检附件...</div>
-            <div v-if="qualityForm.uploadedFiles.length" class="form-label-full uploaded-file-list">
-              <article v-for="file in qualityForm.uploadedFiles" :key="file.id" class="uploaded-file-item">
-                <div>
-                  <strong>{{ fileLabel(file) }}</strong>
-                  <small>{{ formatFileSize(file.fileSize || file.size) }}</small>
-                </div>
-                <button class="ghost" @click="removeQualityAttachment(file.id)">移除</button>
-              </article>
-            </div>
-          </div>
-
-          <div v-else-if="dialog.type === 'risk'" class="form-grid">
-            <label class="form-label"><span>处理动作</span><select v-model="riskForm.actionType"><option v-for="item in riskActionOptions" :key="item.value" :value="item.value">{{ item.label }}</option></select></label>
-            <label class="form-label"><span>处理人</span><input v-model.trim="riskForm.operatorName" type="text"></label>
-            <label class="form-label form-label-full"><span>处理原因</span><textarea v-model.trim="riskForm.reason" rows="3"></textarea></label>
-            <label class="form-label form-label-full"><span>处理说明</span><textarea v-model.trim="riskForm.comment" rows="4"></textarea></label>
-          </div>
-
-          <div v-else-if="dialog.type === 'status'" class="form-grid">
-            <label class="form-label">
-              <span>目标状态</span>
-              <select v-model="statusForm.targetStatus">
-                <option v-for="item in statusTargetOptions" :key="item.value" :value="item.value" :disabled="!item.allowed">{{ item.label }}</option>
-              </select>
-            </label>
-            <label class="form-label"><span>处理人</span><input v-model.trim="statusForm.operatorName" type="text"></label>
-            <label class="form-label form-label-full"><span>处理原因</span><textarea v-model.trim="statusForm.reason" rows="4"></textarea></label>
-          </div>
-
-          <p v-if="dialogValidationError" class="form-error">{{ dialogValidationError }}</p>
-          <div class="button-row dialog-actions">
-            <button class="ghost" :disabled="dialogSubmitting" @click="closeDialog()">取消</button>
-            <button v-if="dialog.type === 'trace'" class="ghost" :disabled="dialogSubmitting" @click="submitDialog({ keepOpen: true })">{{ dialogSubmitting ? '提交中...' : '保存并继续' }}</button>
-            <button class="primary" :disabled="dialogSubmitting" @click="submitDialog()">{{ dialogSubmitting ? '提交中...' : '确认保存' }}</button>
-          </div>
+          </article>
         </div>
-      </el-dialog>
+      </section>
+
+      <section class="drawer-section">
+        <div class="section-head"><h3>追溯记录摘要</h3></div>
+        <div v-if="traceSummaryRows.length" class="timeline-list">
+          <article v-for="item in traceSummaryRows" :key="item.id || item.createdAt || item.eventTime" class="timeline-item">
+            <div class="timeline-item-top">
+              <div class="timeline-item-copy">
+                <div class="timeline-item-heading">
+                  <strong>{{ item.title || item.stageLabel || '追溯记录' }}</strong>
+                  <span class="phase-chip">{{ item.stageLabel || item.stageCode || '节点' }}</span>
+                </div>
+                <div class="timeline-meta">
+                  <span>{{ formatDateTime(item.eventTime || item.createdAt) }}</span>
+                  <span>{{ item.operatorName || '未记录责任人' }}</span>
+                </div>
+              </div>
+            </div>
+            <p class="timeline-summary">{{ item.summary || '暂无摘要' }}</p>
+          </article>
+        </div>
+        <div v-else class="state-card compact">当前还没有追溯记录。</div>
+        <div class="button-row">
+          <button class="ghost" @click="openFieldEntryPage">去现场作业</button>
+        </div>
+      </section>
+
+      <section class="drawer-section">
+        <div class="section-head"><h3>质检区</h3></div>
+        <div class="risk-summary-grid">
+          <article v-for="item in qualitySummaryRows" :key="item.label" class="drawer-card risk-summary-card">
+            <span>{{ item.label }}</span>
+            <strong>{{ item.value }}</strong>
+          </article>
+        </div>
+        <div class="button-row">
+          <button class="ghost" @click="openQualityPage">查看质检页</button>
+        </div>
+      </section>
+
+      <section class="drawer-section">
+        <div class="section-head"><h3>二维码与公开区</h3></div>
+        <div class="risk-summary-grid">
+          <article v-for="item in qrSummaryRows" :key="item.label" class="drawer-card risk-summary-card">
+            <span>{{ item.label }}</span>
+            <strong>{{ item.value }}</strong>
+          </article>
+        </div>
+        <div class="button-row">
+          <button class="ghost" @click="openQrPage">查看二维码与发布页</button>
+          <button class="ghost" :disabled="!canPreviewPublic" @click="openPublicPreview">打开公开页</button>
+        </div>
+      </section>
+
+      <section class="drawer-section">
+        <div class="section-head"><h3>风险处理区</h3></div>
+        <div class="risk-summary-grid">
+          <article v-for="item in riskSummaryRows" :key="item.label" class="drawer-card risk-summary-card">
+            <span>{{ item.label }}</span>
+            <strong>{{ item.value }}</strong>
+          </article>
+        </div>
+        <div class="button-row">
+          <button class="ghost" @click="openRiskPage">查看风险处理页</button>
+        </div>
+      </section>
     </template>
   </div>
 </template>

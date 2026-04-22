@@ -1652,13 +1652,6 @@ function statusClass(status) {
         </button>
       </template>
 
-      <template #banner>
-        <section v-if="readOnlyBatchView" class="panel profile-banner" data-testid="batch-regulator-banner">
-            <strong>监管查看模式</strong>
-            <span>当前只保留批次状态、质检进度、风险摘要和最近更新，用于核对全链路状态，不展示新增、改派、复制等写入入口。</span>
-          </section>
-        </template>
-
     <template #filterPrimary>
       <div class="batch-filter-layout">
         <div class="filter-grid batch-filter-grid">
@@ -1785,7 +1778,7 @@ function statusClass(status) {
 
           <div class="row-meta row-meta--flow">
             <strong>{{ card.item.companyName }}</strong>
-            <small>最近更新：{{ latestUpdatedText(card.item) }}</small>
+            <small>{{ card.item.productionDate ? `生产日期：${card.item.productionDate}` : `最近更新：${latestUpdatedText(card.item)}` }}</small>
           </div>
 
           <div class="row-status">
@@ -1802,58 +1795,18 @@ function statusClass(status) {
           </div>
 
           <div class="row-task" :data-testid="`batch-task-block-${card.item.id}`">
-            <strong :data-testid="`batch-task-assignee-${card.item.id}`">{{ card.item.assigneeName || '未分配操作员' }}</strong>
-            <div class="task-pill-row">
-              <span
-                class="task-state-badge"
-                :class="taskStatusClass(card.item.taskStatus)"
-                :data-testid="`batch-task-status-${card.item.id}`"
-              >
-                {{ resolveTaskStatusText(card.item) }}
-              </span>
-              <span
-                class="task-flag"
-                :class="{ done: card.item.todayCompleted }"
-                :data-testid="`batch-task-today-${card.item.id}`"
-              >
-                {{ resolveTodayStatusText(card.item.todayCompleted) }}
-              </span>
-              <span
-                class="task-flag"
-                :class="{ draft: card.item.draftPending }"
-                :data-testid="`batch-task-draft-${card.item.id}`"
-              >
-                {{ card.item.draftStatusLabel || (card.item.draftPending ? '草稿待续' : '无草稿') }}
-              </span>
-            </div>
+            <strong>{{ card.item.currentNode || '待补现场记录' }}</strong>
+            <span :data-testid="`batch-task-assignee-${card.item.id}`">{{ card.item.assigneeName || '未分配操作员' }}</span>
           </div>
 
           <div class="row-actions table-cell--actions">
-            <span class="row-next-title" :data-testid="`batch-next-${card.item.id}`">{{ card.insight.nextLabel }}</span>
             <div class="row-actions-scroll">
-              <button
-                v-if="showRecommendedAction(card)"
-                class="action-primary-button"
-                :class="recommendedActionClass(card)"
-                :data-testid="`batch-recommend-${card.item.id}`"
-                @click.stop="runRecommendedAction(card)"
-              >
-                {{ card.insight.nextLabel }}
-              </button>
               <button
                 class="text-button primary-text"
                 :data-testid="`batch-open-workbench-${card.item.id}`"
                 @click.stop="openBatchDetail(card.item)"
               >
                 {{ openWorkbenchLabel() }}
-              </button>
-              <button
-                v-if="canManageAssignment"
-                class="text-button"
-                :data-testid="`batch-assignment-open-${card.item.id}`"
-                @click.stop="openAssignmentDialog(card.item)"
-              >
-                分配
               </button>
               <el-dropdown v-if="!readOnlyBatchView" @command="(command) => handleRowCommand(card, command)">
                 <button type="button" class="text-button" @click.stop>更多</button>
