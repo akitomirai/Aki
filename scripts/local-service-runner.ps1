@@ -45,7 +45,7 @@ function Start-ViteService {
 
     $arguments = @(
         "`"$VitePath`"",
-        '--host', '127.0.0.1',
+        '--host', '0.0.0.0',
         '--port', [string]$Port,
         '--strictPort'
     )
@@ -71,6 +71,32 @@ function Start-ViteService {
     }
 }
 
+function Get-LanIpAddress {
+    $candidates = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.IPAddress -notlike '127.*' -and
+            $_.IPAddress -notlike '169.254.*' -and
+            $_.AddressState -eq 'Preferred' -and
+            $_.InterfaceAlias -notmatch 'VMware|VirtualBox|Loopback|WSL|Hyper-V|vEthernet'
+        } |
+        Sort-Object `
+            @{ Expression = { if ($_.InterfaceAlias -match 'WLAN|Wi-Fi|无线') { 0 } else { 1 } } },
+            InterfaceMetric
+
+    $ip = $candidates | Select-Object -First 1 -ExpandProperty IPAddress
+    if ([string]::IsNullOrWhiteSpace($ip)) {
+        $ip = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+            Where-Object {
+                $_.IPAddress -notlike '127.*' -and
+                $_.IPAddress -notlike '169.254.*' -and
+                $_.AddressState -eq 'Preferred'
+            } |
+            Select-Object -First 1 -ExpandProperty IPAddress
+    }
+
+    return $ip
+}
+
 switch ($Service) {
     'backend' {
         if ([string]::IsNullOrWhiteSpace($JavaHome)) {
@@ -84,11 +110,21 @@ switch ($Service) {
 
         $env:JAVA_HOME = $JavaHome
         $env:Path = "$JavaHome\bin;C:\Program Files\Java\apache-maven-3.8.8\bin;" + $env:Path
+        $lanIp = Get-LanIpAddress
+        if (-not [string]::IsNullOrWhiteSpace($lanIp) -and [string]::IsNullOrWhiteSpace($env:PUBLIC_TRACE_BASE_URL)) {
+            $env:PUBLIC_TRACE_BASE_URL = "http://${lanIp}:5173"
+            Add-Content -Path $LogPath -Value ("[{0}] PUBLIC_TRACE_BASE_URL={1}" -f (Get-Date).ToString('s'), $env:PUBLIC_TRACE_BASE_URL)
+        }
         Set-Location (Join-Path $ProjectRoot 'backend')
         & $mavenCmd '-q' '-DskipTests' 'spring-boot:run' '-Dspring-boot.run.profiles=demo' *>> $LogPath
         break
     }
     'adminWeb' {
+        $lanIp = Get-LanIpAddress
+        if (-not [string]::IsNullOrWhiteSpace($lanIp) -and [string]::IsNullOrWhiteSpace($env:VITE_TRACE_WEB_ORIGIN)) {
+            $env:VITE_TRACE_WEB_ORIGIN = "http://${lanIp}:5173"
+            Add-Content -Path $LogPath -Value ("[{0}] VITE_TRACE_WEB_ORIGIN={1}" -f (Get-Date).ToString('s'), $env:VITE_TRACE_WEB_ORIGIN)
+        }
         $vitePath = Join-Path $ProjectRoot 'admin-web\node_modules\vite\bin\vite.js'
         Start-ViteService -WorkingDirectory (Join-Path $ProjectRoot 'admin-web') -VitePath $vitePath -Port 5174
         break

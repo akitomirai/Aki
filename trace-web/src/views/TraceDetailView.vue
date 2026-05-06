@@ -1,14 +1,23 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { getTraceDetail } from '../api/trace'
+import { getTraceDetail, submitTraceFeedback } from '../api/trace'
 
 const route = useRoute()
+const feedbackTypeOptions = ['信息不一致', '质量疑问', '二维码无法识别', '页面显示异常', '其他']
 
 const detail = ref(null)
 const loading = ref(true)
 const errorMessage = ref('')
 const showFullTimeline = ref(false)
+const reportDialogVisible = ref(false)
+const feedbackDialogVisible = ref(false)
+const feedbackSubmitting = ref(false)
+const feedbackForm = ref(createFeedbackForm())
+const feedbackFormError = ref('')
+const feedbackNotice = ref('')
+const feedbackNoticeType = ref('success')
+let feedbackNoticeTimer = null
 
 const summary = computed(() => detail.value?.summary ?? {})
 const company = computed(() => detail.value?.company ?? {})
@@ -65,78 +74,139 @@ const publicPublishedAtText = computed(() => {
     return publishedAt
   }
   if (publicStatusText.value === '草稿') {
-    return '尚未公开'
+    return '-'
   }
-  if (['已冻结', '已召回'].includes(publicStatusText.value)) {
-    return '已公开，当前附带风险提示'
-  }
-  return '已公开，时间待补录'
+  return '-'
 })
 
-const publicSloganText = computed(() => {
-  return localizeVisibleText(summary.value.slogan) || '扫码后可直接查看批次状态、质检结论和关键追溯节点。'
+const traceCodeText = computed(() => {
+  return detail.value?.qrToken || String(route.params.token || '').trim() || '-'
 })
 
-const verdict = computed(() => {
-  if (!detail.value) {
-    return {
-      title: '正在读取查询结果',
-      copy: '系统正在核对当前批次的状态、质检和关键节点。'
-    }
-  }
+const feedbackProductName = computed(() => feedbackDisplayValue(summary.value.productName))
+const feedbackBatchNo = computed(() => feedbackDisplayValue(summary.value.batchCode))
+const feedbackTraceCode = computed(() => feedbackDisplayValue(traceCodeText.value))
 
-  if (risk.value.hasRisk) {
-    return {
-      title: risk.value.statusLabel || '当前批次存在风险提示',
-      copy: localizeVisibleText(risk.value.reason) || '当前批次存在异常，请先查看风险提示再决定是否继续使用。'
-    }
-  }
-
-  if ((publicQualityText.value || '').includes('合格') || /pass/i.test(publicQualityText.value || '')) {
-    return {
-      title: '当前批次状态清晰，可放心继续查看',
-      copy: '首屏保留了消费者最关心的状态、质检和关键节点，继续下滑即可回看完整过程。'
-    }
-  }
-
-  return {
-    title: '请先关注质检结论',
-    copy: '当前还没有明确的合格结论，建议结合最近记录与企业说明一起查看。'
-  }
-})
-
-const trustSignals = computed(() => [
+const feedbackReadonlyItems = computed(() => [
   {
-    label: '主体企业',
-    value: summary.value.companyName || company.value.name || '企业信息待补充'
+    label: '当前产品',
+    value: feedbackProductName.value
   },
   {
-    label: '最近质检',
-    value: publicQualityText.value
+    label: '批次编号',
+    value: feedbackBatchNo.value
   },
   {
-    label: '公开时间',
-    value: publicPublishedAtText.value
+    label: '追溯码',
+    value: feedbackTraceCode.value
   }
 ])
 
-const consumerFacts = computed(() => [
+const heroFacts = computed(() => compactFacts([
   {
-    label: '生产日期',
-    value: summary.value.productionDate || '待补充'
+    label: '产品名称',
+    value: summary.value.productName
+  },
+  {
+    label: '批次编号',
+    value: summary.value.batchCode
+  },
+  {
+    label: '主体企业',
+    value: summary.value.companyName || company.value.name
   },
   {
     label: '产地',
-    value: localizeVisibleText(summary.value.originPlace) || '产地待补充'
+    value: localizeVisibleText(summary.value.originPlace)
   },
   {
-    label: '查询说明',
-    value: publicSloganText.value
+    label: '生产日期',
+    value: summary.value.productionDate
+  },
+  {
+    label: '发布时间',
+    value: publicPublishedAtText.value
+  },
+  {
+    label: '质检结论',
+    value: publicQualityText.value
+  },
+  {
+    label: '批次状态',
+    value: publicStatusText.value
+  },
+  {
+    label: '追溯码',
+    value: traceCodeText.value
+  },
+  {
+    label: '最近质检时间',
+    value: quality.value.reportTime
+  }
+]))
+
+const qualitySummaryText = computed(() => {
+  return displayValue(localizeVisibleText(quality.value.summary))
+})
+
+const qualityProjectItems = computed(() => {
+  const rawItems = qualityHighlights.value
+  const items = Array.isArray(rawItems)
+    ? rawItems
+    : String(rawItems || '').split(/[，,、]/)
+  return items.map((item) => localizeVisibleText(item)).filter(Boolean)
+})
+
+const qualityReportFacts = computed(() => [
+  {
+    label: '检测结论',
+    value: displayValue(publicQualityText.value)
+  },
+  {
+    label: '检测机构',
+    value: displayValue(quality.value.agency)
+  },
+  {
+    label: '报告编号',
+    value: displayValue(quality.value.reportNo)
+  },
+  {
+    label: '检测时间',
+    value: displayValue(quality.value.reportTime)
   }
 ])
 
-const qualitySummaryText = computed(() => {
-  return localizeVisibleText(quality.value.summary) || '当前暂无更多质检补充说明。'
+const qualityReportDetailFacts = computed(() => [
+  {
+    label: '报告编号',
+    value: displayValue(quality.value.reportNo)
+  },
+  {
+    label: '检测机构',
+    value: displayValue(quality.value.agency)
+  },
+  {
+    label: '检测结论',
+    value: displayValue(publicQualityText.value)
+  },
+  {
+    label: '检测时间',
+    value: displayValue(quality.value.reportTime)
+  },
+  {
+    label: '关联批次编号',
+    value: displayValue(summary.value.batchCode)
+  },
+  {
+    label: '产品名称',
+    value: displayValue(summary.value.productName)
+  }
+])
+
+const qualityReportFileUrl = computed(() => {
+  return String(
+    quality.value.reportUrl || quality.value.attachmentUrl || quality.value.fileUrl || ''
+  ).trim()
 })
 
 const errorState = computed(() => {
@@ -172,6 +242,9 @@ watch(
   () => route.params.token,
   (token) => {
     showFullTimeline.value = false
+    reportDialogVisible.value = false
+    feedbackDialogVisible.value = false
+    feedbackFormError.value = ''
     loadDetail(token)
   }
 )
@@ -208,6 +281,94 @@ function verificationClass(info) {
   return info?.passed ? 'pass' : 'fail'
 }
 
+function openQualityReport() {
+  reportDialogVisible.value = true
+}
+
+function closeQualityReport() {
+  reportDialogVisible.value = false
+}
+
+function createFeedbackForm(defaultType = '信息不一致') {
+  return {
+    feedbackType: defaultType,
+    contact: '',
+    content: ''
+  }
+}
+
+function openFeedbackDialog() {
+  feedbackForm.value = createFeedbackForm(errorMessage.value ? '二维码无法识别' : '信息不一致')
+  feedbackFormError.value = ''
+  feedbackDialogVisible.value = true
+}
+
+function closeFeedbackDialog() {
+  feedbackDialogVisible.value = false
+  feedbackSubmitting.value = false
+  feedbackFormError.value = ''
+  feedbackForm.value = createFeedbackForm()
+}
+
+async function submitFeedback() {
+  const content = String(feedbackForm.value.content || '').trim()
+  if (!content) {
+    feedbackFormError.value = '请输入反馈内容'
+    return
+  }
+  if (content.length < 10) {
+    feedbackFormError.value = '反馈内容不能少于 10 个字'
+    return
+  }
+  if (content.length > 300) {
+    feedbackFormError.value = '反馈内容不能超过 300 个字'
+    return
+  }
+
+  feedbackSubmitting.value = true
+  feedbackFormError.value = ''
+  try {
+    const response = await submitTraceFeedback({
+      productName: feedbackProductName.value,
+      batchNo: feedbackBatchNo.value,
+      traceCode: feedbackTraceCode.value,
+      feedbackType: feedbackForm.value.feedbackType,
+      contact: String(feedbackForm.value.contact || '').trim(),
+      content,
+      createdAt: new Date().toISOString()
+    })
+    if (response?.success === false) {
+      throw new Error(response.message || 'feedback rejected')
+    }
+    closeFeedbackDialog()
+    showFeedbackNotice('反馈已提交，感谢您的反馈。', 'success')
+  } catch (error) {
+    showFeedbackNotice('反馈暂时无法提交，请稍后再试。', 'error')
+  } finally {
+    feedbackSubmitting.value = false
+  }
+}
+
+function showFeedbackNotice(message, type = 'success') {
+  if (feedbackNoticeTimer) {
+    clearTimeout(feedbackNoticeTimer)
+  }
+  feedbackNotice.value = message
+  feedbackNoticeType.value = type
+  feedbackNoticeTimer = window.setTimeout(() => {
+    feedbackNotice.value = ''
+    feedbackNoticeTimer = null
+  }, 8000)
+}
+
+function openReportFile() {
+  const url = qualityReportFileUrl.value
+  if (!url) {
+    return
+  }
+  window.open(url, '_blank', 'noopener,noreferrer')
+}
+
 function localizeVisibleText(text) {
   const value = String(text || '').trim()
   if (!value) {
@@ -216,7 +377,7 @@ function localizeVisibleText(text) {
   return {
     'Xinfeng Orchard Base': '江西省赣州市信丰果园基地',
     'Wuyuan Tea Base': '江西省上饶市婺源县茶园基地',
-    'Public trace page is available for this batch.': '当前批次已开放公开查询，可继续查看关键追溯节点。',
+    'Public trace page is available for this batch.': '当前批次已开放公开查询。',
     'Used to verify released-batch linkage with the workbench.': '用于核对已发布批次与工作台、公开页的联动状态。',
     'The batch has been created and still needs field records, QA and QR data.': '当前批次已建档，仍需补录现场记录、质检和二维码。',
     'Used for continuous field-entry verification before publish.': '用于发布前连续补录现场作业与工作台联动验证。',
@@ -232,6 +393,36 @@ function shortSummary(text, length = 72) {
     return '该节点已留痕。'
   }
   return value.length > length ? `${value.slice(0, length)}...` : value
+}
+
+function displayValue(value) {
+  const text = String(value ?? '').trim()
+  return text && !['null', 'undefined'].includes(text.toLowerCase()) ? text : '-'
+}
+
+function feedbackDisplayValue(value) {
+  const text = displayValue(value)
+  return text === '-' ? '未识别' : text
+}
+
+function compactFacts(items) {
+  return items
+    .map((item) => ({
+      ...item,
+      value: displayValue(item.value)
+    }))
+    .filter((item) => item.value !== '-')
+}
+
+function heroFactTestId(label) {
+  return {
+    批次编号: 'public-batch-code',
+    主体企业: 'public-company',
+    产地: 'public-origin',
+    发布时间: 'public-published-at',
+    质检结论: 'public-quality',
+    批次状态: 'public-status'
+  }[label]
 }
 </script>
 
@@ -250,6 +441,14 @@ function shortSummary(text, length = 72) {
       <ul class="error-list" data-testid="public-error-tips">
         <li v-for="tip in errorState.tips" :key="tip">{{ tip }}</li>
       </ul>
+      <button
+        class="feedback-entry-button feedback-entry-button--state"
+        type="button"
+        data-testid="public-feedback-entry"
+        @click="openFeedbackDialog"
+      >
+        信息反馈
+      </button>
     </section>
 
     <template v-else-if="detail">
@@ -272,100 +471,41 @@ function shortSummary(text, length = 72) {
       </section>
 
       <section class="hero-card" data-testid="public-summary">
-        <div class="hero-card__main">
-            <div class="hero-product">
-              <img class="product-image" :src="summary.productImageUrl" :alt="summary.productName">
-              <div class="hero-copy">
-                <p class="eyebrow">消费者追溯</p>
-                <h1 data-testid="public-product-name">{{ summary.productName }}</h1>
-              </div>
-            </div>
+        <div class="hero-image-panel">
+          <img
+            class="product-image"
+            :src="summary.productImageUrl"
+            :alt="summary.productName || '产品图片'"
+          >
+        </div>
 
-          <div class="hero-kpi-grid summary-grid">
-            <div class="kpi-card">
-              <span>当前状态</span>
-              <strong data-testid="public-status">{{ publicStatusText }}</strong>
+        <div class="hero-info-panel">
+          <div class="hero-title-row">
+            <div class="hero-title-block">
+              <p class="eyebrow">公开追溯信息</p>
+              <h1 data-testid="public-product-name">{{ displayValue(summary.productName) }}</h1>
             </div>
-            <div class="kpi-card kpi-card--accent">
-              <span>质检结论</span>
-              <strong data-testid="public-quality">{{ publicQualityText }}</strong>
-            </div>
-            <div class="kpi-card">
-              <span>主体企业</span>
-              <strong data-testid="public-company">{{ summary.companyName || company.name }}</strong>
-            </div>
-            <div class="kpi-card">
-              <span>批次编号</span>
-              <strong data-testid="public-batch-code">{{ summary.batchCode }}</strong>
-            </div>
-            <div class="kpi-card">
-              <span>产地</span>
-              <strong data-testid="public-origin">{{ localizeVisibleText(summary.originPlace) || '产地待补充' }}</strong>
-            </div>
-            <div class="kpi-card">
-              <span>公开时间</span>
-              <strong data-testid="public-published-at">{{ publicPublishedAtText }}</strong>
+            <button
+              class="feedback-entry-button"
+              type="button"
+              data-testid="public-feedback-entry"
+              @click="openFeedbackDialog"
+            >
+              信息反馈
+            </button>
+          </div>
+
+          <div class="hero-info-grid">
+            <div v-for="item in heroFacts" :key="item.label" class="info-item">
+              <span>{{ item.label }}</span>
+              <strong
+                :data-testid="heroFactTestId(item.label)"
+              >
+                {{ item.value }}
+              </strong>
             </div>
           </div>
         </div>
-
-        <aside class="trust-card">
-          <p class="state-eyebrow state-eyebrow--muted">当前状态</p>
-          <ul class="trust-list">
-            <li>
-              <span>状态结论</span>
-              <strong>{{ verdict.title }}</strong>
-            </li>
-            <li v-for="item in trustSignals.slice(0, 2)" :key="item.label">
-              <span>{{ item.label }}</span>
-              <strong>{{ item.value }}</strong>
-            </li>
-          </ul>
-        </aside>
-      </section>
-
-      <section class="detail-grid">
-        <article class="card">
-          <div class="section-head">
-            <div>
-              <h2>产品与批次身份</h2>
-            </div>
-          </div>
-
-          <div class="fact-grid">
-            <div v-for="item in consumerFacts.slice(0, 2)" :key="item.label" class="fact-card">
-              <span>{{ item.label }}</span>
-              <strong>{{ item.value }}</strong>
-            </div>
-          </div>
-        </article>
-
-        <article class="card">
-          <div class="section-head">
-            <div>
-              <h2>当前状态</h2>
-            </div>
-          </div>
-
-          <div class="fact-grid">
-            <div class="fact-card">
-              <span>批次状态</span>
-              <strong>{{ publicStatusText }}</strong>
-            </div>
-            <div class="fact-card">
-              <span>质检结论</span>
-              <strong>{{ publicQualityText }}</strong>
-            </div>
-            <div class="fact-card">
-              <span>主体企业</span>
-              <strong>{{ company.name || summary.companyName || '企业信息待补充' }}</strong>
-            </div>
-            <div class="fact-card">
-              <span>公开时间</span>
-              <strong>{{ publicPublishedAtText }}</strong>
-            </div>
-          </div>
-        </article>
       </section>
 
       <section class="card timeline-card" data-testid="public-timeline">
@@ -415,41 +555,48 @@ function shortSummary(text, length = 72) {
         </button>
       </section>
 
-      <section class="detail-grid">
-        <article class="card">
-          <div class="section-head">
-            <div>
-              <h2>质检摘要</h2>
-            </div>
-          </div>
+      <section class="quality-report-section">
+        <article class="card quality-report-card" data-testid="public-quality-summary">
+          <div class="quality-report-layout">
+            <div class="quality-report-info">
+              <div class="section-head">
+                <div>
+                  <h2>质检摘要</h2>
+                </div>
+              </div>
 
-          <div class="fact-grid">
-            <div class="fact-card">
-              <span>检测结论</span>
-              <strong>{{ publicQualityText }}</strong>
-            </div>
-            <div class="fact-card">
-              <span>检测机构</span>
-              <strong>{{ quality.agency || '未填写' }}</strong>
-            </div>
-            <div class="fact-card">
-              <span>报告编号</span>
-              <strong>{{ quality.reportNo || '未生成' }}</strong>
-            </div>
-            <div class="fact-card">
-              <span>检测时间</span>
-              <strong>{{ quality.reportDate || '未填写' }}</strong>
-            </div>
-          </div>
+              <div class="quality-fact-grid">
+                <div v-for="item in qualityReportFacts" :key="item.label" class="fact-card">
+                  <span>{{ item.label }}</span>
+                  <strong>{{ item.value }}</strong>
+                </div>
+              </div>
 
-          <p class="section-copy">{{ qualitySummaryText }}</p>
+              <div v-if="qualityProjectItems.length" class="quality-project-block">
+                <span>检测项目</span>
+                <div class="pill-row quality-pill-row">
+                  <span v-for="item in qualityProjectItems" :key="item">{{ item }}</span>
+                </div>
+              </div>
 
-          <div v-if="qualityHighlights.length" class="pill-row">
-            <span v-for="item in qualityHighlights" :key="item">{{ item }}</span>
+              <div class="quality-note-block">
+                <span>重点信息 / 备注</span>
+                <p class="section-copy">{{ qualitySummaryText }}</p>
+              </div>
+            </div>
+
+            <aside class="quality-report-action">
+              <span>质检报告</span>
+              <strong>{{ displayValue(quality.reportNo) }}</strong>
+              <small>检测时间：{{ displayValue(quality.reportTime) }}</small>
+              <button class="report-button" type="button" @click="openQualityReport">
+                查看质检报告
+              </button>
+            </aside>
           </div>
         </article>
 
-        <article v-if="risk.hasRisk" class="card">
+        <article v-if="risk.hasRisk" class="card risk-detail-card">
           <div class="section-head">
             <div>
               <h2>风险提示</h2>
@@ -471,7 +618,148 @@ function shortSummary(text, length = 72) {
           <p v-if="risk.tip" class="address-copy">{{ localizeVisibleText(risk.tip) }}</p>
         </article>
       </section>
+
+      <div
+        v-if="reportDialogVisible"
+        class="report-dialog-mask"
+        data-testid="quality-report-dialog"
+        @click.self="closeQualityReport"
+      >
+        <section
+          class="report-dialog-card"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="quality-report-title"
+        >
+          <div class="report-dialog-head">
+            <h2 id="quality-report-title">质检报告详情</h2>
+            <button class="dialog-close-button" type="button" @click="closeQualityReport">
+              关闭
+            </button>
+          </div>
+
+          <div class="report-detail-grid">
+            <div
+              v-for="item in qualityReportDetailFacts"
+              :key="item.label"
+              class="fact-card fact-card--compact"
+            >
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
+            </div>
+          </div>
+
+          <div v-if="qualityProjectItems.length" class="report-section">
+            <span>检测项目</span>
+            <div class="pill-row quality-pill-row">
+              <span v-for="item in qualityProjectItems" :key="item">{{ item }}</span>
+            </div>
+          </div>
+
+          <div class="report-section">
+            <span>重点信息 / 备注</span>
+            <p>{{ qualitySummaryText }}</p>
+          </div>
+
+          <div class="report-dialog-actions">
+            <button
+              v-if="qualityReportFileUrl"
+              class="report-button report-button--ghost"
+              type="button"
+              @click="openReportFile"
+            >
+              打开报告文件
+            </button>
+            <button class="report-button" type="button" @click="closeQualityReport">
+              关闭
+            </button>
+          </div>
+        </section>
+      </div>
     </template>
+
+    <div
+      v-if="feedbackNotice"
+      class="feedback-toast"
+      :class="`feedback-toast--${feedbackNoticeType}`"
+      data-testid="public-feedback-toast"
+    >
+      {{ feedbackNotice }}
+    </div>
+
+    <div
+      v-if="feedbackDialogVisible"
+      class="feedback-dialog-mask"
+      data-testid="public-feedback-dialog"
+      @click.self="closeFeedbackDialog"
+    >
+      <section
+        class="feedback-dialog-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="feedback-dialog-title"
+      >
+        <div class="feedback-dialog-head">
+          <h2 id="feedback-dialog-title">溯源信息反馈</h2>
+          <button class="dialog-close-button" type="button" @click="closeFeedbackDialog">
+            关闭
+          </button>
+        </div>
+
+        <form class="feedback-form" @submit.prevent="submitFeedback">
+          <div class="feedback-readonly-grid">
+            <label
+              v-for="item in feedbackReadonlyItems"
+              :key="item.label"
+              class="feedback-field"
+            >
+              <span>{{ item.label }}</span>
+              <input :value="item.value" readonly>
+            </label>
+          </div>
+
+          <label class="feedback-field">
+            <span>反馈类型</span>
+            <select v-model="feedbackForm.feedbackType" data-testid="public-feedback-type">
+              <option v-for="item in feedbackTypeOptions" :key="item" :value="item">
+                {{ item }}
+              </option>
+            </select>
+          </label>
+
+          <label class="feedback-field">
+            <span>联系方式</span>
+            <input v-model="feedbackForm.contact" placeholder="选填" maxlength="60">
+          </label>
+
+          <label class="feedback-field feedback-field--full">
+            <span>反馈内容</span>
+            <textarea
+              v-model="feedbackForm.content"
+              rows="5"
+              maxlength="300"
+              data-testid="public-feedback-content"
+              @input="feedbackFormError = ''"
+            />
+          </label>
+          <p v-if="feedbackFormError" class="feedback-form-error">{{ feedbackFormError }}</p>
+
+          <div class="feedback-dialog-actions">
+            <button class="report-button report-button--ghost" type="button" @click="closeFeedbackDialog">
+              关闭
+            </button>
+            <button
+              class="report-button"
+              type="submit"
+              data-testid="public-feedback-submit"
+              :disabled="feedbackSubmitting"
+            >
+              {{ feedbackSubmitting ? '提交中' : '提交反馈' }}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
   </div>
 </template>
 
@@ -486,10 +774,9 @@ function shortSummary(text, length = 72) {
 .risk-banner,
 .hero-card,
 .card,
-.trust-card,
 .latest-event-card,
 .fact-card,
-.kpi-card {
+.info-item {
   border-radius: 24px;
   box-shadow: var(--trace-shadow);
 }
@@ -497,10 +784,9 @@ function shortSummary(text, length = 72) {
 .state-card,
 .hero-card,
 .card,
-.trust-card,
 .latest-event-card,
 .fact-card,
-.kpi-card {
+.info-item {
   background: var(--trace-surface);
 }
 
@@ -516,7 +802,7 @@ function shortSummary(text, length = 72) {
 .state-card h1,
 .card h2,
 .timeline-body h3,
-.hero-copy h1,
+.hero-title-block h1,
 .risk-banner h2,
 .latest-event-card strong {
   margin: 0;
@@ -525,7 +811,6 @@ function shortSummary(text, length = 72) {
 
 .state-card p,
 .risk-banner p,
-.verdict-copy,
 .section-copy,
 .timeline-meta,
 .timeline-summary,
@@ -594,68 +879,75 @@ function shortSummary(text, length = 72) {
 
 .hero-card {
   display: grid;
-  grid-template-columns: 1.55fr 0.85fr;
-  gap: 16px;
-  padding: 20px;
+  grid-template-columns: minmax(220px, 0.72fr) minmax(0, 1.28fr);
+  gap: 22px;
+  align-items: stretch;
+  padding: 22px;
 }
 
-.hero-product {
+.hero-image-panel {
   display: grid;
-  grid-template-columns: 148px 1fr;
-  gap: 18px;
-  align-items: start;
+  place-items: center;
+  min-height: 278px;
+  padding: 18px;
+  border: 1px solid var(--trace-border);
+  border-radius: 22px;
+  background: var(--trace-surface-soft);
 }
 
 .product-image {
-  width: 148px;
-  height: 148px;
-  border-radius: 24px;
+  width: min(100%, 260px);
+  aspect-ratio: 1 / 1;
+  border-radius: 20px;
   object-fit: cover;
   background: linear-gradient(160deg, #eef7ff, #dbeeff);
 }
 
-.hero-copy {
+.hero-info-panel {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
 }
 
-.hero-copy h1 {
-  margin-bottom: 10px;
+.hero-title-block {
+  min-width: 0;
+  padding: 2px 0 14px;
+}
+
+.hero-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.hero-title-block h1 {
   font-size: 30px;
+  line-height: 1.28;
 }
 
-.verdict-title {
-  margin: 0 0 8px;
-  color: var(--trace-primary-deep);
-  font-size: 20px;
-  font-weight: 700;
-}
-
-.hero-kpi-grid,
+.hero-info-grid,
 .fact-grid,
 .trust-list {
   display: grid;
   gap: 12px;
 }
 
-.hero-kpi-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin-top: 18px;
+.hero-info-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
 }
 
-.kpi-card,
 .fact-card,
-.latest-event-card {
+.latest-event-card,
+.info-item {
   padding: 16px;
   border: 1px solid var(--trace-border);
   background: var(--trace-surface-soft);
 }
 
-.kpi-card--accent {
-  background: rgba(48, 149, 246, 0.1);
-}
-
-.kpi-card span,
 .fact-card span,
+.info-item span,
 .latest-event-card span,
 .section-head span,
 .timeline-stage,
@@ -665,52 +957,27 @@ function shortSummary(text, length = 72) {
   font-size: 12px;
 }
 
-.kpi-card strong,
-.fact-card strong {
+.fact-card strong,
+.info-item strong {
   display: block;
   margin-top: 8px;
   color: var(--trace-text);
   line-height: 1.5;
 }
 
-.trust-card {
-  padding: 18px;
-  border: 1px solid rgba(48, 149, 246, 0.14);
-  background: linear-gradient(180deg, rgba(248, 252, 255, 0.98), rgba(241, 248, 255, 0.98));
-}
-
-.trust-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.trust-list li {
-  padding: 14px 0;
-  border-bottom: 1px solid rgba(48, 149, 246, 0.08);
-}
-
-.trust-list li:last-child {
-  border-bottom: 0;
-  padding-bottom: 0;
-}
-
-.trust-list span {
-  display: block;
-  color: var(--trace-text-soft);
-  font-size: 12px;
-}
-
-.trust-list strong {
-  display: block;
-  margin-top: 8px;
-  color: var(--trace-text);
-  line-height: 1.6;
+.info-item strong {
+  overflow-wrap: anywhere;
 }
 
 .detail-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.quality-report-section {
+  display: grid;
   gap: 14px;
   margin-top: 14px;
 }
@@ -734,6 +1001,287 @@ function shortSummary(text, length = 72) {
 .fact-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   margin-top: 16px;
+}
+
+.quality-report-card {
+  width: 100%;
+}
+
+.quality-report-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 0.34fr);
+  gap: 18px;
+  align-items: stretch;
+}
+
+.quality-report-info {
+  min-width: 0;
+}
+
+.quality-fact-grid,
+.report-detail-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.quality-fact-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 16px;
+}
+
+.quality-project-block,
+.quality-note-block,
+.report-section {
+  margin-top: 16px;
+}
+
+.quality-project-block > span,
+.quality-note-block > span,
+.report-section > span,
+.quality-report-action > span {
+  display: block;
+  color: var(--trace-text-soft);
+  font-size: 12px;
+}
+
+.quality-note-block .section-copy,
+.report-section p {
+  margin: 8px 0 0;
+}
+
+.quality-pill-row {
+  margin-top: 8px;
+}
+
+.quality-report-action {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--trace-border);
+  border-radius: 22px;
+  background: var(--trace-surface-soft);
+}
+
+.quality-report-action strong {
+  margin-top: 8px;
+  color: var(--trace-text);
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.quality-report-action small {
+  margin-top: 6px;
+  color: #4f6e8f;
+  line-height: 1.6;
+}
+
+.report-button,
+.dialog-close-button {
+  min-height: 42px;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--trace-primary);
+  color: #ffffff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.feedback-entry-button {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 0 16px;
+  border: 1px solid var(--trace-border);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--trace-primary-deep);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.feedback-entry-button--state {
+  margin: 20px auto 0;
+}
+
+.report-button {
+  margin-top: 16px;
+  width: fit-content;
+}
+
+.dialog-close-button,
+.report-button--ghost {
+  background: #ffffff;
+  color: var(--trace-primary-deep);
+  border-color: var(--trace-border);
+}
+
+.report-dialog-mask,
+.feedback-dialog-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 38, 64, 0.36);
+}
+
+.feedback-dialog-mask {
+  z-index: 34;
+}
+
+.report-dialog-card {
+  width: min(720px, calc(100vw - 32px));
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  padding: 22px;
+  border: 1px solid var(--trace-border);
+  border-radius: 24px;
+  background: var(--trace-surface);
+  box-shadow: 0 24px 80px rgba(15, 38, 64, 0.22);
+}
+
+.feedback-dialog-card {
+  width: min(620px, calc(100vw - 32px));
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  padding: 22px;
+  border: 1px solid var(--trace-border);
+  border-radius: 24px;
+  background: var(--trace-surface);
+  box-shadow: 0 24px 80px rgba(15, 38, 64, 0.22);
+}
+
+.report-dialog-head,
+.report-dialog-actions,
+.feedback-dialog-head,
+.feedback-dialog-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.report-dialog-head h2,
+.feedback-dialog-head h2 {
+  margin: 0;
+  color: var(--trace-text);
+}
+
+.feedback-form {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.feedback-readonly-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.feedback-field {
+  display: grid;
+  gap: 8px;
+}
+
+.feedback-field span {
+  color: var(--trace-text-soft);
+  font-size: 12px;
+}
+
+.feedback-field input,
+.feedback-field select,
+.feedback-field textarea {
+  width: 100%;
+  border: 1px solid var(--trace-border);
+  border-radius: 16px;
+  background: var(--trace-surface-soft);
+  color: var(--trace-text);
+  outline: none;
+}
+
+.feedback-field input,
+.feedback-field select {
+  min-height: 44px;
+  padding: 0 14px;
+}
+
+.feedback-field textarea {
+  min-height: 118px;
+  padding: 12px 14px;
+  resize: vertical;
+}
+
+.feedback-field input[readonly] {
+  color: #214c7c;
+  font-weight: 700;
+}
+
+.feedback-field--full {
+  grid-column: 1 / -1;
+}
+
+.feedback-form-error {
+  margin: -4px 0 0;
+  color: #be463a;
+  font-size: 13px;
+}
+
+.feedback-dialog-actions {
+  justify-content: flex-end;
+}
+
+.feedback-dialog-actions .report-button {
+  margin-top: 0;
+}
+
+.feedback-dialog-actions .report-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.feedback-toast {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  z-index: 42;
+  transform: translateX(-50%);
+  width: min(420px, calc(100vw - 32px));
+  padding: 13px 18px;
+  border: 1px solid rgba(48, 149, 246, 0.2);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--trace-primary-deep);
+  text-align: center;
+  font-weight: 700;
+  box-shadow: 0 16px 48px rgba(15, 38, 64, 0.16);
+}
+
+.feedback-toast--error {
+  border-color: rgba(190, 70, 58, 0.2);
+  color: #a0342c;
+}
+
+.report-detail-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 18px;
+}
+
+.report-section p {
+  color: #4f6e8f;
+  line-height: 1.7;
+}
+
+.report-dialog-actions {
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
+.report-dialog-actions .report-button {
+  margin-top: 0;
 }
 
 .pill-row {
@@ -891,12 +1439,17 @@ function shortSummary(text, length = 72) {
 @media (max-width: 820px) {
   .hero-card,
   .detail-grid,
+  .quality-report-layout,
   .verification-layout {
     grid-template-columns: 1fr;
   }
 
-  .hero-kpi-grid {
+  .hero-info-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .feedback-readonly-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -905,18 +1458,41 @@ function shortSummary(text, length = 72) {
     padding-inline: 12px;
   }
 
-  .hero-product,
-  .hero-kpi-grid,
-  .fact-grid {
+  .hero-info-grid,
+  .fact-grid,
+  .quality-fact-grid,
+  .report-detail-grid {
     grid-template-columns: 1fr;
   }
 
-  .product-image {
-    width: 100%;
-    height: 220px;
+  .quality-report-action,
+  .report-dialog-actions,
+  .feedback-dialog-actions {
+    align-items: stretch;
   }
 
-  .hero-copy h1 {
+  .report-button,
+  .dialog-close-button {
+    width: 100%;
+  }
+
+  .report-dialog-head,
+  .report-dialog-actions,
+  .feedback-dialog-head,
+  .feedback-dialog-actions,
+  .hero-title-row {
+    flex-direction: column;
+  }
+
+  .feedback-entry-button {
+    width: 100%;
+  }
+
+  .product-image {
+    width: min(100%, 220px);
+  }
+
+  .hero-title-block h1 {
     font-size: 26px;
   }
 }

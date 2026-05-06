@@ -14,13 +14,13 @@ export function useDashboard() {
     try {
       const roleCode = authStore.user?.roleCode || ''
       const res = await getDashboardStatsApi(roleCode)
-      if (String(res?.code) !== '0') {
+      if (res?.success !== true && String(res?.code) !== '0') {
         return
       }
       const data = res?.data || {}
-      batchCount.value = Number(data.batchCount || 0)
-      qrCount.value = Number(data.qrCount || 0)
-      pvCount.value = Number(data.pvCount || 0)
+      batchCount.value = Number(data.batchCount ?? data.batchTotal ?? data.totalBatches ?? 0)
+      qrCount.value = Number(data.qrCount ?? data.publishedBatchTotal ?? data.publishedBatches ?? 0)
+      pvCount.value = Number(data.pvCount ?? data.queryTotal ?? 0)
       uvCount.value = Number(data.uvCount || 0)
     } catch (e) {
       // keep zero fallback to avoid dashboard crash when stats service unavailable

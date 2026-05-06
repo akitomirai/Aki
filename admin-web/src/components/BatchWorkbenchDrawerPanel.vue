@@ -160,7 +160,7 @@ const traceSummaryRows = computed(() => recentRecords.value.slice(0, 3))
 const qualitySummaryRows = computed(() => ([
   { label: '质检状态', value: detail.value?.quality?.label || '待上传' },
   { label: '检测机构', value: latestQualityReport.value?.agency || '未填写' },
-  { label: '报告编号', value: latestQualityReport.value?.reportNo || '未生成' },
+  { label: '报告编号', value: latestQualityReport.value?.reportNo || '未生成', wide: true },
   { label: '检测时间', value: formatDateTime(latestQualityReport.value?.reportTime) }
 ]))
 const qrSummaryRows = computed(() => ([
@@ -172,12 +172,12 @@ const qrSummaryRows = computed(() => ([
       ? '已发布'
       : (publishReady.value ? (resumeAction.value.enabled ? '可恢复发布' : '可发布') : '未满足')
   },
-  { label: '公开入口', value: detail.value?.qr?.publicUrl || '未生成' }
+  { label: '公开入口', value: detail.value?.qr?.publicUrl || '未生成', wide: true }
 ]))
 const riskSummaryRows = computed(() => ([
   { label: '风险状态', value: canHandleRisk.value ? riskStageText.value : '当前无风险' },
-  { label: '异常原因', value: detail.value?.risk?.reason || detail.value?.status?.reason || '未记录' },
-  { label: '处理措施', value: latestRiskActionLabel.value },
+  { label: '异常原因', value: detail.value?.risk?.reason || detail.value?.status?.reason || '未记录', wide: true },
+  { label: '处理措施', value: latestRiskActionLabel.value, wide: true },
   { label: '是否恢复公开', value: canHandleRisk.value ? (detail.value?.riskHandling?.canResume ? '可恢复' : '未恢复') : '正常公开' }
 ]))
 const ownerInfoRows = computed(() => [
@@ -729,7 +729,12 @@ onMounted(async () => {
       <section class="drawer-section">
         <div class="section-head"><h3>质检区</h3></div>
         <div class="risk-summary-grid">
-          <article v-for="item in qualitySummaryRows" :key="item.label" class="drawer-card risk-summary-card">
+          <article
+            v-for="item in qualitySummaryRows"
+            :key="item.label"
+            class="drawer-card risk-summary-card"
+            :class="{ 'is-wide': item.wide }"
+          >
             <span>{{ item.label }}</span>
             <strong>{{ item.value }}</strong>
           </article>
@@ -742,7 +747,12 @@ onMounted(async () => {
       <section class="drawer-section">
         <div class="section-head"><h3>二维码与公开区</h3></div>
         <div class="risk-summary-grid">
-          <article v-for="item in qrSummaryRows" :key="item.label" class="drawer-card risk-summary-card">
+          <article
+            v-for="item in qrSummaryRows"
+            :key="item.label"
+            class="drawer-card risk-summary-card"
+            :class="{ 'is-wide': item.wide }"
+          >
             <span>{{ item.label }}</span>
             <strong>{{ item.value }}</strong>
           </article>
@@ -756,7 +766,12 @@ onMounted(async () => {
       <section class="drawer-section">
         <div class="section-head"><h3>风险处理区</h3></div>
         <div class="risk-summary-grid">
-          <article v-for="item in riskSummaryRows" :key="item.label" class="drawer-card risk-summary-card">
+          <article
+            v-for="item in riskSummaryRows"
+            :key="item.label"
+            class="drawer-card risk-summary-card"
+            :class="{ 'is-wide': item.wide }"
+          >
             <span>{{ item.label }}</span>
             <strong>{{ item.value }}</strong>
           </article>
@@ -773,6 +788,8 @@ onMounted(async () => {
 .drawer-workbench {
   display: grid;
   gap: 14px;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .message-bar,
@@ -866,7 +883,9 @@ onMounted(async () => {
 .timeline-item,
 .status-card,
 .risk-summary-card {
+  max-width: 100%;
   padding: 14px;
+  min-width: 0;
 }
 
 .summary-main,
@@ -881,7 +900,9 @@ onMounted(async () => {
 .summary-copy,
 .summary-side,
 .timeline-item-copy,
-.info-row-main {
+.info-row-main,
+.risk-summary-card,
+.status-card {
   min-width: 0;
 }
 
@@ -892,8 +913,11 @@ onMounted(async () => {
 }
 
 .summary-copy h2 {
-  font-size: 28px;
-  line-height: 1.12;
+  max-width: 100%;
+  font-size: 24px;
+  line-height: 1.2;
+  overflow-wrap: break-word;
+  word-break: keep-all;
 }
 
 .summary-meta,
@@ -908,6 +932,7 @@ onMounted(async () => {
 .summary-meta-item span,
 .status-card-top span,
 .info-row span,
+.risk-summary-card span,
 .timeline-meta span,
 .timeline-summary,
 .helper-copy,
@@ -918,7 +943,7 @@ onMounted(async () => {
 .warning-box p {
   color: var(--admin-text-soft);
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 18px;
 }
 
 .summary-meta-item strong,
@@ -931,10 +956,56 @@ onMounted(async () => {
   color: var(--admin-text);
 }
 
+.summary-meta-item strong,
+.info-row strong,
+.risk-summary-card strong,
+.timeline-item strong,
+.info-row small {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: keep-all;
+}
+
+.summary-meta-item strong,
+.info-row strong {
+  word-break: keep-all;
+}
+
+.info-row strong {
+  line-height: 22px;
+}
+
+.info-row strong,
+.info-row small {
+  overflow-wrap: normal;
+}
+
+.risk-summary-card strong {
+  overflow-wrap: anywhere;
+}
+
 .summary-side {
   display: grid;
   justify-items: end;
   gap: 10px;
+  flex: 0 0 auto;
+  max-width: 230px;
+}
+
+.summary-actions,
+.button-row {
+  flex-wrap: wrap;
+}
+
+.summary-actions {
+  justify-content: flex-end;
+}
+
+.summary-actions button,
+.button-row button {
+  min-width: 96px;
+  white-space: nowrap;
 }
 
 .status-badge,
@@ -1019,14 +1090,30 @@ onMounted(async () => {
 .status-card,
 .risk-summary-card {
   display: grid;
-  gap: 8px;
-  min-height: 96px;
+  align-content: start;
+  gap: 7px;
+  min-height: 82px;
+  overflow: visible;
+}
+
+.risk-summary-card {
+  padding: 12px;
+}
+
+.risk-summary-card.is-wide {
+  grid-column: 1 / -1;
 }
 
 .status-card strong,
 .risk-summary-card strong {
-  font-size: 22px;
-  line-height: 1.15;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 21px;
+}
+
+.status-card strong {
+  font-size: 16px;
+  line-height: 22px;
 }
 
 .status-card-top {
@@ -1061,6 +1148,7 @@ onMounted(async () => {
 .info-row small {
   color: var(--admin-text-soft);
   font-size: 12px;
+  line-height: 18px;
 }
 
 .info-inline-action {
@@ -1157,6 +1245,8 @@ button {
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+  line-height: 18px;
+  white-space: nowrap;
 }
 
 button.primary {

@@ -63,7 +63,7 @@ const listMode = ref('ACTION')
 const dialog = ref(createDialogState())
 const detailDrawer = ref(createBatchDetailDrawerState())
 const assignmentDialog = ref(createAssignmentDialogState())
-const batchSideDrawerSize = 'min(460px, 92vw)'
+const batchSideDrawerSize = 'min(620px, 96vw)'
 const batchForm = ref(createBatchForm())
 const traceForm = ref(createTraceForm())
 const qualityForm = ref(createQualityForm())
@@ -3442,7 +3442,13 @@ button:not(.manage-summary-chip):disabled {
 
 .batch-side-drawer :deep(.el-drawer__body) {
   padding: 18px 18px 22px;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+:global(.batch-side-drawer .el-drawer__body) {
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .assignment-drawer-shell {

@@ -16,6 +16,7 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.Map;
 
 @Component
@@ -31,12 +32,16 @@ public class QrImageStorageService {
         try {
             Files.createDirectories(qrStorageDir);
             Path target = qrStorageDir.resolve(token + ".png");
-            if (Files.exists(target)) {
+            Path metadataTarget = qrStorageDir.resolve(token + ".txt");
+            String normalizedContent = content == null ? "" : content;
+            if (Files.exists(target)
+                    && Files.exists(metadataTarget)
+                    && normalizedContent.equals(Files.readString(metadataTarget))) {
                 return target;
             }
             QRCodeWriter writer = new QRCodeWriter();
             BitMatrix matrix = writer.encode(
-                    content,
+                    normalizedContent,
                     BarcodeFormat.QR_CODE,
                     320,
                     320,
@@ -45,6 +50,12 @@ public class QrImageStorageService {
             try (OutputStream outputStream = Files.newOutputStream(target)) {
                 MatrixToImageWriter.writeToStream(matrix, "PNG", outputStream);
             }
+            Files.writeString(
+                    metadataTarget,
+                    normalizedContent,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.TRUNCATE_EXISTING
+            );
             return target;
         } catch (IOException | WriterException exception) {
             throw new IllegalStateException("二维码图片生成失败", exception);

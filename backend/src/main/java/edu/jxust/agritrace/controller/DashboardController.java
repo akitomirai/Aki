@@ -21,4 +21,9 @@ public class DashboardController {
     public ApiResponse<DashboardOverviewVO> getOverview() {
         return ApiResponse.ok(dashboardService.getOverview());
     }
+
+    @GetMapping("/statistics")
+    public ApiResponse<DashboardOverviewVO> getStatistics() {
+        return ApiResponse.ok(dashboardService.getOverview());
+    }
 }

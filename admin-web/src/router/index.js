@@ -9,10 +9,11 @@ import {
 } from '../utils/access'
 
 const batchReadRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN', 'REGULATOR']
-const dashboardRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN']
+const dashboardRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN', 'REGULATOR']
 const qualityManageRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN']
 const qualityReadRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN', 'REGULATOR']
 const riskRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN', 'REGULATOR']
+const feedbackRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN', 'REGULATOR']
 const fieldRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN', 'OPERATOR']
 const userManageRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN']
 
@@ -62,7 +63,7 @@ const routes = [
         component: () => import('../pages/DashboardView.vue'),
         meta: {
           requiresAuth: true,
-          title: '首页总览',
+          title: '数据统计分析管理',
           roles: dashboardRoles
         }
       },
@@ -144,6 +145,16 @@ const routes = [
           requiresAuth: true,
           title: '风险处理',
           roles: riskRoles
+        }
+      },
+      {
+        path: 'feedback',
+        name: 'feedback-entry',
+        component: () => import('../pages/FeedbackManage/FeedbackManageView.vue'),
+        meta: {
+          requiresAuth: true,
+          title: '反馈处理',
+          roles: feedbackRoles
         }
       },
       {

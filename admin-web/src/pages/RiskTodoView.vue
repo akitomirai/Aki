@@ -30,7 +30,7 @@ const resumeDialog = ref(createResumeDialogState())
 const detailDrawer = ref(createWorkbenchDrawerState())
 const page = ref(1)
 const pageSize = ref(DEFAULT_PAGE_SIZE)
-const batchSideDrawerSize = 'min(460px, 92vw)'
+const batchSideDrawerSize = 'min(620px, 96vw)'
 const pageSizeOptions = [
   { value: 10, label: '10 条 / 页' },
   { value: 20, label: '20 条 / 页' },
@@ -1184,8 +1184,7 @@ async function openWorkbenchAfterRefresh(item) {
   line-height: 1.4;
 }
 
-.risk-filter-grid input,
-.risk-page-size-select {
+.risk-filter-grid .risk-filter-field > input {
   width: 100%;
   min-height: var(--risk-filter-control-height);
   padding: 0 14px;
@@ -1196,8 +1195,7 @@ async function openWorkbenchAfterRefresh(item) {
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
-.risk-filter-grid input:focus,
-.risk-page-size-select:focus {
+.risk-filter-grid .risk-filter-field > input:focus {
   border-color: rgba(48, 149, 246, 0.26);
   box-shadow: 0 0 0 3px rgba(48, 149, 246, 0.08);
   outline: none;

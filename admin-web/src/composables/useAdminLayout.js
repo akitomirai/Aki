@@ -6,7 +6,7 @@ import {
   hasRoleAccess
 } from '../utils/access'
 
-const dashboardRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN']
+const dashboardRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN', 'REGULATOR']
 const batchReadRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN', 'REGULATOR']
 
 export function useAdminLayout() {
@@ -30,6 +30,7 @@ export function useAdminLayout() {
     if (route.path.startsWith('/qr')) return '/qr'
     if (route.path.startsWith('/quality')) return '/quality'
     if (route.path.startsWith('/risk')) return '/risk'
+    if (route.path.startsWith('/feedback')) return '/feedback'
     if (route.path.startsWith('/products')) return '/products'
     if (route.path.startsWith('/companies')) return '/companies'
     if (route.path.startsWith('/batches')) {
@@ -49,7 +50,7 @@ export function useAdminLayout() {
       sections.push({
         title: '工作台',
         items: [
-          { key: '/dashboard', label: '首页总览', to: '/dashboard' }
+          { key: '/dashboard', label: '统计分析', to: '/dashboard' }
         ]
       })
     }
@@ -98,6 +99,7 @@ export function useAdminLayout() {
     }
     if (hasRoleAccess(role, ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN', 'REGULATOR'])) {
       qualityItems.push({ key: '/risk', label: '风险处理', to: '/risk' })
+      qualityItems.push({ key: '/feedback', label: '反馈处理', to: '/feedback' })
     }
     if (qualityItems.length) {
       sections.push({

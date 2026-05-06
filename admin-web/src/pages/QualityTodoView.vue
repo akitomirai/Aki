@@ -31,7 +31,7 @@ const uploadDialog = ref(createUploadDialogState())
 const detailDrawer = ref(createWorkbenchDrawerState())
 const page = ref(1)
 const pageSize = ref(DEFAULT_PAGE_SIZE)
-const batchSideDrawerSize = 'min(460px, 92vw)'
+const batchSideDrawerSize = 'min(620px, 96vw)'
 const pageTitle = computed(() => readOnlyQualityView.value ? '质检查看' : '质检待办')
 const pageSubtitle = computed(() => {
   if (readOnlyQualityView.value) {
@@ -49,7 +49,7 @@ const cleanPageSubtitle = ''
 const roleCode = computed(() => authStore.user?.roleCode || '')
 const readOnlyQualityView = computed(() => isRegulator(roleCode.value))
 const readOnlyBannerText = computed(() => '当前为监管查看模式，页面保留批次、企业、质检结论、二维码状态和最近更新时间，便于直接核对质检链路。')
-const openWorkbenchText = computed(() => readOnlyQualityView.value ? '查看批次详情' : '查看工作台')
+const openWorkbenchText = computed(() => readOnlyQualityView.value ? '批次详情' : '工作台')
 const actionWorkbenchText = computed(() => readOnlyQualityView.value ? '详情' : '工作台')
 
 const qualityTabs = [
@@ -306,7 +306,7 @@ function recommendedQualityActionDisabled(item) {
 function recommendedQualityActionLabel(item) {
   return {
     upload: '上传质检',
-    report: '查看质检结果',
+    report: '质检结果',
     workbench: openWorkbenchText.value
   }[recommendedQualityActionCode(item)]
 }
@@ -317,10 +317,10 @@ function primaryQualityActionLabel(item) {
     return recommendedQualityActionLabel(item)
   }
   if (readOnlyQualityView.value) {
-    return '查看批次详情'
+    return '批次详情'
   }
   if (item.status === 'PUBLISHED') {
-    return '查看公开状态'
+    return '公开状态'
   }
   if (resolvePublishReady(item)) {
     return '继续发布准备'
@@ -349,7 +349,7 @@ function qualityMoreActions(item) {
   if (qualityReportAvailable(item) && recommendedQualityActionCode(item) !== 'report') {
     actions.push({
       key: 'report',
-      label: '查看质检结果',
+      label: '质检结果',
       testId: `quality-open-report-${item.id}`,
       disabled: false
     })
@@ -363,6 +363,10 @@ function qualityMoreActions(item) {
     })
   }
   return actions
+}
+
+function showSecondaryWorkbenchAction(item) {
+  return recommendedQualityActionCode(item) !== 'workbench'
 }
 
 function handleRecommendedQualityAction(item) {
@@ -878,27 +882,24 @@ function formatFileSize(size) {
                 {{ recommendedQualityActionLabel(item) }}
               </button>
               <button
+                v-if="showSecondaryWorkbenchAction(item)"
                 class="text-button primary-text"
                 :data-testid="`quality-workbench-link-${item.id}`"
                 @click="openWorkbench(item)"
               >
                 {{ actionWorkbenchText }}
               </button>
-              <el-dropdown v-if="qualityMoreActions(item).length" @command="(command) => handleQualityRowCommand(item, command)">
-                <button type="button" class="text-button">更多</button>
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item
-                      v-for="action in qualityMoreActions(item)"
-                      :key="action.key"
-                      :command="action.key"
-                      :disabled="action.disabled"
-                    >
-                      <span :data-testid="action.testId">{{ action.label }}</span>
-                    </el-dropdown-item>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
+              <button
+                v-for="action in qualityMoreActions(item)"
+                :key="action.key"
+                type="button"
+                class="text-button"
+                :disabled="action.disabled"
+                :data-testid="action.testId"
+                @click="handleQualityRowCommand(item, action.key)"
+              >
+                {{ action.label }}
+              </button>
             </div>
           </div>
         </article>
@@ -1191,8 +1192,7 @@ function formatFileSize(size) {
   line-height: 1.4;
 }
 
-.quality-filter-grid input,
-.quality-page-size-select {
+.quality-filter-grid .quality-filter-field > input {
   width: 100%;
   min-height: var(--quality-filter-control-height);
   padding: 0 14px;
@@ -1203,8 +1203,7 @@ function formatFileSize(size) {
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
-.quality-filter-grid input:focus,
-.quality-page-size-select:focus {
+.quality-filter-grid .quality-filter-field > input:focus {
   border-color: rgba(48, 149, 246, 0.26);
   box-shadow: 0 0 0 3px rgba(48, 149, 246, 0.08);
   outline: none;
@@ -1390,15 +1389,6 @@ function formatFileSize(size) {
 
 .quality-actions-row .action-primary-button {
   box-shadow: none;
-}
-
-.quality-actions :deep(.el-dropdown) {
-  flex: 0 0 auto;
-}
-
-.quality-actions :deep(.el-dropdown-menu__item span[data-testid]) {
-  display: inline-block;
-  width: 100%;
 }
 
 .readonly-banner {

@@ -1,16 +1,15 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import { changeBatchStatus, generateBatchQr, getBatchDetail, getBatchList } from '../api/batch'
 import AdminListPagination from '../components/AdminListPagination.vue'
 import AdminListTemplate from '../components/AdminListTemplate.vue'
+import BatchWorkbenchDrawerPanel from '../components/BatchWorkbenchDrawerPanel.vue'
 import { useAuthStore } from '../stores/auth'
 import { getFriendlyErrorMessage } from '../utils/batchExperience'
 import { resolvePublishBlockState } from '../utils/batchStatusFlow'
 import { openPrintPreviewWindow, renderQrPrintPreview } from '../utils/exportTools'
 import { resolveQrStatusText } from '../utils/statusPresentation'
 
-const router = useRouter()
 const authStore = useAuthStore()
 
 const loading = ref(false)
@@ -26,10 +25,12 @@ const bulkPrintSubmitting = ref(false)
 const publishSubmitting = ref(false)
 const previewDialog = ref(createPreviewDialogState())
 const publishDialog = ref(createPublishDialogState())
+const detailDrawer = ref(createWorkbenchDrawerState())
 const selectedIds = ref([])
 const DEFAULT_PAGE_SIZE = 10
 const page = ref(1)
 const pageSize = ref(DEFAULT_PAGE_SIZE)
+const batchSideDrawerSize = 'min(620px, 96vw)'
 const pageTitle = '二维码发布'
 const pageSubtitle = '统一查看二维码生成、发布校验、公开入口与批量打印状态，适合做答辩演示台账。'
 const pageSizeOptions = [
@@ -191,6 +192,14 @@ function createPublishDialogState() {
     visible: false,
     batch: null,
     reason: ''
+  }
+}
+
+function createWorkbenchDrawerState() {
+  return {
+    visible: false,
+    batchId: null,
+    batchCode: ''
   }
 }
 
@@ -495,15 +504,11 @@ function printTimestamp() {
 }
 
 function primaryQrActionCode(item) {
-  const published = String(item.status || '').toUpperCase() === 'PUBLISHED'
   if (!hasQr(item)) {
     return 'generate'
   }
-  if (!published && canPublish(item)) {
+  if (canPublish(item) && String(item.status || '').toUpperCase() !== 'PUBLISHED') {
     return 'publish'
-  }
-  if (published) {
-    return 'public'
   }
   return 'preview'
 }
@@ -528,6 +533,14 @@ function primaryQrActionDisabled(item) {
   return !hasQr(item)
 }
 
+function showPublicAction(item) {
+  return hasQr(item)
+}
+
+function showPreviewAction(item) {
+  return hasQr(item)
+}
+
 function runPrimaryQrAction(item) {
   const action = primaryQrActionCode(item)
   if (action === 'generate') {
@@ -543,28 +556,6 @@ function runPrimaryQrAction(item) {
     return
   }
   openPreviewDialog(item)
-}
-
-function handleQrRowCommand(item, command) {
-  if (command === 'preview') {
-    openPreviewDialog(item)
-    return
-  }
-  if (command === 'download') {
-    downloadQr(item)
-    return
-  }
-  if (command === 'public') {
-    openPublicPage(item)
-    return
-  }
-  if (command === 'publish') {
-    openPublishDialog(item)
-    return
-  }
-  if (command === 'generate') {
-    handleGenerateQr(item)
-  }
 }
 
 function toggleRowSelection(item, checked) {
@@ -674,7 +665,16 @@ function goNextPage() {
 }
 
 function openWorkbench(item) {
-  router.push(`/batches/${item.id}`)
+  if (!item?.id) return
+  detailDrawer.value = {
+    visible: true,
+    batchId: item.id,
+    batchCode: item.batchCode ?? ''
+  }
+}
+
+function closeWorkbenchDrawer() {
+  detailDrawer.value = createWorkbenchDrawerState()
 }
 
 async function loadBatchDetail(item) {
@@ -687,12 +687,35 @@ async function resolveQrPreview(item) {
   if (!detail?.qr?.generated) {
     throw new Error('当前批次还没有生成二维码。')
   }
+  const token = detail.qr.token
   return {
-    token: detail.qr.token,
-    publicUrl: detail.qr.publicUrl,
+    token,
+    publicUrl: resolvePublicTraceUrl(token, detail.qr.publicUrl),
     imageUrl: detail.qr.imageUrl,
     generatedAt: detail.qr.generatedAt
   }
+}
+
+function resolvePublicTraceUrl(token, fallbackUrl = '') {
+  const traceToken = String(token || '').trim()
+  if (!traceToken) return fallbackUrl || ''
+  const tracePath = `/t/${encodeURIComponent(traceToken)}`
+
+  if (import.meta.env.DEV) {
+    return `http://127.0.0.1:5173${tracePath}`
+  }
+
+  const envOrigin = String(import.meta.env.VITE_TRACE_WEB_ORIGIN || '').trim().replace(/\/$/, '')
+  if (envOrigin) {
+    return `${envOrigin}${tracePath}`
+  }
+
+  if (typeof window !== 'undefined' && window.location?.hostname) {
+    const { protocol, hostname } = window.location
+    return `${protocol}//${hostname}:5173${tracePath}`
+  }
+
+  return fallbackUrl || `http://127.0.0.1:5173${tracePath}`
 }
 
 async function handleGenerateQr(item) {
@@ -1024,6 +1047,7 @@ async function submitPublish() {
           <div class="row-actions table-cell--actions">
             <div class="row-actions-scroll ledger-actions-scroll qr-actions-row">
               <button
+                v-if="!hasQr(item) || primaryQrActionCode(item) === 'publish'"
                 class="text-button primary-text"
                 :disabled="primaryQrActionDisabled(item)"
                 :data-testid="`qr-primary-${item.id}`"
@@ -1032,46 +1056,37 @@ async function submitPublish() {
                 {{ qrSubmittingId === item.id && primaryQrActionCode(item) === 'generate' ? '正在生成...' : primaryQrActionLabel(item) }}
               </button>
               <button
+                v-if="showPreviewAction(item)"
+                type="button"
+                class="text-button primary-text"
+                @click="openPreviewDialog(item)"
+              >
+                预览
+              </button>
+              <button
                 class="text-button primary-text"
                 :data-testid="`qr-workbench-${item.id}`"
                 @click="openWorkbench(item)"
               >
                 详情
               </button>
-              <el-dropdown @command="(command) => handleQrRowCommand(item, command)">
-                <button type="button" class="text-button">更多</button>
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item
-                      v-if="hasQr(item) && primaryQrActionCode(item) !== 'public'"
-                      command="public"
-                    >
-                      公开页
-                    </el-dropdown-item>
-                    <el-dropdown-item
-                      v-if="hasQr(item) && primaryQrActionCode(item) !== 'preview'"
-                      command="preview"
-                    >
-                      预览
-                    </el-dropdown-item>
-                    <el-dropdown-item v-if="hasQr(item)" command="download">
-                      下载二维码
-                    </el-dropdown-item>
-                    <el-dropdown-item
-                      v-if="!hasQr(item) && primaryQrActionCode(item) !== 'generate'"
-                      command="generate"
-                    >
-                      生成二维码
-                    </el-dropdown-item>
-                    <el-dropdown-item
-                      v-if="canPublish(item) && primaryQrActionCode(item) !== 'publish'"
-                      command="publish"
-                    >
-                      {{ publishActionLabel(item) }}
-                    </el-dropdown-item>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
+              <button
+                v-if="showPublicAction(item)"
+                type="button"
+                class="text-button"
+                @click="openPublicPage(item)"
+              >
+                公开页
+              </button>
+              <button
+                v-if="hasQr(item)"
+                type="button"
+                class="text-button"
+                :disabled="downloadSubmittingId === item.id"
+                @click="downloadQr(item)"
+              >
+                {{ downloadSubmittingId === item.id ? '下载中...' : '下载二维码' }}
+              </button>
             </div>
           </div>
         </article>
@@ -1109,10 +1124,7 @@ async function submitPublish() {
 
         <template v-else>
           <div class="qr-preview-body">
-            <article class="qr-preview-frame">
-              <img class="qr-preview-image" :src="previewDialog.qr?.imageUrl" alt="追溯二维码" data-testid="qr-preview-image">
-            </article>
-            <article class="overview-grid">
+            <article class="overview-grid qr-preview-meta">
               <div>
                 <span>公开标识</span>
                 <strong data-testid="qr-preview-token">{{ previewDialog.qr?.token || '-' }}</strong>
@@ -1122,16 +1134,19 @@ async function submitPublish() {
                 <strong>{{ previewDialog.qr?.generatedAt || '暂无时间' }}</strong>
               </div>
             </article>
-          </div>
-
-          <div class="inline-link-group">
-            <a class="preview-link" :href="previewDialog.qr?.imageUrl" target="_blank" rel="noreferrer">查看原图</a>
-            <a class="preview-link" :href="previewDialog.qr?.publicUrl" target="_blank" rel="noreferrer">查看公开页</a>
+            <article class="qr-preview-frame">
+              <img
+                class="qr-preview-image"
+                :src="previewDialog.qr?.imageUrl"
+                alt="追溯二维码"
+                data-testid="qr-preview-image"
+              >
+            </article>
           </div>
 
           <div class="dialog-actions" style="margin-top: 18px;">
             <button class="ghost" @click="downloadQr(previewDialog.batch)">下载二维码</button>
-          <button class="primary" @click="openWorkbench(previewDialog.batch)">查看详情</button>
+            <button class="primary" @click="openWorkbench(previewDialog.batch); closePreviewDialog()">查看详情</button>
           </div>
         </template>
       </section>
@@ -1183,6 +1198,31 @@ async function submitPublish() {
         </section>
       </div>
     </div>
+
+    <el-drawer
+      v-model="detailDrawer.visible"
+      direction="rtl"
+      :size="batchSideDrawerSize"
+      append-to-body
+      destroy-on-close
+      :with-header="false"
+      class="batch-side-drawer qr-workbench-side-drawer"
+      data-testid="qr-workbench-drawer"
+    >
+      <div class="drawer-shell batch-workbench-drawer-shell" data-testid="qr-workbench-drawer-shell">
+        <div class="dialog-head">
+          <div>
+            <h3>批次工作台</h3>
+            <p>批次 {{ detailDrawer.batchCode || '详情查看' }}</p>
+          </div>
+          <button class="ghost icon-button" @click="closeWorkbenchDrawer">关闭</button>
+        </div>
+        <BatchWorkbenchDrawerPanel
+          v-if="detailDrawer.visible && detailDrawer.batchId"
+          :batch-id="detailDrawer.batchId"
+        />
+      </div>
+    </el-drawer>
     </div>
 </template>
 
@@ -1356,10 +1396,10 @@ async function submitPublish() {
     minmax(176px, 0.98fr)
     minmax(196px, 1.08fr)
     minmax(168px, 0.84fr)
-    minmax(272px, 1.12fr);
+    minmax(440px, 1.48fr);
   --ledger-column-gap: var(--qr-grid-column-gap);
   --ledger-inline-padding: var(--qr-grid-inline-padding);
-  --ledger-min-width: 1280px;
+  --ledger-min-width: 1440px;
 }
 
 .qr-head {
@@ -1490,6 +1530,9 @@ async function submitPublish() {
 }
 
 .qr-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   overflow: visible;
 }
 
@@ -1565,6 +1608,55 @@ async function submitPublish() {
   min-height: 150px;
 }
 
+.qr-preview-dialog {
+  width: min(560px, calc(100vw - 48px));
+  padding: 18px 20px 20px;
+}
+
+.qr-preview-dialog .dialog-head {
+  margin-bottom: 14px;
+}
+
+.qr-preview-dialog .qr-preview-body {
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  gap: 14px;
+}
+
+.qr-preview-dialog .qr-preview-meta {
+  width: min(100%, 360px);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.qr-preview-dialog .qr-preview-meta strong {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+.qr-preview-dialog .qr-preview-frame {
+  width: min(100%, 300px);
+}
+
+.qr-preview-dialog .dialog-actions {
+  justify-content: center;
+  margin-top: 14px !important;
+}
+
+.batch-side-drawer :deep(.el-drawer__body) {
+  padding: 18px 18px 22px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+:global(.batch-side-drawer .el-drawer__body) {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.batch-workbench-drawer-shell {
+  align-content: start;
+}
+
 @media (max-width: 1180px) {
   .qr-filter-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1608,6 +1700,12 @@ async function submitPublish() {
   .row-select {
     margin-bottom: 4px;
   }
+
+  .qr-preview-dialog {
+    width: min(100%, calc(100vw - 24px));
+    padding: 16px;
+  }
+
 }
 </style>
 
