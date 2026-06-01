@@ -244,6 +244,9 @@ function qualityPriorityText(item) {
   if (qualityCode === 'FAIL') {
     return '先核对不合格结论'
   }
+  if (qualityCode === 'REVIEW') {
+    return '等待复核结论'
+  }
   if (item.status === 'PUBLISHED') {
     return '已发布，继续核对公开页'
   }
@@ -466,6 +469,9 @@ function qualityPriorityBadgeText(item) {
   if (qualityCode === 'FAIL') {
     return '结果需复核'
   }
+  if (qualityCode === 'REVIEW') {
+    return '待复核'
+  }
   if (item.status === 'PUBLISHED') {
     return '已发布'
   }
@@ -481,6 +487,8 @@ function qualityReadinessTags(item) {
     tags.push({ key: 'publish', label: '已发布', tone: 'success' })
   } else if (String(item.qualityStatusCode || 'PENDING').toUpperCase() === 'FAIL') {
     tags.push({ key: 'blocked', label: '暂不可发布', tone: 'danger' })
+  } else if (String(item.qualityStatusCode || 'PENDING').toUpperCase() === 'REVIEW') {
+    tags.push({ key: 'reviewing', label: '待复核', tone: 'warning' })
   } else if (resolvePublishReady(item)) {
     tags.push({ key: 'ready', label: '可继续发布', tone: 'success' })
   } else {
@@ -501,6 +509,9 @@ function qualityPreparationTitle(item) {
   }
   if (qualityCode === 'FAIL') {
     return '暂不可发布，需先处理质检异常'
+  }
+  if (qualityCode === 'REVIEW') {
+    return '质检待复核，暂不可发布'
   }
   if (resolvePublishReady(item)) {
     return '发布准备已就绪，可继续推进'

@@ -243,6 +243,7 @@ function qualityToneClass(item) {
   return {
     PASS: 'success',
     FAIL: 'danger',
+    REVIEW: 'warning',
     PENDING: 'pending'
   }[String(item.qualityStatusCode || 'PENDING').toUpperCase()] ?? 'pending'
 }

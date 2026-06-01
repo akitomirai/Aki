@@ -85,7 +85,7 @@ const todayProgressText = computed(() => resolveTodayStatusText(detail.value?.ta
 const riskStageText = computed(() => resolveRiskStatusText(detail.value?.risk, detail.value?.riskHandling))
 const qualityUploaded = computed(() => Number(detail.value?.quality?.reportCount || 0) > 0)
 const qualityResultCode = computed(() => String(latestQualityReport.value?.result || '').toUpperCase())
-const qualityAllowsPublish = computed(() => qualityUploaded.value && qualityResultCode.value !== 'FAIL')
+const qualityAllowsPublish = computed(() => qualityResultCode.value === 'PASS')
 const qrGenerated = computed(() => Boolean(detail.value?.qr?.generated))
 const qrStatusText = computed(() => resolveQrStatusText(detail.value?.qr))
 const canPreviewPublic = computed(() => Boolean(detail.value?.qr?.publicUrl))

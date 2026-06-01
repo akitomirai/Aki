@@ -188,6 +188,45 @@ class BatchServicePersistenceIntegrationTest extends AuthenticatedIntegrationTes
     }
 
     @Test
+    void shouldRejectPublishingWhileQualityUnderReview() {
+        Long batchId = batchService.createBatch(new BatchCreateRequest(
+                "BATCH-QUALITY-REVIEW-ROUND9",
+                1L,
+                1L,
+                "Jiangxi Ganzhou Xinfeng Orchard",
+                "2026-03-24",
+                "quality review gate test",
+                "test"
+        )).batch().id();
+
+        addPublicTraceRecord(batchId, "复核状态发布前追溯记录");
+        batchService.addQualityReport(batchId, new QualityReportCreateRequest(
+                "QA-REVIEW-ROUND9",
+                "Jiangxi Quality Center",
+                "REVIEW",
+                "2026-03-24T10:40",
+                List.of("sample sent for review"),
+                List.of()
+        ));
+
+        var generated = batchService.generateQr(batchId);
+        assertFalse(generated.actions().stream()
+                .filter(action -> "PUBLISH".equals(action.code()))
+                .findFirst()
+                .orElseThrow()
+                .enabled());
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
+                batchService.changeStatus(batchId, new BatchStatusActionRequest(
+                        BatchStatus.PUBLISHED,
+                        "review should not publish",
+                        "tester"
+                )));
+
+        assertTrue(exception.getMessage().contains("复核"));
+    }
+
+    @Test
     void shouldPassTraceHashChainAndDetectTampering() {
         Long batchId = batchService.createBatch(new BatchCreateRequest(
                 "BATCH-HASH-ROUND7",

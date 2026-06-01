@@ -112,6 +112,14 @@ export function resolvePublishBlockState(item = {}) {
     }
   }
 
+  if (qualityCode !== 'PASS') {
+    return {
+      allowed: false,
+      code: 'QUALITY_REVIEWING',
+      reason: '质检结果仍在复核中，不能发布'
+    }
+  }
+
   if (qrStatus === 'NOT_GENERATED') {
     return {
       allowed: false,

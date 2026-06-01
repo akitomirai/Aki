@@ -1105,7 +1105,7 @@ public class BatchServiceImpl implements BatchService {
         BatchStatusFlowAdvisor.RecommendedAction recommendedAction = batchStatusFlowAdvisor.recommendAction(
                 batch,
                 publicTraceReady,
-                latestQuality != null && !"FAIL".equalsIgnoreCase(latestQuality.result()),
+                isQualityPass(latestQuality),
                 batch.getQrCode() != null,
                 canResume
         );
@@ -1749,7 +1749,7 @@ public class BatchServiceImpl implements BatchService {
     private List<BatchActionVO> buildRoleAwareActions(BatchEntity batch) {
         AuthUserSession currentUser = currentUser();
         QualityReportEntity latestQuality = latestQuality(batch);
-        boolean hasQualifiedReport = latestQuality != null && !"FAIL".equalsIgnoreCase(latestQuality.result());
+        boolean hasQualifiedReport = isQualityPass(latestQuality);
         boolean hasPublicTraceRecord = hasPublicTraceRecord(batch);
         boolean hasQr = batch.getQrCode() != null;
         boolean canManageBatch = canManageCompanyBatch(currentUser, batch);
@@ -1816,6 +1816,9 @@ public class BatchServiceImpl implements BatchService {
         if ("FAIL".equalsIgnoreCase(latestQuality.result())) {
             return "检测结果不合格，不能发布";
         }
+        if (!isQualityPass(latestQuality)) {
+            return "质检结果仍在复核中，不能发布";
+        }
         if (batch.getQrCode() == null) {
             return "发布前请先生成二维码";
         }
@@ -1829,6 +1832,10 @@ public class BatchServiceImpl implements BatchService {
         return batch.getQualityReports().stream()
                 .max(Comparator.comparing(QualityReportEntity::reportTime))
                 .orElse(null);
+    }
+
+    private boolean isQualityPass(QualityReportEntity report) {
+        return report != null && "PASS".equalsIgnoreCase(report.result());
     }
 
     private TraceRecordEntity latestTrace(BatchEntity batch) {

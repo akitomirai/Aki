@@ -74,6 +74,9 @@ public class BatchStatusFlowAdvisor {
             return new RecommendedAction("PUBLISH", "发布批次", "关键资料已齐，建议直接完成发布。");
         }
         if (status == BatchStatus.PUBLISHED) {
+            if (!hasQualifiedQuality) {
+                return new RecommendedAction("FREEZE", "冻结批次", "最新质检未取得合格结论，建议先冻结并进入风险处理。");
+            }
             return new RecommendedAction("VIEW_PUBLIC", "查看公开页", "已发布状态建议优先核对公开页展示效果。");
         }
         if (status == BatchStatus.RECALLED) {
