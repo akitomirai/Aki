@@ -11,7 +11,7 @@
 }
 
 .register-shell {
-  width: min(100%, 460px);
+  width: min(100%, 640px);
 }
 
 .register-header {
@@ -63,7 +63,9 @@
 }
 
 .panel-head {
-  margin-bottom: 22px;
+  display: grid;
+  gap: 8px;
+  margin-bottom: 18px;
   text-align: center;
 }
 
@@ -72,19 +74,73 @@
   font-size: 20px;
 }
 
-.register-form :deep(.el-form-item) {
-  margin-bottom: 18px;
+.panel-head span {
+  color: var(--admin-text-soft);
+  font-size: 14px;
+  line-height: 1.6;
 }
 
-.register-form :deep(.el-form-item__label) {
-  padding-bottom: 8px;
+.register-flow-list {
+  display: grid;
+  gap: 12px;
+}
+
+.register-flow-item {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid rgba(56, 134, 217, 0.12);
+  border-radius: 16px;
+  background: rgba(247, 251, 255, 0.82);
+}
+
+.register-flow-main {
+  display: grid;
+  gap: 5px;
+}
+
+.register-flow-main strong {
   color: var(--admin-text);
-  font-weight: 600;
+  font-size: 16px;
+}
+
+.register-flow-main span {
+  color: var(--admin-text-soft);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.register-flow-item dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.register-flow-item dl div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.register-flow-item dt {
+  color: #6f86a4;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.register-flow-item dd {
+  margin: 0;
+  color: var(--admin-text);
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 .register-actions {
-  display: flex;
-  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
 }
 
 .action-btn {
@@ -127,6 +183,11 @@
 
   .register-panel {
     padding: 22px 18px;
+  }
+
+  .register-flow-item dl,
+  .register-actions {
+    grid-template-columns: 1fr;
   }
 
   .register-header h1 {

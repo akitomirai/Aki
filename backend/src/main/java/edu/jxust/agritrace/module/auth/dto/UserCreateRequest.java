@@ -7,6 +7,7 @@ public record UserCreateRequest(
         @NotBlank @Size(max = 64) String username,
         @NotBlank @Size(max = 128) String password,
         @NotBlank @Size(max = 64) String realName,
+        @Size(max = 32) String phone,
         @NotBlank @Size(max = 32) String roleCode,
         Long companyId
 ) {

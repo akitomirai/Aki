@@ -71,6 +71,81 @@ class AuthSecurityIntegrationTest {
         }
     }
 
+    @Test
+    void shouldKeepSelfRegistrationClosed() throws Exception {
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void platformAdminShouldCreateManagedUserWithPhoneAndSearchByPhone() throws Exception {
+        String token = loginToken("platform", "123456");
+
+        mockMvc.perform(post("/api/users")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "username": "operator_phone_it",
+                                  "password": "123456",
+                                  "realName": "Phone Operator",
+                                  "phone": "13900001234",
+                                  "roleCode": "OPERATOR",
+                                  "companyId": 1
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.username").value("operator_phone_it"))
+                .andExpect(jsonPath("$.data.phone").value("13900001234"))
+                .andExpect(jsonPath("$.data.needChangePassword").value(true));
+
+        mockMvc.perform(get("/api/users")
+                        .queryParam("keyword", "13900001234")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].username").value("operator_phone_it"))
+                .andExpect(jsonPath("$.data[0].phone").value("13900001234"));
+    }
+
+    @Test
+    void enterpriseAdminShouldOnlyOpenAccountsInsideEnterpriseScope() throws Exception {
+        String token = loginToken("enterprise_admin", "123456");
+
+        mockMvc.perform(post("/api/users")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "username": "enterprise_operator_it",
+                                  "password": "123456",
+                                  "realName": "Enterprise Operator",
+                                  "phone": "13900005678",
+                                  "roleCode": "OPERATOR"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.roleCode").value("OPERATOR"))
+                .andExpect(jsonPath("$.data.companyId").value(1))
+                .andExpect(jsonPath("$.data.phone").value("13900005678"));
+
+        mockMvc.perform(post("/api/users")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "username": "regulator_denied_it",
+                                  "password": "123456",
+                                  "realName": "Regulator Denied",
+                                  "roleCode": "REGULATOR"
+                                }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("企业管理员只能创建和管理本企业管理员、操作员。"));
+    }
+
     private String loginToken(String username, String password) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)

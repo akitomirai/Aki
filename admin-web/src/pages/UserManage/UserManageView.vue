@@ -157,6 +157,7 @@ function createDialogForm() {
     username: '',
     password: '',
     realName: '',
+    phone: '',
     roleCode: 'OPERATOR',
     companyId: isEnterpriseAdmin.value ? normalizeCompanyId(authStore.user?.companyId) : ''
   }
@@ -329,6 +330,7 @@ function openEditDialog(item) {
       username: item.username,
       password: '',
       realName: item.realName,
+      phone: item.phone || '',
       roleCode: item.roleCode,
       companyId: normalizeCompanyId(item.companyId)
     }
@@ -360,6 +362,7 @@ function normalizeUserPayload() {
   const payload = {
     username: String(form.username || '').trim(),
     realName: String(form.realName || '').trim(),
+    phone: String(form.phone || '').trim(),
     roleCode: String(form.roleCode || '').trim(),
     companyId: companyFieldRequired.value ? normalizeCompanyId(form.companyId) : null
   }
@@ -445,7 +448,7 @@ async function submitResetPassword() {
           clearable
           class="manage-filter-item"
           data-testid="users-filter-keyword"
-          placeholder="输入用户名或姓名"
+          placeholder="输入用户名、姓名或电话"
           @keyup.enter="fetchRows"
         />
         </label>
@@ -616,7 +619,9 @@ async function submitResetPassword() {
           >
             <div class="row-main">
               <strong>{{ row.realName || row.username }}</strong>
-              <span class="ledger-code">{{ row.username }}</span>
+              <span class="ledger-code">
+                {{ row.username }}<template v-if="row.phone"> · {{ row.phone }}</template>
+              </span>
             </div>
 
             <div class="row-meta">
@@ -716,6 +721,16 @@ async function submitResetPassword() {
               data-testid="user-form-real-name"
               type="text"
               placeholder="例如 Field Operator D"
+            >
+          </label>
+
+          <label>
+            <span>联系电话</span>
+            <input
+              v-model.trim="dialog.form.phone"
+              data-testid="user-form-phone"
+              type="text"
+              placeholder="用于账号交接和找回确认"
             >
           </label>
 

@@ -103,9 +103,14 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
+  flex-wrap: wrap;
   margin-top: 18px;
   color: var(--admin-text-soft);
   font-size: 14px;
+}
+
+.footer-divider {
+  color: rgba(120, 146, 173, 0.72);
 }
 
 .text-link {

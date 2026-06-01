@@ -12,10 +12,6 @@ export function updateProfileApi(data) {
   return http.patch('/auth/profile', data)
 }
 
-export function registerApi(data) {
-  return http.post('/auth/register', data)
-}
-
 export function changePasswordApi(data) {
   return http.post('/auth/change-password', data)
 }

@@ -92,7 +92,9 @@ public class UserAdminServiceImpl implements UserAdminService {
             queryWrapper.and(wrapper -> wrapper
                     .like(SysUserPO::getUsername, keyword)
                     .or()
-                    .like(SysUserPO::getRealName, keyword));
+                    .like(SysUserPO::getRealName, keyword)
+                    .or()
+                    .like(SysUserPO::getPhone, keyword));
         }
 
         List<SysUserPO> users = sysUserMapper.selectList(queryWrapper);
@@ -111,6 +113,7 @@ public class UserAdminServiceImpl implements UserAdminService {
         String username = trimRequired(request.username(), "用户名不能为空。");
         String password = trimRequired(request.password(), "密码不能为空。");
         String realName = trimRequired(request.realName(), "姓名不能为空。");
+        String phone = trimToNull(request.phone());
         String roleCode = normalizeRoleCode(request.roleCode(), true);
         ensureRoleAllowedForManager(currentUser, roleCode);
         Long companyId = normalizeCompanyForRole(currentUser, roleCode, request.companyId());
@@ -125,6 +128,7 @@ public class UserAdminServiceImpl implements UserAdminService {
         userPO.setUsername(username);
         userPO.setPassword(passwordEncoder.encode(password));
         userPO.setRealName(realName);
+        userPO.setPhone(phone);
         userPO.setRoleCode(roleCode);
         userPO.setCompanyId(companyId);
         userPO.setStatus(1);
@@ -155,6 +159,7 @@ public class UserAdminServiceImpl implements UserAdminService {
 
         String username = trimRequired(request.username(), "用户名不能为空。");
         String realName = trimRequired(request.realName(), "姓名不能为空。");
+        String phone = trimToNull(request.phone());
         String roleCode = normalizeRoleCode(request.roleCode(), true);
         ensureRoleAllowedForManager(currentUser, roleCode);
         Long companyId = normalizeCompanyForRole(currentUser, roleCode, request.companyId());
@@ -172,6 +177,7 @@ public class UserAdminServiceImpl implements UserAdminService {
         ensureUsernameUnique(username, userPO.getId());
         userPO.setUsername(username);
         userPO.setRealName(realName);
+        userPO.setPhone(phone);
         userPO.setRoleCode(roleCode);
         userPO.setCompanyId(companyId);
         userPO.setUpdatedAt(LocalDateTime.now());
@@ -356,6 +362,7 @@ public class UserAdminServiceImpl implements UserAdminService {
                 userPO.getId(),
                 defaultValue(userPO.getUsername(), ""),
                 defaultValue(userPO.getRealName(), defaultValue(userPO.getUsername(), "")),
+                defaultValue(userPO.getPhone(), ""),
                 defaultValue(userPO.getRoleCode(), ""),
                 roleName(userPO.getRoleCode()),
                 userPO.getCompanyId(),
@@ -410,6 +417,14 @@ public class UserAdminServiceImpl implements UserAdminService {
             throw new IllegalArgumentException(message);
         }
         return value.trim();
+    }
+
+    private String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private boolean notBlank(String value) {

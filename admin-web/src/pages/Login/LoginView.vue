@@ -63,6 +63,9 @@
         <template v-else>
           <span>操作员使用手机访问？</span>
           <button type="button" class="text-link" @click="router.push('/mobile-login')">移动端登录</button>
+          <span class="footer-divider">/</span>
+          <span>没有账号？</span>
+          <button type="button" class="text-link" @click="router.push('/register')">开户注册</button>
         </template>
       </div>
     </div>

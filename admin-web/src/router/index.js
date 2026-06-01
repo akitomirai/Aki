@@ -41,7 +41,12 @@ const routes = [
   },
   {
     path: '/register',
-    redirect: '/login'
+    name: 'register',
+    component: () => import('../pages/Register/RegisterView.vue'),
+    meta: {
+      guestOnly: true,
+      title: '开户注册'
+    }
   },
   {
     path: '/field-entry',

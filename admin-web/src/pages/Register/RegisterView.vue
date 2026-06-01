@@ -6,68 +6,47 @@
           <img src="/favicon.ico" alt="Trace Admin">
         </div>
         <h1>农产品追溯管理后台</h1>
-        <p>后台注册</p>
+        <p>开户注册</p>
       </div>
 
       <el-card class="register-card" shadow="hover">
         <section class="register-panel">
           <div class="panel-head">
-            <strong>创建账户</strong>
+            <strong>由管理员分级开户注册</strong>
+            <span>账号创建后默认启用，首次登录必须修改初始密码。</span>
           </div>
 
-          <el-form :model="form" label-position="top" class="register-form" @submit.prevent>
-            <el-form-item label="用户名">
-              <el-input
-                v-model="form.username"
-                placeholder="请输入用户名"
-                clearable
-                @keyup.enter="handleRegister"
-              />
-            </el-form-item>
+          <div class="register-flow-list">
+            <article
+              v-for="flow in accountFlows"
+              :key="flow.roleName"
+              class="register-flow-item"
+            >
+              <div class="register-flow-main">
+                <strong>{{ flow.roleName }}</strong>
+                <span>{{ flow.userScope }}</span>
+              </div>
+              <dl>
+                <div>
+                  <dt>开户方</dt>
+                  <dd>{{ flow.openedBy }}</dd>
+                </div>
+                <div>
+                  <dt>管理方</dt>
+                  <dd>{{ flow.managedBy }}</dd>
+                </div>
+              </dl>
+            </article>
+          </div>
 
-            <el-form-item label="密码">
-              <el-input
-                v-model="form.password"
-                type="password"
-                placeholder="请输入密码"
-                show-password
-                clearable
-                @keyup.enter="handleRegister"
-              />
-            </el-form-item>
-
-            <el-form-item label="确认密码">
-              <el-input
-                v-model="form.confirmPassword"
-                type="password"
-                placeholder="请再次输入密码"
-                show-password
-                clearable
-                @keyup.enter="handleRegister"
-              />
-            </el-form-item>
-
-            <el-form-item label="邀请码">
-              <el-input
-                v-model="form.inviteCode"
-                placeholder="请输入邀请码"
-                clearable
-                @keyup.enter="handleRegister"
-              />
-            </el-form-item>
-
-            <div class="register-actions">
-              <el-button
-                type="primary"
-                class="action-btn"
-                :loading="loading"
-                data-testid="register-submit"
-                @click="handleRegister"
-              >
-                创建账户
-              </el-button>
-            </div>
-          </el-form>
+          <div class="register-actions">
+            <el-button type="primary" class="action-btn" data-testid="register-go-login" @click="goLogin">
+              返回后台登录
+            </el-button>
+            <el-button class="action-btn" data-testid="register-go-mobile" @click="goMobileLogin">
+              操作员移动端登录
+            </el-button>
+          </div>
         </section>
       </el-card>
 
@@ -83,10 +62,9 @@
 import { useRegister } from '../../composables/useRegister'
 
 const {
-  form,
-  loading,
-  handleRegister,
-  goLogin
+  accountFlows,
+  goLogin,
+  goMobileLogin
 } = useRegister()
 </script>
 

@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Size;
 public record UserUpdateRequest(
         @NotBlank @Size(max = 64) String username,
         @NotBlank @Size(max = 64) String realName,
+        @Size(max = 32) String phone,
         @NotBlank @Size(max = 32) String roleCode,
         Long companyId
 ) {

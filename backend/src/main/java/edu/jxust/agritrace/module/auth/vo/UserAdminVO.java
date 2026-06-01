@@ -4,6 +4,7 @@ public record UserAdminVO(
         Long id,
         String username,
         String realName,
+        String phone,
         String roleCode,
         String roleName,
         Long companyId,

@@ -1,69 +1,46 @@
-import { reactive, ref, onMounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { registerApi } from '../api/auth'
+import { useRouter } from 'vue-router'
+
+const accountFlows = [
+  {
+    roleName: '平台管理员',
+    userScope: '系统运维、企业建档、全局用户与监管账号管理',
+    openedBy: '现有平台管理员',
+    managedBy: '平台管理员'
+  },
+  {
+    roleName: '企业管理员',
+    userScope: '本企业产品、批次、二维码、质量与风险处理',
+    openedBy: '平台管理员在企业建档后开户',
+    managedBy: '平台管理员，可继续管理本企业操作员'
+  },
+  {
+    roleName: '现场操作员',
+    userScope: '移动端现场作业、批次记录填报',
+    openedBy: '本企业管理员',
+    managedBy: '本企业管理员'
+  },
+  {
+    roleName: '监管人员',
+    userScope: '监管视角查询、质量与风险只读核验',
+    openedBy: '平台管理员',
+    managedBy: '平台管理员'
+  }
+]
 
 export function useRegister() {
   const router = useRouter()
-  const route = useRoute()
-  const loading = ref(false)
-
-  const form = reactive({
-    username: '',
-    password: '',
-    confirmPassword: '',
-    inviteCode: ''
-  })
-
-  onMounted(() => {
-    if (route.query.inviteCode) {
-      form.inviteCode = route.query.inviteCode
-    }
-  })
-
-  async function handleRegister() {
-    if (!form.username || !form.password || !form.confirmPassword || !form.inviteCode) {
-      ElMessage.warning('请填写完整的注册信息')
-      return
-    }
-
-    if (form.password !== form.confirmPassword) {
-      ElMessage.warning('两次输入的密码不一致')
-      return
-    }
-
-    loading.value = true
-
-    try {
-      const res = await registerApi({
-        username: form.username,
-        password: form.password,
-        inviteCode: form.inviteCode
-      })
-
-      const code = String(res?.code ?? '')
-
-      if (code === '0' || res?.success) {
-        ElMessage.success(res?.message || '注册成功，请登录')
-        router.push('/login')
-      } else {
-        ElMessage.error(res?.message || '注册失败')
-      }
-    } catch (error) {
-      ElMessage.error(error?.response?.data?.message || '注册请求失败')
-    } finally {
-      loading.value = false
-    }
-  }
 
   function goLogin() {
     router.push('/login')
   }
 
+  function goMobileLogin() {
+    router.push('/mobile-login')
+  }
+
   return {
-    form,
-    loading,
-    handleRegister,
-    goLogin
+    accountFlows,
+    goLogin,
+    goMobileLogin
   }
 }
