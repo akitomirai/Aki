@@ -25,6 +25,8 @@ import { resolveTaskStatusText, resolveTodayStatusText, taskFilterOptions } from
 
 const MAX_IMAGE_COUNT = 9
 const IMAGE_BUSINESS_TYPE = 'trace-image'
+const FIELD_ENTRY_STAGE_CODES = ['PRODUCE', 'TRANSPORT', 'WAREHOUSE', 'DELIVERY', 'MARKET']
+const fieldEntryStageOptions = stageOptions.filter((item) => FIELD_ENTRY_STAGE_CODES.includes(item.value))
 
 const listModeOptions = [
   { value: 'todo', label: '待办批次' },
@@ -171,7 +173,7 @@ const entryHints = computed(() => {
   if (!selectedBatchId.value) return []
 
   const items = []
-  if (draftMeta.value) items.push(`宸叉帴缁崏绋匡紝鏈€杩戜繚瀛樹簬 ${formatDraftTime(draftMeta.value.updatedAt)}`)
+  if (draftMeta.value) items.push(`已接续草稿，最近保存于 ${formatDraftTime(draftMeta.value.updatedAt)}`)
   if (!batchDetail.value?.trace?.recentRecords?.length) items.push('建议先补第一条现场记录，提交后工作台会立刻同步显示。')
   if (batchDetail.value?.quality?.status === 'PENDING') items.push('现场记录补完后，记得回工作台继续补质量摘要。')
   if (!batchDetail.value?.qr?.generated) items.push('图片和说明提交后，可继续回工作台生成二维码。')
@@ -367,7 +369,7 @@ function resetImageItems(files = []) {
 }
 
 function createEntryForm(overrides = {}) {
-  const stage = overrides.stage ?? 'PRODUCE'
+  const stage = normalizeFieldEntryStage(overrides.stage ?? 'PRODUCE')
   const profile = getStageProfile(stage)
   return createTraceForm({
     stage,
@@ -381,6 +383,10 @@ function createEntryForm(overrides = {}) {
     uploadedFiles: sanitizeUploadedFiles(overrides.uploadedFiles),
     visibleToConsumer: overrides.visibleToConsumer ?? true
   })
+}
+
+function normalizeFieldEntryStage(stage = 'PRODUCE') {
+  return FIELD_ENTRY_STAGE_CODES.includes(stage) ? stage : 'PRODUCE'
 }
 
 function buildDraftBatchSnapshot(batchId = selectedBatchId.value) {
@@ -688,7 +694,7 @@ function setTaskFilter(value) {
 }
 
 function setStage(stage) {
-  traceForm.value.stage = stage
+  traceForm.value.stage = normalizeFieldEntryStage(stage)
 }
 
 function useLocation(location) {
@@ -751,6 +757,16 @@ async function persistDraft(options = {}) {
     await refreshDraftList()
     return nextDraft
   } catch (error) {
+    const status = Number(error?.response?.status || 0)
+    if ([401, 403, 404].includes(status)) {
+      removeLocalFieldDraft(authStore.user, selectedBatchId.value)
+      draftMeta.value = null
+      await refreshDraftList()
+      if (!silent) {
+        ElMessage.error(error?.response?.data?.message || '当前账号不能保存该批次草稿。')
+      }
+      return null
+    }
     const localDraft = saveLocalFieldDraft(authStore.user, selectedBatchId.value, {
       form: payload,
       batch: buildDraftBatchSnapshot()
@@ -776,7 +792,10 @@ async function saveDraftRecord() {
 
   draftSaving.value = true
   try {
-    await persistDraft({ silent: true })
+    const savedDraft = await persistDraft({ silent: false })
+    if (!savedDraft) {
+      return
+    }
     if (hasFailedImages.value) {
       ElMessage.warning('草稿已保存，上传失败的图片不会进入草稿，请稍后重试或重新选择。')
     } else {
@@ -1035,8 +1054,9 @@ async function submitFieldRecord() {
     ElMessage.success(lastSuccess.value.clearedDraft ? '记录已提交，草稿已自动清除。' : '现场记录已提交。')
     await loadBatches({ preserveSelection: true })
   } catch (error) {
-    await persistDraft({ silent: true })
-    ElMessage.error(`${error?.response?.data?.message || '现场记录提交失败'}，当前内容已保留为草稿。`)
+    const retainedDraft = await persistDraft({ silent: true })
+    const retainedText = retainedDraft ? '，当前内容已保留为草稿。' : '。'
+    ElMessage.error(`${error?.response?.data?.message || '现场记录提交失败'}${retainedText}`)
   } finally {
     saving.value = false
   }
@@ -1267,7 +1287,7 @@ async function submitFieldRecord() {
             </div>
             <div class="stage-grid">
               <button
-                v-for="item in stageOptions"
+                v-for="item in fieldEntryStageOptions"
                 :key="item.value"
                 class="stage-chip"
                 :class="{ active: traceForm.stage === item.value }"

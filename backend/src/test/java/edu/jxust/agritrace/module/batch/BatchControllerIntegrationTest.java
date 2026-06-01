@@ -7,7 +7,9 @@ import edu.jxust.agritrace.support.AuthenticatedIntegrationTestSupport;
 import edu.jxust.agritrace.module.log.mapper.OperationAuditLogMapper;
 import edu.jxust.agritrace.module.log.mapper.po.OperationAuditLogPO;
 import edu.jxust.agritrace.module.batch.mapper.BizAttachmentMapper;
+import edu.jxust.agritrace.module.batch.mapper.TraceBatchMapper;
 import edu.jxust.agritrace.module.batch.mapper.po.BizAttachmentPO;
+import edu.jxust.agritrace.module.batch.mapper.po.TraceBatchPO;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -25,6 +27,7 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -42,6 +45,9 @@ class BatchControllerIntegrationTest extends AuthenticatedIntegrationTestSupport
 
     @Autowired
     private BizAttachmentMapper bizAttachmentMapper;
+
+    @Autowired
+    private TraceBatchMapper traceBatchMapper;
 
     @Autowired
     private OperationAuditLogMapper operationAuditLogMapper;
@@ -271,6 +277,148 @@ class BatchControllerIntegrationTest extends AuthenticatedIntegrationTestSupport
                 .andExpect(jsonPath("$.data.actions[?(@.code=='PUBLISH')].enabled", everyItem(is(false))))
                 .andExpect(jsonPath("$.data.actions[?(@.code=='FREEZE')].enabled", everyItem(is(false))))
                 .andExpect(jsonPath("$.data.actions[?(@.code=='RECALL')].enabled", everyItem(is(false))));
+    }
+
+    @Test
+    void shouldRestrictFieldDraftsToAssignedOperator() throws Exception {
+        authenticateAs(OPERATOR_SESSION);
+
+        mockMvc.perform(post("/api/batches/1/field-draft")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "stage": "PRODUCE",
+                                  "title": "field draft",
+                                  "eventTime": "2026-03-24T09:30",
+                                  "operatorName": "Field Operator",
+                                  "location": "orchard",
+                                  "summary": "draft before submit",
+                                  "attachmentIds": [],
+                                  "uploadedFiles": [],
+                                  "visibleToConsumer": true
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.batchId").value(1))
+                .andExpect(jsonPath("$.data.operatorName").value("Field Operator"));
+
+        mockMvc.perform(get("/api/batches/field-drafts"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].batchId").value(1))
+                .andExpect(jsonPath("$.data[0].summary").value("draft before submit"));
+
+        mockMvc.perform(delete("/api/batches/1/field-draft"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/batches/1/field-draft")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "stage": "QUALITY",
+                                  "operatorName": "Field Operator",
+                                  "location": "orchard",
+                                  "summary": "operator should not save quality stage draft"
+                                }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("现场操作员只能补录生产、运输、仓储、发运、上市环节。"));
+
+        mockMvc.perform(post("/api/batches/1/records/quick")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "stage": "REGULATION",
+                                  "title": "regulator stage should be blocked",
+                                  "eventTime": "2026-03-24T09:30",
+                                  "operatorName": "Field Operator",
+                                  "location": "orchard",
+                                  "summary": "operator should not submit regulator stage trace",
+                                  "attachmentIds": [],
+                                  "visibleToConsumer": true
+                                }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("现场操作员只能补录生产、运输、仓储、发运、上市环节。"));
+
+        long staleDraftBatchId = createDraftBatch("FIELD-DRAFT-STALE-" + System.nanoTime());
+        TraceBatchPO staleDraftBatchPO = traceBatchMapper.selectById(staleDraftBatchId);
+        staleDraftBatchPO.setAssigneeUserId(OPERATOR_SESSION.userId());
+        staleDraftBatchPO.setCompanyId(OPERATOR_SESSION.companyId());
+        traceBatchMapper.updateById(staleDraftBatchPO);
+
+        authenticateAs(OPERATOR_SESSION);
+        mockMvc.perform(post("/api/batches/" + staleDraftBatchId + "/field-draft")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "stage": "PRODUCE",
+                                  "operatorName": "Field Operator",
+                                  "location": "orchard",
+                                  "summary": "stale draft should be hidden after reassignment"
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        staleDraftBatchPO.setAssigneeUserId(null);
+        traceBatchMapper.updateById(staleDraftBatchPO);
+
+        mockMvc.perform(get("/api/batches/field-drafts"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.batchId==" + staleDraftBatchId + ")]").isEmpty());
+
+        long unassignedBatchId = createDraftBatch("FIELD-DRAFT-UNASSIGNED-" + System.nanoTime());
+        authenticateAs(OPERATOR_SESSION);
+
+        mockMvc.perform(post("/api/batches/" + unassignedBatchId + "/field-draft")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "stage": "PRODUCE",
+                                  "operatorName": "Field Operator",
+                                  "location": "orchard",
+                                  "summary": "operator should not draft unassigned batch"
+                                }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("当前批次未分配给你，不能查看或提交现场记录。"));
+    }
+
+    @Test
+    void shouldRejectAdminAndRegulatorFieldEntryWrites() throws Exception {
+        long beforePlatformDraftDenied = countDeniedLogs("TRACE_RECORD_DENIED", PLATFORM_ADMIN_SESSION.userId(), "现场作业草稿仅限当前批次分配的现场操作员维护。");
+        long beforeRegulatorUploadDenied = countDeniedLogs("TRACE_RECORD_DENIED", REGULATOR_SESSION.userId(), "当前账号不能上传现场图片。");
+
+        authenticateAs(PLATFORM_ADMIN_SESSION);
+        mockMvc.perform(post("/api/batches/1/field-draft")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "stage": "PRODUCE",
+                                  "operatorName": "Platform Admin",
+                                  "location": "orchard",
+                                  "summary": "admin should manage trace records in workbench"
+                                }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("现场作业草稿仅限当前批次分配的现场操作员维护。"));
+
+        authenticateAs(REGULATOR_SESSION);
+        MockMultipartFile file = new MockMultipartFile(
+                "files",
+                "regulator-trace.jpg",
+                MediaType.IMAGE_JPEG_VALUE,
+                "trace-image".getBytes()
+        );
+        mockMvc.perform(multipart("/api/batches/files/upload")
+                        .file(file)
+                        .param("businessType", "trace-image"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("当前账号不能上传现场图片。"));
+
+        assertThat(countDeniedLogs("TRACE_RECORD_DENIED", PLATFORM_ADMIN_SESSION.userId(), "现场作业草稿仅限当前批次分配的现场操作员维护。"))
+                .isEqualTo(beforePlatformDraftDenied + 1);
+        assertThat(countDeniedLogs("TRACE_RECORD_DENIED", REGULATOR_SESSION.userId(), "当前账号不能上传现场图片。"))
+                .isEqualTo(beforeRegulatorUploadDenied + 1);
     }
 
     @Test

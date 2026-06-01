@@ -135,6 +135,13 @@ public class BatchServiceImpl implements BatchService {
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
     private static final DateTimeFormatter TRACE_HASH_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final HexFormat HEX_FORMAT = HexFormat.of();
+    private static final Set<TraceStage> FIELD_OPERATOR_TRACE_STAGES = Set.of(
+            TraceStage.PRODUCE,
+            TraceStage.TRANSPORT,
+            TraceStage.WAREHOUSE,
+            TraceStage.DELIVERY,
+            TraceStage.MARKET
+    );
 
     private final TraceBatchMapper traceBatchMapper;
     private final BaseProductMapper baseProductMapper;
@@ -293,6 +300,8 @@ public class BatchServiceImpl implements BatchService {
     @Transactional(rollbackFor = Exception.class)
     public List<FileAssetVO> uploadAttachments(String businessType, List<MultipartFile> files) {
         AttachmentBusinessType attachmentBusinessType = AttachmentBusinessType.fromCode(businessType);
+        AuthUserSession currentUser = requireCurrentUser();
+        ensureAttachmentUploader(currentUser, attachmentBusinessType);
         attachmentGovernanceService.cleanupExpiredOrphans();
         if (files == null || files.isEmpty()) {
             throw new IllegalArgumentException("files cannot be empty");
@@ -312,7 +321,6 @@ public class BatchServiceImpl implements BatchService {
             bizAttachmentMapper.updateById(attachmentPO);
             uploaded.add(toFileAssetVO(attachmentPO));
         }
-        AuthUserSession currentUser = currentUser();
         if (attachmentBusinessType == AttachmentBusinessType.TRACE_IMAGE && currentUser != null && !uploaded.isEmpty()) {
             FileAssetVO firstFile = uploaded.get(0);
             writeOperationLog(
@@ -443,6 +451,7 @@ public class BatchServiceImpl implements BatchService {
         ensureTraceWriter(currentUser, batchPO);
         LocalDateTime eventTime = parseFlexibleDateTime(request.eventTime(), LocalDateTime.now());
         TraceStage stage = request.stage() == null ? TraceStage.PRODUCE : request.stage();
+        ensureFieldOperatorTraceStage(currentUser, batchPO, stage);
         backfillMissingTraceHashes(batchId);
         TraceEventPO previousEvent = findLatestTraceEvent(batchId);
         String previousHash = previousEvent == null ? null : normalizeHash(previousEvent.getHash());
@@ -600,12 +609,13 @@ public class BatchServiceImpl implements BatchService {
     @Override
     public List<FieldDraftVO> listMyFieldDrafts() {
         AuthUserSession currentUser = requireCurrentUser();
+        ensureFieldOperator(currentUser);
         return batchFieldDraftMapper.selectList(new LambdaQueryWrapper<BatchFieldDraftPO>()
                         .eq(BatchFieldDraftPO::getOperatorUserId, currentUser.userId())
                         .orderByDesc(BatchFieldDraftPO::getUpdatedAt)
                         .orderByDesc(BatchFieldDraftPO::getId))
                 .stream()
-                .map(this::toFieldDraftVO)
+                .map(draftPO -> toAssignedFieldDraftVO(draftPO, currentUser))
                 .filter(Objects::nonNull)
                 .toList();
     }
@@ -613,7 +623,9 @@ public class BatchServiceImpl implements BatchService {
     @Override
     public FieldDraftVO getMyFieldDraft(Long batchId) {
         TraceBatchPO batchPO = findBatchPO(batchId);
-        return toFieldDraftVO(findFieldDraftPO(batchId, requireCurrentUser()), batchPO);
+        AuthUserSession currentUser = requireCurrentUser();
+        ensureFieldDraftWriter(currentUser, batchPO);
+        return toFieldDraftVO(findFieldDraftPO(batchId, currentUser), batchPO);
     }
 
     @Override
@@ -621,6 +633,7 @@ public class BatchServiceImpl implements BatchService {
     public FieldDraftVO saveFieldDraft(Long batchId, FieldDraftSaveRequest request) {
         TraceBatchPO batchPO = findBatchPO(batchId);
         AuthUserSession currentUser = requireCurrentUser();
+        ensureFieldDraftWriter(currentUser, batchPO);
         LocalDateTime now = LocalDateTime.now();
         BatchFieldDraftPO draftPO = findFieldDraftPO(batchId, currentUser);
         if (draftPO == null) {
@@ -629,7 +642,9 @@ public class BatchServiceImpl implements BatchService {
             draftPO.setOperatorUserId(currentUser.userId());
             draftPO.setCreatedAt(now);
         }
-        draftPO.setStage(normalizeDraftStage(request == null ? null : request.stage()));
+        TraceStage draftStage = normalizeDraftStage(request == null ? null : request.stage());
+        ensureFieldOperatorTraceStage(currentUser, batchPO, draftStage);
+        draftPO.setStage(draftStage.name());
         draftPO.setTitle(trimToNull(request == null ? null : request.title()));
         draftPO.setEventTime(parseFlexibleDateTime(request == null ? null : request.eventTime(), now));
         draftPO.setOperatorName(defaultValue(trimToNull(request == null ? null : request.operatorName()), defaultOperatorName(currentUser)));
@@ -654,6 +669,7 @@ public class BatchServiceImpl implements BatchService {
     public void deleteFieldDraft(Long batchId) {
         TraceBatchPO batchPO = findBatchPO(batchId);
         AuthUserSession currentUser = requireCurrentUser();
+        ensureFieldDraftWriter(currentUser, batchPO);
         deleteFieldDraftRecord(batchId, currentUser);
         markTaskPendingIfNeeded(batchPO);
     }
@@ -1662,6 +1678,17 @@ public class BatchServiceImpl implements BatchService {
         return toFieldDraftVO(draftPO, batchPO);
     }
 
+    private FieldDraftVO toAssignedFieldDraftVO(BatchFieldDraftPO draftPO, AuthUserSession currentUser) {
+        if (draftPO == null || currentUser == null) {
+            return null;
+        }
+        TraceBatchPO batchPO = traceBatchMapper.selectById(draftPO.getBatchId());
+        if (batchPO == null || !Objects.equals(batchPO.getAssigneeUserId(), currentUser.userId())) {
+            return null;
+        }
+        return toFieldDraftVO(draftPO, batchPO);
+    }
+
     private FieldDraftVO toFieldDraftVO(BatchFieldDraftPO draftPO, TraceBatchPO batchPO) {
         if (draftPO == null || batchPO == null) {
             return null;
@@ -2037,14 +2064,14 @@ public class BatchServiceImpl implements BatchService {
         return displayName;
     }
 
-    private String normalizeDraftStage(String stage) {
+    private TraceStage normalizeDraftStage(String stage) {
         if (!notBlank(stage)) {
-            return TraceStage.PRODUCE.name();
+            return TraceStage.PRODUCE;
         }
         try {
-            return TraceStage.valueOf(stage.trim().toUpperCase(Locale.ROOT)).name();
+            return TraceStage.valueOf(stage.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException ignored) {
-            return TraceStage.PRODUCE.name();
+            return TraceStage.PRODUCE;
         }
     }
 
@@ -2410,6 +2437,42 @@ public class BatchServiceImpl implements BatchService {
             return;
         }
         denyTraceAction(currentUser, batchPO, "当前账号不能为该批次补录追溯。");
+    }
+
+    private void ensureFieldOperator(AuthUserSession currentUser) {
+        if (isOperator(currentUser)) {
+            return;
+        }
+        denyTraceAction(currentUser, null, "现场作业草稿仅限现场操作员使用。");
+    }
+
+    private void ensureFieldDraftWriter(AuthUserSession currentUser, TraceBatchPO batchPO) {
+        if (isOperator(currentUser) && Objects.equals(currentUser.userId(), batchPO.getAssigneeUserId())) {
+            return;
+        }
+        denyTraceAction(currentUser, batchPO, "现场作业草稿仅限当前批次分配的现场操作员维护。");
+    }
+
+    private void ensureFieldOperatorTraceStage(AuthUserSession currentUser, TraceBatchPO batchPO, TraceStage stage) {
+        if (!isOperator(currentUser) || FIELD_OPERATOR_TRACE_STAGES.contains(stage)) {
+            return;
+        }
+        denyTraceAction(currentUser, batchPO, "现场操作员只能补录生产、运输、仓储、发运、上市环节。");
+    }
+
+    private void ensureAttachmentUploader(AuthUserSession currentUser, AttachmentBusinessType businessType) {
+        if (businessType == AttachmentBusinessType.QUALITY_ATTACHMENT) {
+            if (isPlatformAdmin(currentUser) || isEnterpriseAdmin(currentUser)) {
+                return;
+            }
+            denyQualityUpload(currentUser, null, "当前账号不能上传质检附件。");
+        }
+        if (businessType == AttachmentBusinessType.TRACE_IMAGE) {
+            if (isPlatformAdmin(currentUser) || isEnterpriseAdmin(currentUser) || isOperator(currentUser)) {
+                return;
+            }
+            denyTraceAction(currentUser, null, "当前账号不能上传现场图片。");
+        }
     }
 
     private void ensureQualityWriter(AuthUserSession currentUser, TraceBatchPO batchPO) {

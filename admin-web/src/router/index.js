@@ -16,7 +16,7 @@ const qualityManageRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN']
 const qualityReadRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN', 'REGULATOR']
 const riskRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN', 'REGULATOR']
 const feedbackRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN', 'REGULATOR']
-const fieldRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN', 'OPERATOR']
+const fieldRoles = ['OPERATOR']
 const userManageRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN']
 
 const routes = [
