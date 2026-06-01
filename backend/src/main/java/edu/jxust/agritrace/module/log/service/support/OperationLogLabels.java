@@ -19,6 +19,8 @@ public final class OperationLogLabels {
             case "COMPANY_ACCESS_DENIED" -> "企业资料越权拒绝";
             case "PRODUCT_ACCESS_DENIED" -> "产品资料越权拒绝";
             case "LOG_ACCESS_DENIED" -> "日志访问越权拒绝";
+            case "DASHBOARD_ACCESS_DENIED" -> "统计看板访问被拒绝";
+            case "DASHBOARD_BACKUP_DENIED" -> "统计备份导出被拒绝";
             case "BATCH_ACCESS_DENIED" -> "批次访问被拒绝";
             case "BATCH_EDIT_DENIED" -> "批次编辑被拒绝";
             case "BATCH_ASSIGN" -> "分配操作员";
@@ -56,6 +58,7 @@ public final class OperationLogLabels {
             case "ATTACHMENT" -> "图片";
             case "AUTH" -> "登录账号";
             case "LOG" -> "操作日志";
+            case "DASHBOARD" -> "统计看板";
             default -> "系统对象";
         };
     }

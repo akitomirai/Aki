@@ -37,6 +37,8 @@ import edu.jxust.agritrace.module.dashboard.vo.QrScanTrendPointVO;
 import edu.jxust.agritrace.module.dashboard.vo.TraceStatisticsAnalysisVO;
 import edu.jxust.agritrace.module.dashboard.vo.TracePublishRecordVO;
 import edu.jxust.agritrace.module.dashboard.vo.TraceCodeStatusQueryVO;
+import edu.jxust.agritrace.module.log.dto.OperationLogRecord;
+import edu.jxust.agritrace.module.log.service.OperationLogService;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -72,6 +74,7 @@ public class DashboardServiceImpl implements DashboardService {
     private final TraceEventMapper traceEventMapper;
     private final BatchRiskActionMapper batchRiskActionMapper;
     private final TraceLinkBuilder traceLinkBuilder;
+    private final OperationLogService operationLogService;
 
     public DashboardServiceImpl(
             TraceBatchMapper traceBatchMapper,
@@ -82,7 +85,8 @@ public class DashboardServiceImpl implements DashboardService {
             QrQueryLogMapper qrQueryLogMapper,
             TraceEventMapper traceEventMapper,
             BatchRiskActionMapper batchRiskActionMapper,
-            TraceLinkBuilder traceLinkBuilder
+            TraceLinkBuilder traceLinkBuilder,
+            OperationLogService operationLogService
     ) {
         this.traceBatchMapper = traceBatchMapper;
         this.baseProductMapper = baseProductMapper;
@@ -93,6 +97,7 @@ public class DashboardServiceImpl implements DashboardService {
         this.traceEventMapper = traceEventMapper;
         this.batchRiskActionMapper = batchRiskActionMapper;
         this.traceLinkBuilder = traceLinkBuilder;
+        this.operationLogService = operationLogService;
     }
 
     @Override
@@ -110,7 +115,7 @@ public class DashboardServiceImpl implements DashboardService {
         List<BaseProductPO> products = loadProducts(currentUser);
         Map<Long, BaseProductPO> productMap = products.stream()
                 .collect(Collectors.toMap(BaseProductPO::getId, Function.identity(), (left, right) -> left, LinkedHashMap::new));
-        Map<Long, OrgCompanyPO> companyMap = loadCompanies(batches).stream()
+        Map<Long, OrgCompanyPO> companyMap = loadScopedCompanies(currentUser, batches, products).stream()
                 .collect(Collectors.toMap(OrgCompanyPO::getId, Function.identity(), (left, right) -> left, LinkedHashMap::new));
         Map<Long, QualityReportPO> latestQualityMap = latestQualityByBatch(batches);
         Map<Long, QrCodePO> latestQrMap = latestQrByBatch(batches);
@@ -121,13 +126,13 @@ public class DashboardServiceImpl implements DashboardService {
         long batchTotal = batches.size();
         long publishedBatchTotal = batches.stream().filter(this::isPublished).count();
         long riskBatchTotal = batches.stream().filter(this::isRiskBatch).count();
+        long unpublishedBatchTotal = Math.max(0, batchTotal - publishedBatchTotal - riskBatchTotal);
         long pendingQualityTotal = batches.stream().filter(batch -> isPendingQuality(latestQualityMap.get(batch.getId()))).count();
         long qualityPassedTotal = latestQualityMap.values().stream().filter(this::isQualityPass).count();
         long inspectedQualityTotal = latestQualityMap.values().stream().filter(quality -> !isPendingQuality(quality)).count();
         long queryTotal = latestQrMap.values().stream()
                 .mapToLong(qr -> resolveQueryCount(qr, qrLogsByBatch.get(qr.getBatchId())))
                 .sum();
-        long unpublishedBatchTotal = Math.max(0, batchTotal - publishedBatchTotal);
 
         List<TracePublishRecordVO> publishRecords = batches.stream()
                 .filter(batch -> isTracePublishVisible(batch, latestQrMap.get(batch.getId())))
@@ -222,13 +227,13 @@ public class DashboardServiceImpl implements DashboardService {
     @Override
     public DataBackupSnapshotVO createBackupSnapshot() {
         AuthUserSession currentUser = requireCurrentUser();
-        ensureStatisticsReader(currentUser);
+        ensureBackupOperator(currentUser);
 
         List<TraceBatchPO> batches = loadBatches(currentUser);
         List<BaseProductPO> products = loadProducts(currentUser);
         Map<Long, BaseProductPO> productMap = products.stream()
                 .collect(Collectors.toMap(BaseProductPO::getId, Function.identity(), (left, right) -> left, LinkedHashMap::new));
-        Map<Long, OrgCompanyPO> companyMap = loadCompanies(batches).stream()
+        Map<Long, OrgCompanyPO> companyMap = loadScopedCompanies(currentUser, batches, products).stream()
                 .collect(Collectors.toMap(OrgCompanyPO::getId, Function.identity(), (left, right) -> left, LinkedHashMap::new));
         Map<Long, QualityReportPO> latestQualityMap = latestQualityByBatch(batches);
         Map<Long, QrCodePO> latestQrMap = latestQrByBatch(batches);
@@ -248,14 +253,17 @@ public class DashboardServiceImpl implements DashboardService {
                         qrLogsByBatch.get(batch.getId())
                 ))
                 .toList();
-        long queryTotal = qrLogsByBatch.values().stream().mapToLong(List::size).sum();
+        long queryTotal = latestQrMap.values().stream()
+                .mapToLong(qr -> resolveQueryCount(qr, qrLogsByBatch.get(qr.getBatchId())))
+                .sum();
         String scope = isEnterpriseAdmin(currentUser)
                 ? "企业数据范围：" + currentUser.companyId()
                 : "平台全量数据范围";
+        LocalDateTime generatedAt = LocalDateTime.now();
 
         return new DataBackupSnapshotVO(
-                "BK-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss")),
-                LocalDateTime.now(),
+                "BK-" + generatedAt.format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss")),
+                generatedAt,
                 defaultValue(currentUser.realName(), currentUser.username()),
                 scope,
                 companyMap.size(),
@@ -287,17 +295,37 @@ public class DashboardServiceImpl implements DashboardService {
         return baseProductMapper.selectList(wrapper);
     }
 
-    private List<OrgCompanyPO> loadCompanies(List<TraceBatchPO> batches) {
-        List<Long> companyIds = batches.stream()
+    private List<OrgCompanyPO> loadScopedCompanies(
+            AuthUserSession currentUser,
+            List<TraceBatchPO> batches,
+            List<BaseProductPO> products
+    ) {
+        if (isPlatformAdmin(currentUser) || isRegulator(currentUser)) {
+            return orgCompanyMapper.selectList(new LambdaQueryWrapper<OrgCompanyPO>()
+                    .orderByAsc(OrgCompanyPO::getId));
+        }
+        List<Long> companyIds = new ArrayList<>();
+        if (currentUser.companyId() != null) {
+            companyIds.add(currentUser.companyId());
+        }
+        companyIds.addAll(batches.stream()
                 .map(TraceBatchPO::getCompanyId)
+                .filter(Objects::nonNull)
+                .toList());
+        companyIds.addAll(products.stream()
+                .map(BaseProductPO::getCompanyId)
+                .filter(Objects::nonNull)
+                .toList());
+        List<Long> scopedCompanyIds = companyIds.stream()
                 .filter(Objects::nonNull)
                 .distinct()
                 .toList();
-        if (companyIds.isEmpty()) {
+        if (scopedCompanyIds.isEmpty()) {
             return List.of();
         }
         return orgCompanyMapper.selectList(new LambdaQueryWrapper<OrgCompanyPO>()
-                .in(OrgCompanyPO::getId, companyIds));
+                .in(OrgCompanyPO::getId, scopedCompanyIds)
+                .orderByAsc(OrgCompanyPO::getId));
     }
 
     private Map<Long, QualityReportPO> latestQualityByBatch(List<TraceBatchPO> batches) {
@@ -849,7 +877,14 @@ public class DashboardServiceImpl implements DashboardService {
         if (isPlatformAdmin(currentUser) || isEnterpriseAdmin(currentUser) || isRegulator(currentUser)) {
             return;
         }
-        throw new ForbiddenException("当前账号没有查看统计分析的权限。");
+        denyDashboardAccess(currentUser, "当前账号没有查看统计分析的权限。");
+    }
+
+    private void ensureBackupOperator(AuthUserSession currentUser) {
+        if (isPlatformAdmin(currentUser) || isEnterpriseAdmin(currentUser)) {
+            return;
+        }
+        denyDashboardBackup(currentUser, "当前账号没有导出统计备份的权限。");
     }
 
     private AuthUserSession requireCurrentUser() {
@@ -870,5 +905,33 @@ public class DashboardServiceImpl implements DashboardService {
 
     private boolean isRegulator(AuthUserSession currentUser) {
         return currentUser != null && "REGULATOR".equalsIgnoreCase(currentUser.roleCode());
+    }
+
+    private void denyDashboardAccess(AuthUserSession currentUser, String message) {
+        recordDeniedOperation(currentUser, "DASHBOARD_ACCESS_DENIED", message);
+        throw new ForbiddenException(message);
+    }
+
+    private void denyDashboardBackup(AuthUserSession currentUser, String message) {
+        recordDeniedOperation(currentUser, "DASHBOARD_BACKUP_DENIED", message);
+        throw new ForbiddenException(message);
+    }
+
+    private void recordDeniedOperation(AuthUserSession currentUser, String actionType, String summary) {
+        if (currentUser == null) {
+            return;
+        }
+        operationLogService.record(new OperationLogRecord(
+                currentUser.userId(),
+                defaultValue(currentUser.realName(), defaultValue(currentUser.username(), "系统用户")),
+                currentUser.roleCode(),
+                currentUser.companyId(),
+                actionType,
+                "DASHBOARD",
+                null,
+                null,
+                "FAILED",
+                summary
+        ));
     }
 }

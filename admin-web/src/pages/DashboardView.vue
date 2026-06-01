@@ -3,9 +3,12 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { Teleport } from 'vue'
 import { ElMessage } from 'element-plus'
 import { createDashboardBackup, getDashboardStatistics } from '../api/dashboard'
+import { useAuthStore } from '../stores/auth'
+import { getRoleName, isEnterpriseAdmin, isPlatformAdmin, isRegulator } from '../utils/access'
 import { formatDateTime, normalizeDisplayNumber, normalizeDisplayText } from '../utils/display'
 import { downloadJsonFile } from '../utils/exportTools'
 
+const authStore = useAuthStore()
 const loading = ref(true)
 const loadError = ref('')
 const backupLoading = ref(false)
@@ -23,9 +26,35 @@ const statusQueryCounts = computed(() => qrScanAnalysis.value.statusQueryCounts 
 const publishRecords = computed(() => statistics.value.publishRecords || [])
 const publishedTraceRecords = computed(() => publishRecords.value.filter(isPublishedTraceRecord))
 const productTraceAnalysis = computed(() => statistics.value.productTraceAnalysis || [])
+const originTraceHeat = computed(() => statistics.value.originTraceHeat || [])
 const qualityRiskAnalysis = computed(() => statistics.value.qualityRiskAnalysis || createEmptyQualityRiskAnalysis())
 const headerActionsReady = ref(false)
 const maxTrendCount = computed(() => Math.max(1, ...qrScanTrend.value.map((item) => Number(item.count || 0))))
+const roleCode = computed(() => authStore.user?.roleCode || '')
+const roleName = computed(() => getRoleName(roleCode.value))
+const canOperateBackup = computed(() => isPlatformAdmin(roleCode.value) || isEnterpriseAdmin(roleCode.value))
+
+const scopeProfile = computed(() => {
+  if (isEnterpriseAdmin(roleCode.value)) {
+    return {
+      tone: 'enterprise',
+      title: '本企业统计',
+      desc: '仅汇总当前企业的产品、批次、质检、发布、扫码和风险数据。'
+    }
+  }
+  if (isRegulator(roleCode.value)) {
+    return {
+      tone: 'regulator',
+      title: '监管只读视角',
+      desc: '可查看平台统计和风险状态，不能导出备份或修改业务数据。'
+    }
+  }
+  return {
+    tone: 'platform',
+    title: '平台全量统计',
+    desc: '汇总全部企业数据，用于运营调度、备份导出和风险跟进。'
+  }
+})
 
 const statusRows = computed(() => {
   const summary = statistics.value.publishStatusSummary || {}
@@ -111,6 +140,17 @@ const productHotRanking = computed(() => {
     }))
 })
 
+const originHeatRanking = computed(() => {
+  const maxQuery = Math.max(1, ...originTraceHeat.value.map((item) => Number(item.queryCount || 0)))
+  return originTraceHeat.value
+    .slice()
+    .sort((left, right) => Number(right.queryCount || 0) - Number(left.queryCount || 0))
+    .map((item) => ({
+      ...item,
+      heatRate: safeRate(item.heatRate ?? ((Number(item.queryCount || 0) / maxQuery) * 100))
+    }))
+})
+
 const importedBackupStats = computed(() => {
   const snapshot = importedBackup.value || {}
   return [
@@ -181,6 +221,7 @@ function createEmptyStatistics() {
     qrScanAnalysis: createEmptyQrScanAnalysis(),
     analysis: createEmptyAnalysis(),
     productTraceAnalysis: [],
+    originTraceHeat: [],
     qualityRiskAnalysis: createEmptyQualityRiskAnalysis()
   }
 }
@@ -259,6 +300,9 @@ function normalizeStatistics(data = {}) {
     productTraceAnalysis: Array.isArray(data.productTraceAnalysis)
       ? data.productTraceAnalysis.map(normalizeProductTraceAnalysis)
       : [],
+    originTraceHeat: Array.isArray(data.originTraceHeat)
+      ? data.originTraceHeat.map(normalizeOriginTraceHeat)
+      : [],
     qualityRiskAnalysis: {
       ...createEmptyQualityRiskAnalysis(),
       ...sourceQualityRisk,
@@ -306,6 +350,15 @@ function normalizeProductTraceAnalysis(item = {}) {
     qualityPassedCount: Number(item.qualityPassedCount ?? 0),
     riskCount: Number(item.riskCount ?? 0),
     queryCount: Number(item.queryCount ?? 0)
+  }
+}
+
+function normalizeOriginTraceHeat(item = {}) {
+  return {
+    originPlace: normalizeDisplayText(item.originPlace, '未填写产地'),
+    batchCount: Number(item.batchCount ?? 0),
+    queryCount: Number(item.queryCount ?? 0),
+    heatRate: safeRate(item.heatRate)
   }
 }
 
@@ -472,18 +525,28 @@ onUnmounted(() => {
   <div class="dashboard-page" data-testid="dashboard-page">
     <Teleport v-if="headerActionsReady" to="#admin-header-actions">
       <div class="dashboard-header-actions">
-        <el-button :loading="backupLoading" type="primary" @click="handleBackupDownload">备份</el-button>
+        <el-tag class="dashboard-role-tag" effect="plain">{{ roleName }}</el-tag>
+        <el-button v-if="canOperateBackup" :loading="backupLoading" type="primary" @click="handleBackupDownload">备份</el-button>
         <input
+          v-if="canOperateBackup"
           ref="backupImportInputRef"
           class="backup-import-input"
           type="file"
           accept=".json,application/json"
           @change="handleBackupFileSelected"
         >
-        <el-button :loading="importLoading" @click="handleReportImport">导入</el-button>
+        <el-button v-if="canOperateBackup" :loading="importLoading" @click="handleReportImport">导入</el-button>
         <el-button :loading="loading" @click="loadDashboard">刷新</el-button>
       </div>
     </Teleport>
+
+    <section class="dashboard-scope-strip" :class="scopeProfile.tone">
+      <div>
+        <span>{{ roleName }}</span>
+        <strong>{{ scopeProfile.title }}</strong>
+      </div>
+      <p>{{ scopeProfile.desc }}</p>
+    </section>
 
     <el-alert
       v-if="loadError"
@@ -587,6 +650,29 @@ onUnmounted(() => {
                 <span class="heat-bar" :style="heatBarStyle(item.heatRate)"></span>
               </div>
             </article>
+          </div>
+          <div class="origin-heat-block">
+            <div class="origin-heat-head">
+              <h3>产地访问热度</h3>
+              <span>按查询次数排序</span>
+            </div>
+            <div v-if="!originHeatRanking.length" class="origin-heat-empty">
+              暂无产地热度数据
+            </div>
+            <div v-else class="origin-heat-list">
+              <article v-for="item in originHeatRanking" :key="item.originPlace" class="origin-heat-item">
+                <div class="origin-heat-top">
+                  <strong :title="item.originPlace">{{ item.originPlace }}</strong>
+                  <span>{{ countText(item.queryCount) }} 次</span>
+                </div>
+                <div class="product-hot-sub">
+                  {{ countText(item.batchCount) }} 个批次
+                </div>
+                <div class="heat-bar-shell">
+                  <span class="heat-bar" :style="heatBarStyle(item.heatRate)"></span>
+                </div>
+              </article>
+            </div>
           </div>
         </section>
 
@@ -790,6 +876,66 @@ onUnmounted(() => {
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
+}
+
+.dashboard-role-tag {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dashboard-scope-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 12px 16px;
+  border: 1px solid rgba(56, 134, 217, 0.14);
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: var(--admin-shadow);
+}
+
+.dashboard-scope-strip div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.dashboard-scope-strip span {
+  color: var(--admin-text-soft);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dashboard-scope-strip strong {
+  color: var(--admin-text);
+  font-size: 18px;
+  font-weight: 850;
+}
+
+.dashboard-scope-strip p {
+  max-width: 640px;
+  margin: 0;
+  color: var(--admin-text-soft);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.dashboard-scope-strip.regulator {
+  border-color: rgba(190, 70, 58, 0.18);
+}
+
+.dashboard-scope-strip.regulator strong {
+  color: var(--admin-danger-text);
+}
+
+.dashboard-scope-strip.enterprise {
+  border-color: rgba(46, 166, 106, 0.18);
+}
+
+.dashboard-scope-strip.enterprise strong {
+  color: #1e7d50;
 }
 
 .backup-import-input {
@@ -1087,6 +1233,79 @@ onUnmounted(() => {
 .product-hot-list {
   display: grid;
   gap: 8px;
+}
+
+.origin-heat-block {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(56, 134, 217, 0.12);
+}
+
+.origin-heat-head,
+.origin-heat-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.origin-heat-head h3 {
+  margin: 0;
+  color: var(--admin-text);
+  font-size: 15px;
+}
+
+.origin-heat-head span {
+  flex: 0 0 auto;
+  color: var(--admin-text-soft);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.origin-heat-list {
+  display: grid;
+  gap: 8px;
+}
+
+.origin-heat-item {
+  display: grid;
+  gap: 6px;
+  min-height: 58px;
+  padding: 10px 12px;
+  border: 1px solid rgba(56, 134, 217, 0.14);
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.origin-heat-top strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--admin-text);
+  font-size: 14px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.origin-heat-top span {
+  flex: 0 0 auto;
+  color: var(--admin-primary-deep);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.origin-heat-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 80px;
+  border-radius: 12px;
+  background: var(--admin-surface-soft);
+  color: var(--admin-text-soft);
+  font-size: 13px;
 }
 
 .product-hot-item {
@@ -1637,6 +1856,7 @@ onUnmounted(() => {
   }
 
   .table-head,
+  .dashboard-scope-strip,
   .section-head {
     flex-direction: column;
     align-items: flex-start;
