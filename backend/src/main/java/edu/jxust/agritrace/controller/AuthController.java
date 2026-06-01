@@ -7,6 +7,7 @@ import edu.jxust.agritrace.module.auth.dto.UserProfileUpdateRequest;
 import edu.jxust.agritrace.module.auth.service.AuthService;
 import edu.jxust.agritrace.module.auth.vo.LoginResponseVO;
 import edu.jxust.agritrace.module.auth.vo.LoginUserVO;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -26,8 +27,13 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ApiResponse<LoginResponseVO> login(@Valid @RequestBody LoginRequest request) {
+    public ApiResponse<LoginResponseVO> login(@Valid @RequestBody LoginRequest request, HttpServletRequest servletRequest) {
+        request.setMobileDevice(isMobileUserAgent(servletRequest.getHeader("User-Agent")));
         return ApiResponse.ok("登录成功", authService.login(request));
+    }
+
+    private boolean isMobileUserAgent(String userAgent) {
+        return userAgent != null && userAgent.matches("(?i).*(android|iphone|ipad|ipod|mobile|harmonyos).*");
     }
 
     @GetMapping("/profile")

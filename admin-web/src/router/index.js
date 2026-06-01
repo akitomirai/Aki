@@ -5,8 +5,10 @@ import {
   ALL_ADMIN_ROLES,
   getDefaultRouteByRole,
   getRoleName,
-  hasRoleAccess
+  hasRoleAccess,
+  isOperator
 } from '../utils/access'
+import { isMobileDevice } from '../utils/device'
 
 const batchReadRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN', 'REGULATOR']
 const dashboardRoles = ['PLATFORM_ADMIN', 'ENTERPRISE_ADMIN', 'REGULATOR']
@@ -28,13 +30,18 @@ const routes = [
     }
   },
   {
-    path: '/register',
-    name: 'register',
-    component: () => import('../pages/Register/RegisterView.vue'),
+    path: '/mobile-login',
+    name: 'mobile-login',
+    component: () => import('../pages/Login/LoginView.vue'),
     meta: {
       guestOnly: true,
-      title: '注册'
+      title: '移动端登录',
+      mobileLogin: true
     }
+  },
+  {
+    path: '/register',
+    redirect: '/login'
   },
   {
     path: '/field-entry',
@@ -64,6 +71,8 @@ const routes = [
         meta: {
           requiresAuth: true,
           title: '数据统计分析管理',
+          headerTitle: '首页',
+          hideHeaderTitle: true,
           roles: dashboardRoles
         }
       },
@@ -221,6 +230,20 @@ router.beforeEach((to) => {
   const isAuthenticated = authStore.isAuthenticated
   const roleCode = authStore.user?.roleCode
   const requiresAuth = to.matched.some((record) => record.meta?.requiresAuth)
+  const isMobileLoginPath = to.path === '/mobile-login'
+
+  if (isAuthenticated && isOperator(roleCode) && !isMobileDevice()) {
+    authStore.logout()
+    ElMessage.warning('现场操作员仅支持移动端登录，请使用移动端入口。')
+    return isMobileLoginPath
+      ? true
+      : {
+          path: '/mobile-login',
+          query: {
+            redirect: '/field-entry'
+          }
+        }
+  }
 
   if (to.matched.some((record) => record.meta?.guestOnly)) {
     if (isAuthenticated) {
@@ -231,7 +254,7 @@ router.beforeEach((to) => {
 
   if (requiresAuth && !isAuthenticated) {
     return {
-      path: '/login',
+      path: to.path === '/field-entry' ? '/mobile-login' : '/login',
       query: {
         redirect: to.fullPath
       }

@@ -63,10 +63,14 @@ const formCompanyOptions = computed(() => {
 })
 
 const filteredRows = computed(() => {
-  if (activeRoleTab.value === 'ALL') {
-    return rows.value
+  let nextRows = rows.value
+  if (filters.value.passwordStatus === 'PENDING') {
+    nextRows = nextRows.filter((item) => item.needChangePassword)
   }
-  return rows.value.filter((item) => item.roleCode === activeRoleTab.value)
+  if (activeRoleTab.value !== 'ALL') {
+    nextRows = nextRows.filter((item) => item.roleCode === activeRoleTab.value)
+  }
+  return nextRows
 })
 
 const pageCount = computed(() => Math.max(1, Math.ceil(Number(filteredRows.value.length || 0) / Number(pageSize.value || DEFAULT_PAGE_SIZE))))
@@ -143,7 +147,8 @@ function createFilters() {
   return {
     keyword: '',
     companyId: '',
-    status: ''
+    status: '',
+    passwordStatus: ''
   }
 }
 
@@ -222,10 +227,28 @@ function companyText(item) {
   return item.companyName || '平台主账号'
 }
 
+function handleRoleChipClick(roleCode) {
+  activeRoleTab.value = roleCode
+  filters.value.status = ''
+  filters.value.passwordStatus = ''
+  page.value = 1
+}
+
 function handleStatusChipClick(status) {
-  filters.value.status = filters.value.status === status ? '' : status
+  const nextStatus = filters.value.status === status ? '' : status
+  activeRoleTab.value = 'ALL'
+  filters.value.passwordStatus = ''
+  filters.value.status = nextStatus
   page.value = 1
   fetchRows()
+}
+
+function handlePasswordStatusChipClick() {
+  const nextPasswordStatus = filters.value.passwordStatus === 'PENDING' ? '' : 'PENDING'
+  activeRoleTab.value = 'ALL'
+  filters.value.status = ''
+  filters.value.passwordStatus = nextPasswordStatus
+  page.value = 1
 }
 
 function resetFilters() {
@@ -501,7 +524,7 @@ async function submitResetPassword() {
           class="manage-summary-chip manage-summary-chip--interactive"
           :class="{ 'is-active': activeRoleTab === tab.value }"
           :data-testid="`users-tab-${tab.value}`"
-          @click="activeRoleTab = tab.value"
+          @click="handleRoleChipClick(tab.value)"
         >
           <span>{{ tab.label }}</span>
           <strong>{{ roleCounts[tab.value] ?? 0 }}</strong>
@@ -529,10 +552,16 @@ async function submitResetPassword() {
           <strong>{{ disabledCount }}</strong>
         </button>
 
-        <div class="manage-summary-chip">
+        <button
+          type="button"
+          class="manage-summary-chip manage-summary-chip--interactive"
+          :class="{ 'is-active': filters.passwordStatus === 'PENDING' }"
+          data-testid="users-summary-password-pending"
+          @click="handlePasswordStatusChipClick"
+        >
           <span>待改密码</span>
           <strong>{{ passwordPendingCount }}</strong>
-        </div>
+        </button>
       </div>
 
     </template>

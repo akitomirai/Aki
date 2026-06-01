@@ -1,11 +1,12 @@
 package edu.jxust.agritrace.module.auth.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 public record UserUpdateRequest(
-        @NotBlank String username,
-        @NotBlank String realName,
-        @NotBlank String roleCode,
+        @NotBlank @Size(max = 64) String username,
+        @NotBlank @Size(max = 64) String realName,
+        @NotBlank @Size(max = 32) String roleCode,
         Long companyId
 ) {
 }

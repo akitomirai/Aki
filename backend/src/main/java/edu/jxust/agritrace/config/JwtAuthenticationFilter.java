@@ -1,6 +1,8 @@
 package edu.jxust.agritrace.config;
 
 import edu.jxust.agritrace.module.auth.model.AuthUserSession;
+import edu.jxust.agritrace.module.auth.mapper.SysUserMapper;
+import edu.jxust.agritrace.module.auth.mapper.po.SysUserPO;
 import edu.jxust.agritrace.module.auth.service.JwtTokenService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -21,9 +23,11 @@ import java.util.List;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenService jwtTokenService;
+    private final SysUserMapper sysUserMapper;
 
-    public JwtAuthenticationFilter(JwtTokenService jwtTokenService) {
+    public JwtAuthenticationFilter(JwtTokenService jwtTokenService, SysUserMapper sysUserMapper) {
         this.jwtTokenService = jwtTokenService;
+        this.sysUserMapper = sysUserMapper;
     }
 
     @Override
@@ -36,7 +40,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (authorization != null && authorization.startsWith("Bearer ")) {
             String token = authorization.substring(7);
             try {
-                AuthUserSession userSession = jwtTokenService.parseToken(token);
+                AuthUserSession tokenSession = jwtTokenService.parseToken(token);
+                AuthUserSession userSession = resolveCurrentSession(tokenSession);
+                if (userSession == null) {
+                    SecurityContextHolder.clearContext();
+                    filterChain.doFilter(request, response);
+                    return;
+                }
                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                         userSession,
                         token,
@@ -50,5 +60,30 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private AuthUserSession resolveCurrentSession(AuthUserSession tokenSession) {
+        if (tokenSession == null || tokenSession.userId() == null) {
+            return null;
+        }
+        SysUserPO user = sysUserMapper.selectById(tokenSession.userId());
+        if (user == null || user.getStatus() == null || user.getStatus() != 1 || isBlank(user.getRoleCode())) {
+            return null;
+        }
+        return new AuthUserSession(
+                user.getId(),
+                defaultValue(user.getUsername(), tokenSession.username()),
+                defaultValue(user.getRealName(), tokenSession.realName()),
+                user.getRoleCode().trim(),
+                user.getCompanyId()
+        );
+    }
+
+    private String defaultValue(String value, String fallback) {
+        return isBlank(value) ? fallback : value.trim();
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 }

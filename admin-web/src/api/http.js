@@ -21,8 +21,11 @@ http.interceptors.response.use(
       localStorage.removeItem('admin_token')
       localStorage.removeItem('admin_user')
       const currentPath = `${window.location.pathname}${window.location.search}`
-      if (!window.location.pathname.startsWith('/login')) {
-        window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`
+      const loginPath = window.location.pathname === '/field-entry' || window.location.pathname.startsWith('/mobile-login')
+        ? '/mobile-login'
+        : '/login'
+      if (!['/login', '/mobile-login'].includes(window.location.pathname)) {
+        window.location.href = `${loginPath}?redirect=${encodeURIComponent(currentPath)}`
       }
     }
     return Promise.reject(error)

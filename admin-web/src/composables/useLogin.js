@@ -1,9 +1,10 @@
-import { reactive, ref, onMounted } from 'vue'
+import { computed, reactive, ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { loginApi } from '../api/auth'
 import { useAuthStore } from '../stores/auth'
-import { getDefaultRouteByRole } from '../utils/access'
+import { getDefaultRouteByRole, isOperator } from '../utils/access'
+import { isMobileDevice } from '../utils/device'
 
 export function useLogin() {
     const router = useRouter()
@@ -12,6 +13,7 @@ export function useLogin() {
 
     const loading = ref(false)
     const remember = ref(true)
+    const isMobileLogin = computed(() => route.path === '/mobile-login')
 
     const form = reactive({
         username: '',
@@ -23,7 +25,10 @@ export function useLogin() {
     onMounted(() => {
         const savedUser = localStorage.getItem(USER_KEY)
 
-        if (savedUser) {
+        if (isMobileLogin.value) {
+            form.username = savedUser && savedUser !== 'platform' ? savedUser : 'operator'
+            remember.value = true
+        } else if (savedUser) {
             form.username = savedUser
             remember.value = true
         } else {
@@ -47,7 +52,9 @@ export function useLogin() {
         try {
             const res = await loginApi({
                 username: form.username,
-                password: form.password
+                password: form.password,
+                loginChannel: isMobileLogin.value ? 'MOBILE' : 'ADMIN',
+                mobileDevice: isMobileDevice()
             })
 
             const success = Boolean(res?.success)
@@ -66,7 +73,7 @@ export function useLogin() {
                 ElMessage.success('登录成功')
                 const redirect = typeof route.query.redirect === 'string'
                     ? route.query.redirect
-                    : getDefaultRouteByRole(user?.roleCode)
+                    : (isMobileLogin.value && isOperator(user?.roleCode) ? '/field-entry' : getDefaultRouteByRole(user?.roleCode))
                 router.replace(redirect)
             } else {
                 ElMessage.error(res?.message || '登录失败')
@@ -84,6 +91,7 @@ export function useLogin() {
         form,
         loading,
         remember,
+        isMobileLogin,
         fillAccount,
         handleLogin,
     }

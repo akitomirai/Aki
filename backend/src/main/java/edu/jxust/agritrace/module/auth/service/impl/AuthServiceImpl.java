@@ -53,12 +53,19 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public LoginResponseVO login(LoginRequest request) {
-        SysUserPO user = findUserByUsername(request.getUsername());
+        String username = trimRequired(request.getUsername(), "用户名不能为空");
+        SysUserPO user = findUserByUsername(username);
         if (user == null || user.getStatus() == null || user.getStatus() != 1) {
             throw new UnauthorizedException("用户名或密码错误");
         }
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             throw new UnauthorizedException("用户名或密码错误");
+        }
+        if (isOperator(user) && !isMobileLogin(request)) {
+            throw new UnauthorizedException("现场操作员仅支持移动端登录，请使用移动端入口");
+        }
+        if (!isOperator(user) && isMobileChannel(request)) {
+            throw new UnauthorizedException("该账号不是现场操作员，请使用后台登录入口");
         }
 
         AuthUserSession userSession = new AuthUserSession(
@@ -86,6 +93,18 @@ public class AuthServiceImpl implements AuthService {
                 OperationLogLabels.roleName(user.getRoleCode()) + " " + resolveDisplayName(user) + " 登录成功"
         ));
         return response;
+    }
+
+    private boolean isOperator(SysUserPO user) {
+        return "OPERATOR".equalsIgnoreCase(defaultValue(user.getRoleCode(), ""));
+    }
+
+    private boolean isMobileLogin(LoginRequest request) {
+        return isMobileChannel(request) && Boolean.TRUE.equals(request.getMobileDevice());
+    }
+
+    private boolean isMobileChannel(LoginRequest request) {
+        return "MOBILE".equalsIgnoreCase(defaultValue(request.getLoginChannel(), ""));
     }
 
     @Override

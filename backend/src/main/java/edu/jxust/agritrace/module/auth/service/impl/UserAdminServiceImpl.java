@@ -73,6 +73,7 @@ public class UserAdminServiceImpl implements UserAdminService {
 
         Long effectiveCompanyId = normalizeCompanyFilter(currentUser, request == null ? null : request.getCompanyId());
         String effectiveRoleCode = normalizeRoleCode(request == null ? null : request.getRoleCode(), false);
+        Integer effectiveStatus = normalizeStatusFilter(request == null ? null : request.getStatus());
         if (isEnterpriseAdmin(currentUser) && effectiveRoleCode != null && !ENTERPRISE_MANAGEABLE_ROLES.contains(effectiveRoleCode)) {
             denyUserAccess(currentUser, null, null, "你只能查看本企业管理员和操作员。");
         }
@@ -80,7 +81,7 @@ public class UserAdminServiceImpl implements UserAdminService {
         LambdaQueryWrapper<SysUserPO> queryWrapper = new LambdaQueryWrapper<SysUserPO>()
                 .eq(effectiveRoleCode != null, SysUserPO::getRoleCode, effectiveRoleCode)
                 .eq(effectiveCompanyId != null, SysUserPO::getCompanyId, effectiveCompanyId)
-                .eq(request != null && request.getStatus() != null, SysUserPO::getStatus, normalizeStatus(request.getStatus()))
+                .eq(effectiveStatus != null, SysUserPO::getStatus, effectiveStatus)
                 .orderByAsc(SysUserPO::getCompanyId)
                 .orderByAsc(SysUserPO::getRoleCode)
                 .orderByDesc(SysUserPO::getUpdatedAt)
@@ -390,6 +391,10 @@ public class UserAdminServiceImpl implements UserAdminService {
             throw new IllegalArgumentException("用户状态只支持启用或停用。");
         }
         return status;
+    }
+
+    private Integer normalizeStatusFilter(Integer status) {
+        return status == null ? null : normalizeStatus(status);
     }
 
     private boolean isPlatformAdmin(AuthUserSession currentUser) {

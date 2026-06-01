@@ -1,10 +1,11 @@
 package edu.jxust.agritrace.module.auth.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 public record ChangePasswordRequest(
-        @NotBlank String currentPassword,
-        @NotBlank String newPassword,
-        @NotBlank String confirmPassword
+        @NotBlank @Size(max = 128) String currentPassword,
+        @NotBlank @Size(max = 128) String newPassword,
+        @NotBlank @Size(max = 128) String confirmPassword
 ) {
 }

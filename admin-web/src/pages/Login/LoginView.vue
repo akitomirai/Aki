@@ -5,14 +5,14 @@
         <div class="login-logo">
           <img src="/favicon.ico" alt="Trace Admin">
         </div>
-        <h1>农产品追溯管理后台</h1>
-        <p>后台登录</p>
+        <h1>{{ isMobileLogin ? '现场作业移动端' : '农产品追溯管理后台' }}</h1>
+        <p>{{ isMobileLogin ? '操作员登录' : '后台登录' }}</p>
       </div>
 
       <el-card class="login-card" shadow="hover">
         <section class="login-panel">
           <div class="panel-head">
-            <strong>欢迎回来</strong>
+            <strong>{{ isMobileLogin ? '现场操作员登录' : '欢迎回来' }}</strong>
           </div>
 
         <el-form :model="form" label-position="top" class="login-form" @submit.prevent>
@@ -48,7 +48,7 @@
                 data-testid="login-submit"
                 @click="handleLogin"
               >
-              登录并进入系统
+              {{ isMobileLogin ? '登录并进入现场作业' : '登录并进入系统' }}
             </el-button>
           </div>
         </el-form>
@@ -56,8 +56,14 @@
       </el-card>
 
       <div class="login-footer-link">
-        <span>还没有账户？</span>
-        <button type="button" class="text-link" @click="router.push('/register')">注册</button>
+        <template v-if="isMobileLogin">
+          <span>管理员登录？</span>
+          <button type="button" class="text-link" @click="router.push('/login')">返回后台入口</button>
+        </template>
+        <template v-else>
+          <span>操作员使用手机访问？</span>
+          <button type="button" class="text-link" @click="router.push('/mobile-login')">移动端登录</button>
+        </template>
       </div>
     </div>
   </div>
@@ -72,6 +78,7 @@ const {
   form,
   loading,
   remember,
+  isMobileLogin,
   handleLogin
 } = useLogin()
 </script>
