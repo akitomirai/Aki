@@ -12,6 +12,7 @@ import edu.jxust.agritrace.module.batch.mapper.QrCodeMapper;
 import edu.jxust.agritrace.module.batch.mapper.QrQueryLogMapper;
 import edu.jxust.agritrace.module.batch.mapper.QualityReportMapper;
 import edu.jxust.agritrace.module.batch.mapper.TraceBatchMapper;
+import edu.jxust.agritrace.module.batch.mapper.TraceEventMapper;
 import edu.jxust.agritrace.module.batch.mapper.po.BaseProductPO;
 import edu.jxust.agritrace.module.batch.mapper.po.BatchRiskActionPO;
 import edu.jxust.agritrace.module.batch.mapper.po.OrgCompanyPO;
@@ -22,16 +23,26 @@ import edu.jxust.agritrace.module.batch.mapper.po.TraceBatchPO;
 import edu.jxust.agritrace.module.batch.service.support.TraceDisplayLabels;
 import edu.jxust.agritrace.module.batch.service.support.TraceLinkBuilder;
 import edu.jxust.agritrace.module.dashboard.service.DashboardService;
+import edu.jxust.agritrace.module.dashboard.vo.BackupBatchItemVO;
 import edu.jxust.agritrace.module.dashboard.vo.DashboardOverviewVO;
+import edu.jxust.agritrace.module.dashboard.vo.DataBackupSnapshotVO;
+import edu.jxust.agritrace.module.dashboard.vo.HotTraceQueryVO;
 import edu.jxust.agritrace.module.dashboard.vo.ManagementTipVO;
+import edu.jxust.agritrace.module.dashboard.vo.OriginTraceHeatVO;
+import edu.jxust.agritrace.module.dashboard.vo.ProductTraceAnalysisVO;
 import edu.jxust.agritrace.module.dashboard.vo.PublishStatusSummaryVO;
+import edu.jxust.agritrace.module.dashboard.vo.QualityRiskAnalysisVO;
+import edu.jxust.agritrace.module.dashboard.vo.QrScanAnalysisVO;
+import edu.jxust.agritrace.module.dashboard.vo.QrScanTrendPointVO;
 import edu.jxust.agritrace.module.dashboard.vo.TraceStatisticsAnalysisVO;
 import edu.jxust.agritrace.module.dashboard.vo.TracePublishRecordVO;
+import edu.jxust.agritrace.module.dashboard.vo.TraceCodeStatusQueryVO;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.math.BigDecimal;
@@ -58,6 +69,7 @@ public class DashboardServiceImpl implements DashboardService {
     private final QualityReportMapper qualityReportMapper;
     private final QrCodeMapper qrCodeMapper;
     private final QrQueryLogMapper qrQueryLogMapper;
+    private final TraceEventMapper traceEventMapper;
     private final BatchRiskActionMapper batchRiskActionMapper;
     private final TraceLinkBuilder traceLinkBuilder;
 
@@ -68,6 +80,7 @@ public class DashboardServiceImpl implements DashboardService {
             QualityReportMapper qualityReportMapper,
             QrCodeMapper qrCodeMapper,
             QrQueryLogMapper qrQueryLogMapper,
+            TraceEventMapper traceEventMapper,
             BatchRiskActionMapper batchRiskActionMapper,
             TraceLinkBuilder traceLinkBuilder
     ) {
@@ -77,6 +90,7 @@ public class DashboardServiceImpl implements DashboardService {
         this.qualityReportMapper = qualityReportMapper;
         this.qrCodeMapper = qrCodeMapper;
         this.qrQueryLogMapper = qrQueryLogMapper;
+        this.traceEventMapper = traceEventMapper;
         this.batchRiskActionMapper = batchRiskActionMapper;
         this.traceLinkBuilder = traceLinkBuilder;
     }
@@ -149,6 +163,36 @@ public class DashboardServiceImpl implements DashboardService {
                 riskBatchTotal,
                 queryTotal
         );
+        QrScanAnalysisVO qrScanAnalysis = buildQrScanAnalysis(
+                batches,
+                productMap,
+                latestQrMap,
+                qrLogsByBatch
+        );
+        List<ProductTraceAnalysisVO> productTraceAnalysis = buildProductTraceAnalysis(
+                batches,
+                productMap,
+                latestQualityMap,
+                latestQrMap,
+                qrLogsByBatch
+        );
+        List<OriginTraceHeatVO> originTraceHeat = buildOriginTraceHeat(
+                batches,
+                productMap,
+                latestQrMap,
+                qrLogsByBatch
+        );
+        QualityRiskAnalysisVO qualityRiskAnalysis = new QualityRiskAnalysisVO(
+                qualityPassedTotal,
+                latestQualityMap.values().stream()
+                        .filter(quality -> "FAIL".equals(defaultValue(quality.getResult(), "").toUpperCase(Locale.ROOT)))
+                        .count(),
+                pendingQualityTotal,
+                riskBatchTotal,
+                riskBatchTotal,
+                percentage(qualityPassedTotal, inspectedQualityTotal),
+                percentage(riskBatchTotal, batchTotal)
+        );
 
         return new DashboardOverviewVO(
                 (int) batchTotal,
@@ -167,7 +211,61 @@ public class DashboardServiceImpl implements DashboardService {
                 queryTotal,
                 publishStatusSummary,
                 publishRecords,
-                analysis
+                qrScanAnalysis,
+                analysis,
+                productTraceAnalysis,
+                originTraceHeat,
+                qualityRiskAnalysis
+        );
+    }
+
+    @Override
+    public DataBackupSnapshotVO createBackupSnapshot() {
+        AuthUserSession currentUser = requireCurrentUser();
+        ensureStatisticsReader(currentUser);
+
+        List<TraceBatchPO> batches = loadBatches(currentUser);
+        List<BaseProductPO> products = loadProducts(currentUser);
+        Map<Long, BaseProductPO> productMap = products.stream()
+                .collect(Collectors.toMap(BaseProductPO::getId, Function.identity(), (left, right) -> left, LinkedHashMap::new));
+        Map<Long, OrgCompanyPO> companyMap = loadCompanies(batches).stream()
+                .collect(Collectors.toMap(OrgCompanyPO::getId, Function.identity(), (left, right) -> left, LinkedHashMap::new));
+        Map<Long, QualityReportPO> latestQualityMap = latestQualityByBatch(batches);
+        Map<Long, QrCodePO> latestQrMap = latestQrByBatch(batches);
+        Map<Long, List<QrQueryLogPO>> qrLogsByBatch = qrLogsByBatch(batches);
+
+        List<BackupBatchItemVO> backupItems = batches.stream()
+                .sorted(Comparator
+                        .comparing((TraceBatchPO batch) -> latestTime(batch, latestQrMap.get(batch.getId())))
+                        .reversed()
+                        .thenComparing(TraceBatchPO::getId, Comparator.reverseOrder()))
+                .map(batch -> toBackupBatchItem(
+                        batch,
+                        productMap.get(batch.getProductId()),
+                        companyMap.get(batch.getCompanyId()),
+                        latestQualityMap.get(batch.getId()),
+                        latestQrMap.get(batch.getId()),
+                        qrLogsByBatch.get(batch.getId())
+                ))
+                .toList();
+        long queryTotal = qrLogsByBatch.values().stream().mapToLong(List::size).sum();
+        String scope = isEnterpriseAdmin(currentUser)
+                ? "企业数据范围：" + currentUser.companyId()
+                : "平台全量数据范围";
+
+        return new DataBackupSnapshotVO(
+                "BK-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss")),
+                LocalDateTime.now(),
+                defaultValue(currentUser.realName(), currentUser.username()),
+                scope,
+                companyMap.size(),
+                products.size(),
+                batches.size(),
+                latestQualityMap.size(),
+                latestQrMap.size(),
+                countTraceEvents(batches),
+                queryTotal,
+                backupItems
         );
     }
 
@@ -286,6 +384,123 @@ public class DashboardServiceImpl implements DashboardService {
         );
     }
 
+    private List<ProductTraceAnalysisVO> buildProductTraceAnalysis(
+            List<TraceBatchPO> batches,
+            Map<Long, BaseProductPO> productMap,
+            Map<Long, QualityReportPO> latestQualityMap,
+            Map<Long, QrCodePO> latestQrMap,
+            Map<Long, List<QrQueryLogPO>> qrLogsByBatch
+    ) {
+        return batches.stream()
+                .collect(Collectors.groupingBy(
+                        batch -> defaultValue(productMap.get(batch.getProductId()) == null ? null : productMap.get(batch.getProductId()).getName(), "未命名产品"),
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                ))
+                .entrySet()
+                .stream()
+                .map(entry -> {
+                    List<TraceBatchPO> productBatches = entry.getValue();
+                    BaseProductPO product = productBatches.stream()
+                            .map(batch -> productMap.get(batch.getProductId()))
+                            .filter(Objects::nonNull)
+                            .findFirst()
+                            .orElse(null);
+                    long publishedCount = productBatches.stream().filter(this::isPublished).count();
+                    long qualityPassedCount = productBatches.stream()
+                            .map(batch -> latestQualityMap.get(batch.getId()))
+                            .filter(this::isQualityPass)
+                            .count();
+                    long riskCount = productBatches.stream().filter(this::isRiskBatch).count();
+                    long queryCount = productBatches.stream()
+                            .mapToLong(batch -> resolveQueryCount(latestQrMap.get(batch.getId()), qrLogsByBatch.get(batch.getId())))
+                            .sum();
+                    return new ProductTraceAnalysisVO(
+                            entry.getKey(),
+                            product == null ? "-" : defaultValue(product.getCategory(), "-"),
+                            productBatches.size(),
+                            publishedCount,
+                            qualityPassedCount,
+                            riskCount,
+                            queryCount
+                    );
+                })
+                .sorted(Comparator
+                        .comparingLong(ProductTraceAnalysisVO::queryCount)
+                        .reversed()
+                        .thenComparing(ProductTraceAnalysisVO::productName))
+                .limit(8)
+                .toList();
+    }
+
+    private List<OriginTraceHeatVO> buildOriginTraceHeat(
+            List<TraceBatchPO> batches,
+            Map<Long, BaseProductPO> productMap,
+            Map<Long, QrCodePO> latestQrMap,
+            Map<Long, List<QrQueryLogPO>> qrLogsByBatch
+    ) {
+        Map<String, List<TraceBatchPO>> batchesByOrigin = batches.stream()
+                .collect(Collectors.groupingBy(
+                        batch -> {
+                            BaseProductPO product = productMap.get(batch.getProductId());
+                            return defaultValue(defaultValue(batch.getOriginPlace(), product == null ? null : product.getOriginPlace()), "未填写产地");
+                        },
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                ));
+        long maxQueryCount = batchesByOrigin.values().stream()
+                .mapToLong(originBatches -> originBatches.stream()
+                        .mapToLong(batch -> resolveQueryCount(latestQrMap.get(batch.getId()), qrLogsByBatch.get(batch.getId())))
+                        .sum())
+                .max()
+                .orElse(0);
+        return batchesByOrigin.entrySet()
+                .stream()
+                .map(entry -> {
+                    long queryCount = entry.getValue().stream()
+                            .mapToLong(batch -> resolveQueryCount(latestQrMap.get(batch.getId()), qrLogsByBatch.get(batch.getId())))
+                            .sum();
+                    double heatRate = maxQueryCount <= 0 ? 0 : percentage(queryCount, maxQueryCount);
+                    return new OriginTraceHeatVO(
+                            entry.getKey(),
+                            entry.getValue().size(),
+                            queryCount,
+                            heatRate
+                    );
+                })
+                .sorted(Comparator
+                        .comparingLong(OriginTraceHeatVO::queryCount)
+                        .reversed()
+                        .thenComparing(OriginTraceHeatVO::originPlace))
+                .limit(8)
+                .toList();
+    }
+
+    private BackupBatchItemVO toBackupBatchItem(
+            TraceBatchPO batch,
+            BaseProductPO product,
+            OrgCompanyPO company,
+            QualityReportPO quality,
+            QrCodePO qr,
+            List<QrQueryLogPO> logs
+    ) {
+        String qualityResult = quality == null ? "PENDING" : defaultValue(quality.getResult(), "PENDING").toUpperCase(Locale.ROOT);
+        String traceToken = qr == null ? null : qr.getQrToken();
+        return new BackupBatchItemVO(
+                batch.getId(),
+                batch.getBatchCode(),
+                product == null ? "-" : defaultValue(product.getName(), "-"),
+                company == null ? "-" : defaultValue(company.getName(), "-"),
+                defaultValue(batch.getOriginPlace(), product == null ? "-" : defaultValue(product.getOriginPlace(), "-")),
+                normalizeStatus(batch.getStatus()),
+                publishStatusLabel(batch),
+                TraceDisplayLabels.qualityStatus(qualityResult),
+                traceToken,
+                resolveQueryCount(qr, logs),
+                traceToken == null ? null : traceLinkBuilder.buildPublicTraceUrl(traceToken)
+        );
+    }
+
     private TraceStatisticsAnalysisVO buildAnalysis(
             long batchTotal,
             long publishedBatchTotal,
@@ -392,6 +607,102 @@ public class DashboardServiceImpl implements DashboardService {
             ));
         }
         return tips;
+    }
+
+    private QrScanAnalysisVO buildQrScanAnalysis(
+            List<TraceBatchPO> batches,
+            Map<Long, BaseProductPO> productMap,
+            Map<Long, QrCodePO> latestQrMap,
+            Map<Long, List<QrQueryLogPO>> qrLogsByBatch
+    ) {
+        Map<Long, TraceBatchPO> batchMap = batches.stream()
+                .filter(batch -> batch.getId() != null)
+                .collect(Collectors.toMap(TraceBatchPO::getId, Function.identity(), (left, right) -> left, LinkedHashMap::new));
+        LocalDate today = LocalDate.now();
+        List<QrQueryLogPO> allLogs = qrLogsByBatch.values().stream()
+                .flatMap(List::stream)
+                .toList();
+        List<QrScanTrendPointVO> sevenDayTrend = new ArrayList<>();
+        for (int offset = 6; offset >= 0; offset--) {
+            LocalDate day = today.minusDays(offset);
+            long count = allLogs.stream()
+                    .filter(log -> log.getQueryTime() != null && day.equals(log.getQueryTime().toLocalDate()))
+                    .count();
+            sevenDayTrend.add(new QrScanTrendPointVO(day.toString(), count));
+        }
+
+        long totalScanCount = latestQrMap.values().stream()
+                .mapToLong(qr -> resolveQueryCount(qr, qrLogsByBatch.get(qr.getBatchId())))
+                .sum();
+        long todayScanCount = allLogs.stream()
+                .filter(log -> log.getQueryTime() != null && today.equals(log.getQueryTime().toLocalDate()))
+                .count();
+
+        List<HotTraceQueryVO> hotTraceCodes = latestQrMap.values().stream()
+                .map(qr -> toHotTraceQuery(qr, batchMap.get(qr.getBatchId()), productMap, qrLogsByBatch.get(qr.getBatchId())))
+                .filter(item -> item.queryCount() > 0)
+                .sorted(Comparator
+                        .comparingLong(HotTraceQueryVO::queryCount)
+                        .reversed()
+                        .thenComparing(HotTraceQueryVO::batchNo))
+                .limit(5)
+                .toList();
+
+        long normalCount = 0;
+        long riskCount = 0;
+        long invalidCount = 0;
+        for (QrCodePO qr : latestQrMap.values()) {
+            long count = resolveQueryCount(qr, qrLogsByBatch.get(qr.getBatchId()));
+            String status = normalizeQrQueryStatus(qr, batchMap.get(qr.getBatchId()));
+            if ("risk".equals(status)) {
+                riskCount += count;
+            } else if ("invalid".equals(status)) {
+                invalidCount += count;
+            } else {
+                normalCount += count;
+            }
+        }
+
+        return new QrScanAnalysisVO(
+                totalScanCount,
+                todayScanCount,
+                sevenDayTrend,
+                hotTraceCodes,
+                List.of(
+                        new TraceCodeStatusQueryVO("normal", "正常码", normalCount),
+                        new TraceCodeStatusQueryVO("risk", "风险码", riskCount),
+                        new TraceCodeStatusQueryVO("invalid", "无效码", invalidCount)
+                )
+        );
+    }
+
+    private HotTraceQueryVO toHotTraceQuery(
+            QrCodePO qr,
+            TraceBatchPO batch,
+            Map<Long, BaseProductPO> productMap,
+            List<QrQueryLogPO> logs
+    ) {
+        BaseProductPO product = batch == null ? null : productMap.get(batch.getProductId());
+        return new HotTraceQueryVO(
+                defaultValue(qr.getQrToken(), "-"),
+                batch == null ? "-" : defaultValue(batch.getBatchCode(), "-"),
+                product == null ? "-" : defaultValue(product.getName(), "-"),
+                resolveQueryCount(qr, logs)
+        );
+    }
+
+    private String normalizeQrQueryStatus(QrCodePO qr, TraceBatchPO batch) {
+        if (qr == null) {
+            return "invalid";
+        }
+        String qrStatus = defaultValue(qr.getStatus(), "").toUpperCase(Locale.ROOT);
+        if (Set.of("FROZEN", "RECALLED", "SUSPENDED").contains(qrStatus) || (batch != null && isRiskBatch(batch))) {
+            return "risk";
+        }
+        if (Set.of("EXPIRED", "DISABLED", "INVALID", "DELETED").contains(qrStatus)) {
+            return "invalid";
+        }
+        return "normal";
     }
 
     private double percentage(long numerator, long denominator) {
@@ -507,6 +818,15 @@ public class DashboardServiceImpl implements DashboardService {
                 .filter(Objects::nonNull)
                 .distinct()
                 .toList();
+    }
+
+    private long countTraceEvents(List<TraceBatchPO> batches) {
+        List<Long> batchIds = batchIds(batches);
+        if (batchIds.isEmpty()) {
+            return 0;
+        }
+        return traceEventMapper.selectCount(new LambdaQueryWrapper<edu.jxust.agritrace.module.batch.mapper.po.TraceEventPO>()
+                .in(edu.jxust.agritrace.module.batch.mapper.po.TraceEventPO::getBatchId, batchIds));
     }
 
     private String normalizeStatus(String status) {

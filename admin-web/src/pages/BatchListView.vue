@@ -925,6 +925,7 @@ function syncListModeFromRoute() {
 
 function switchListMode(mode) {
   listMode.value = mode
+  filters.value.status = ''
   page.value = 1
   const nextQuery = { ...route.query }
   if (!mode || mode === 'ACTION') {
@@ -2976,14 +2977,14 @@ button:not(.manage-summary-chip):disabled {
 
 .batch-table-shell {
   --ledger-grid-columns:
-    minmax(220px, 1.08fr)
-    minmax(220px, 0.98fr)
-    minmax(260px, 1.02fr)
-    minmax(220px, 0.9fr)
-    minmax(286px, 1.1fr);
+    minmax(164px, 1.04fr)
+    minmax(164px, 0.96fr)
+    minmax(168px, 0.98fr)
+    minmax(170px, 1fr)
+    minmax(158px, 0.78fr);
   --ledger-column-gap: var(--batch-grid-column-gap);
   --ledger-inline-padding: var(--batch-grid-inline-padding);
-  --ledger-min-width: 1360px;
+  --ledger-min-width: 920px;
 }
 
 .batch-table-head {
@@ -3328,9 +3329,9 @@ button:not(.manage-summary-chip):disabled {
   display: flex;
   align-items: center;
   gap: 6px;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   overflow: visible;
-  width: max-content;
+  width: 100%;
 }
 
 .row-health-scroll::-webkit-scrollbar,

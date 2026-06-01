@@ -174,6 +174,11 @@ function createFilterState() {
   }
 }
 
+function switchActiveTab(tab) {
+  activeTab.value = tab
+  filters.value.status = ''
+}
+
 function createResultDialogState() {
   return {
     visible: false,
@@ -750,7 +755,7 @@ function formatFileSize(size) {
           :items="qualityBoardCards"
           :active-key="activeTab"
           test-id-prefix="quality-tab"
-          @select="activeTab = $event"
+          @select="switchActiveTab($event)"
         />
       </template>
 

@@ -15,6 +15,7 @@ import edu.jxust.agritrace.module.publictrace.dto.PublicFeedbackHandleRequest;
 import edu.jxust.agritrace.module.publictrace.dto.PublicFeedbackRequest;
 import edu.jxust.agritrace.module.publictrace.vo.PublicFeedbackVO;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
@@ -71,11 +72,75 @@ public class PublicFeedbackController {
         this.traceBatchMapper = traceBatchMapper;
         this.orgCompanyMapper = orgCompanyMapper;
         this.qrCodeMapper = qrCodeMapper;
+        seedDemoFeedback();
+    }
+
+    private void seedDemoFeedback() {
+        feedbackRecords.addAll(List.of(
+                demoFeedback("大米", "RICE-202604-R1", "rice-202604-r1", TYPE_INFO_MISMATCH,
+                        "消费者 13800001001", "公开页中产地说明和包装标签略有差异，请企业核对后更新展示内容。",
+                        "2026-04-16 09:12", 1L, "江西稻香生态农业有限公司", "PENDING", "", "", ""),
+                demoFeedback("花生", "PEANUT-202604-P1", "peanut-202604-p1", TYPE_QUALITY,
+                        "采购商 13800001002", "花生外包装批号与质检摘要展示顺序不一致，希望确认是否为同一批次。",
+                        "2026-04-16 09:25", 1L, "江西稻香生态农业有限公司", "PENDING", "", "", ""),
+                demoFeedback("赣南脐橙", "ORANGE-202604-Q1", "orange-202604-q1", TYPE_DISPLAY,
+                        "门店人员 13800001003", "手机端查看公开页时质检摘要换行较多，已提交截图等待页面优化。",
+                        "2026-04-16 10:05", 2L, "赣南果业种植有限公司", "PROCESSING",
+                        "已转给企业管理员核对公开页文案与移动端展示。", "平台管理员", "2026-04-16 10:30"),
+                demoFeedback("阳光葡萄", "GRAPE-202604-G1", "grape-202604-g1", TYPE_QR,
+                        "监管抽查 13800001004", "风险批次扫码后提示处理中，希望补充冷链异常说明和后续处置进度。",
+                        "2026-04-16 10:18", 2L, "赣南果业种植有限公司", "PROCESSING",
+                        "企业已开始补充冷链复核材料，监管人员继续跟进。", "果业企业管理员", "2026-04-16 10:45"),
+                demoFeedback("草莓", "STRAWBERRY-202604-S1", "strawberry-202604-s1", TYPE_INFO_MISMATCH,
+                        "经销商 13800001005", "草莓召回提示已经看到，想确认是否还有同批次库存需要下架。",
+                        "2026-04-16 11:02", 3L, "赣州鲜果联合合作社", "CLOSED",
+                        "已确认同批次库存全部下架，公开页保留召回提示。", "平台管理员", "2026-04-16 11:40"),
+                demoFeedback("大米", "RICE-202604-READY-A", "rice-202604-ready-a", TYPE_OTHER,
+                        "测试人员 13800001006", "用于测试待发布批次的反馈流转，确认输入输出均可在页面中查看。",
+                        "2026-04-16 11:20", 1L, "江西稻香生态农业有限公司", "CLOSED",
+                        "测试记录已核对，作为答辩演示样例保留。", "平台管理员", "2026-04-16 11:55")
+        ));
+    }
+
+    private PublicFeedbackRecord demoFeedback(
+            String productName,
+            String batchNo,
+            String traceCode,
+            String feedbackType,
+            String contact,
+            String content,
+            String createdAt,
+            Long companyId,
+            String companyName,
+            String status,
+            String handleResult,
+            String handlerName,
+            String handledAt
+    ) {
+        return new PublicFeedbackRecord(
+                feedbackIdSequence.incrementAndGet(),
+                productName,
+                batchNo,
+                traceCode,
+                feedbackType,
+                contact,
+                content,
+                createdAt,
+                createdAt,
+                companyId,
+                companyName,
+                "127.0.0.1",
+                "Demo Browser",
+                status,
+                handleResult,
+                handlerName,
+                handledAt
+        );
     }
 
     @PostMapping("/api/public/feedback")
     public ApiResponse<Map<String, Object>> submitFeedback(
-            @RequestBody PublicFeedbackRequest request,
+            @Valid @RequestBody PublicFeedbackRequest request,
             HttpServletRequest servletRequest
     ) {
         PublicFeedbackRecord record = validateAndCreateRecord(request, servletRequest);
@@ -102,7 +167,7 @@ public class PublicFeedbackController {
     @PatchMapping("/api/feedback/{id}")
     public ApiResponse<PublicFeedbackVO> handleFeedback(
             @PathVariable Long id,
-            @RequestBody PublicFeedbackHandleRequest request
+            @Valid @RequestBody PublicFeedbackHandleRequest request
     ) {
         AuthUserSession currentUser = requireCurrentUser();
         ensureFeedbackHandler(currentUser);

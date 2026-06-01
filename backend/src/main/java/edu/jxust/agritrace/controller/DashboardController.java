@@ -3,7 +3,9 @@ package edu.jxust.agritrace.controller;
 import edu.jxust.agritrace.common.api.ApiResponse;
 import edu.jxust.agritrace.module.dashboard.service.DashboardService;
 import edu.jxust.agritrace.module.dashboard.vo.DashboardOverviewVO;
+import edu.jxust.agritrace.module.dashboard.vo.DataBackupSnapshotVO;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -25,5 +27,10 @@ public class DashboardController {
     @GetMapping("/statistics")
     public ApiResponse<DashboardOverviewVO> getStatistics() {
         return ApiResponse.ok(dashboardService.getOverview());
+    }
+
+    @PostMapping("/backup")
+    public ApiResponse<DataBackupSnapshotVO> createBackupSnapshot() {
+        return ApiResponse.ok(dashboardService.createBackupSnapshot());
     }
 }

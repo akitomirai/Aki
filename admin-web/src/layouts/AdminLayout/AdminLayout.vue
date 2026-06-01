@@ -51,7 +51,8 @@
 
     <div class="main">
       <header class="header">
-        <h2>{{ pageTitle }}</h2>
+        <h2 v-if="headerTitle">{{ headerTitle }}</h2>
+        <div id="admin-header-actions" class="header-actions"></div>
       </header>
 
       <main class="content">
@@ -63,11 +64,15 @@
 
 <script setup>
 import { computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { useAdminLayout } from '../../composables/useAdminLayout'
 
 const { activeMenu, logout, menuSections, pageTitle } = useAdminLayout()
+const route = useRoute()
 const sidebarMenuSections = computed(() => menuSections.value.filter((section) => section.type !== 'account'))
 const accountMenuSection = computed(() => menuSections.value.find((section) => section.type === 'account'))
+const showPageTitle = computed(() => route.meta?.hideHeaderTitle !== true)
+const headerTitle = computed(() => route.meta?.headerTitle || (showPageTitle.value ? pageTitle.value : ''))
 </script>
 
 <style src="./admin-layout.css" scoped></style>

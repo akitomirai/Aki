@@ -9,6 +9,7 @@ import { getFriendlyErrorMessage } from '../utils/batchExperience'
 import { resolvePublishBlockState } from '../utils/batchStatusFlow'
 import { openPrintPreviewWindow, renderQrPrintPreview } from '../utils/exportTools'
 import { resolveQrStatusText } from '../utils/statusPresentation'
+import { generateBrandedQrDataUrl } from '../utils/brandedQr'
 
 const authStore = useAuthStore()
 
@@ -176,6 +177,12 @@ function createFilterState() {
     companyName: '',
     status: ''
   }
+}
+
+function switchActiveTab(tab) {
+  activeTab.value = tab
+  filters.value.status = ''
+  selectedIds.value = []
 }
 
 function createPreviewDialogState() {
@@ -688,10 +695,12 @@ async function resolveQrPreview(item) {
     throw new Error('当前批次还没有生成二维码。')
   }
   const token = detail.qr.token
+  const publicUrl = resolvePublicTraceUrl(token, detail.qr.publicUrl)
   return {
     token,
-    publicUrl: resolvePublicTraceUrl(token, detail.qr.publicUrl),
-    imageUrl: detail.qr.imageUrl,
+    publicUrl,
+    imageUrl: await generateBrandedQrDataUrl(publicUrl, { width: 320 }),
+    originalImageUrl: detail.qr.imageUrl,
     generatedAt: detail.qr.generatedAt
   }
 }
@@ -701,13 +710,13 @@ function resolvePublicTraceUrl(token, fallbackUrl = '') {
   if (!traceToken) return fallbackUrl || ''
   const tracePath = `/t/${encodeURIComponent(traceToken)}`
 
-  if (import.meta.env.DEV) {
-    return `http://127.0.0.1:5173${tracePath}`
-  }
-
   const envOrigin = String(import.meta.env.VITE_TRACE_WEB_ORIGIN || '').trim().replace(/\/$/, '')
   if (envOrigin) {
     return `${envOrigin}${tracePath}`
+  }
+
+  if (import.meta.env.DEV) {
+    return `http://127.0.0.1:5173${tracePath}`
   }
 
   if (typeof window !== 'undefined' && window.location?.hostname) {
@@ -899,7 +908,7 @@ async function submitPublish() {
           class="manage-summary-chip manage-summary-chip--interactive"
           :class="{ 'is-active': activeTab === item.value }"
           :data-testid="`qr-tab-${item.value}`"
-          @click="activeTab = item.value"
+          @click="switchActiveTab(item.value)"
         >
           <span>{{ item.label }}</span>
           <strong>{{ item.count }}</strong>
@@ -1234,7 +1243,7 @@ async function submitPublish() {
   font-family: "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
   --qr-filter-text-inset: 14px;
   --qr-grid-inline-padding: 18px;
-  --qr-grid-column-gap: 16px;
+  --qr-grid-column-gap: 12px;
   --qr-filter-group-left-shift: 8px;
   --qr-keyword-filter-width: 248px;
   --qr-company-filter-width: 188px;
@@ -1392,14 +1401,14 @@ async function submitPublish() {
 
 .qr-table-shell {
   --ledger-grid-columns:
-    minmax(184px, 1.16fr)
-    minmax(176px, 0.98fr)
-    minmax(196px, 1.08fr)
-    minmax(168px, 0.84fr)
-    minmax(440px, 1.48fr);
+    minmax(190px, 1.08fr)
+    minmax(176px, 0.95fr)
+    minmax(140px, 0.72fr)
+    minmax(156px, 0.8fr)
+    minmax(210px, 1.08fr);
   --ledger-column-gap: var(--qr-grid-column-gap);
   --ledger-inline-padding: var(--qr-grid-inline-padding);
-  --ledger-min-width: 1440px;
+  --ledger-min-width: 920px;
 }
 
 .qr-head {
@@ -1533,7 +1542,9 @@ async function submitPublish() {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
   overflow: visible;
+  width: 100%;
 }
 
 .qr-actions-row .text-button {

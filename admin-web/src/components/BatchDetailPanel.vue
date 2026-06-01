@@ -1,6 +1,5 @@
 ﻿<script setup>
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import QRCode from 'qrcode'
 import { useRoute, useRouter } from 'vue-router'
 import {
   changeBatchStatus,
@@ -14,6 +13,7 @@ import {
   uploadBatchFiles
 } from '../api/batch'
 import { useAuthStore } from '../stores/auth'
+import { generateBrandedQrDataUrl } from '../utils/brandedQr'
 import {
   createQualityForm,
   createTraceForm,
@@ -538,7 +538,7 @@ async function openQrDialog() {
   qrLoading.value = true
   qrPreviewUrl.value = ''
   try {
-    qrPreviewUrl.value = await QRCode.toDataURL(detail.value.qr.publicUrl, { width: 240, margin: 2 })
+    qrPreviewUrl.value = await generateBrandedQrDataUrl(detail.value.qr.publicUrl, { width: 240 })
   } catch (error) {
     showMessage(error?.message || '二维码预览生成失败。', 'error')
   } finally {

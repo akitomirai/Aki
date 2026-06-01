@@ -34,6 +34,19 @@ export function downloadCsvFile({ filename, columns, rows }) {
   URL.revokeObjectURL(objectUrl)
 }
 
+export function downloadJsonFile({ filename, data }) {
+  const content = JSON.stringify(data ?? {}, null, 2)
+  const blob = new Blob([content], { type: 'application/json;charset=utf-8;' })
+  const objectUrl = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = objectUrl
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(objectUrl)
+}
+
 export function openPrintPreviewWindow(title = '打印预览') {
   const popup = window.open('', '_blank')
   if (!popup) {

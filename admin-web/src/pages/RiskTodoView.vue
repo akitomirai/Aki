@@ -195,6 +195,11 @@ function createFilterState() {
   }
 }
 
+function switchActiveTab(tab) {
+  activeTab.value = tab
+  filters.value.status = ''
+}
+
 function createRiskDialogState() {
   return {
     visible: false,
@@ -764,7 +769,7 @@ async function openWorkbenchAfterRefresh(item) {
           :items="riskBoardCards"
           :active-key="activeTab"
           test-id-prefix="risk-tab"
-          @select="activeTab = $event"
+          @select="switchActiveTab($event)"
         />
       </template>
 

@@ -372,14 +372,14 @@ a:focus-visible {
   text-align-last: left;
 }
 
-.manage-filter-card :deep(.el-select__wrapper) {
+.manage-filter-card .el-select__wrapper {
   justify-content: flex-start;
   text-align: left;
 }
 
-.manage-filter-card :deep(.el-select__selected-item),
-.manage-filter-card :deep(.el-select__placeholder),
-.manage-filter-card :deep(.el-select-dropdown__item) {
+.manage-filter-card .el-select__selected-item,
+.manage-filter-card .el-select__placeholder,
+.manage-filter-card .el-select-dropdown__item {
   width: 100%;
   text-align: left;
 }

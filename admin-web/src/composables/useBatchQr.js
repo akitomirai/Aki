@@ -1,8 +1,9 @@
 import * as echarts from 'echarts'
-import QRCode from 'qrcode'
 import { nextTick, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { listQrApi, generateQrApi, getQrTrendApi } from '../api/qr'
+import { getTraceOrigin as getConfiguredTraceOrigin } from '../utils/display'
+import { generateBrandedQrDataUrl } from '../utils/brandedQr'
 
 export function useBatchQr(batchId) {
     const qrList = ref([])
@@ -64,16 +65,7 @@ export function useBatchQr(batchId) {
     }
 
     function getTraceOrigin() {
-        if (import.meta.env.VITE_TRACE_WEB_ORIGIN) {
-            return import.meta.env.VITE_TRACE_WEB_ORIGIN
-        }
-
-        const origin = window.location.origin
-        if (origin && !origin.includes('localhost') && !origin.includes('127.0.0.1')) {
-            return origin
-        }
-
-        return 'http://localhost:5174'
+        return getConfiguredTraceOrigin()
     }
 
     function buildQrLink(row) {
@@ -112,10 +104,7 @@ export function useBatchQr(batchId) {
         qrDialogVisible.value = true
 
         try {
-            qrImageUrl.value = await QRCode.toDataURL(link, {
-                width: 240,
-                margin: 2
-            })
+            qrImageUrl.value = await generateBrandedQrDataUrl(link, { width: 240 })
         } catch {
             ElMessage.error('二维码生成失败')
         }

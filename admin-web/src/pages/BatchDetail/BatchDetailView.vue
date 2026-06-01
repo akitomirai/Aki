@@ -454,7 +454,6 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Plus, OfficeBuilding } from '@element-plus/icons-vue'
-import QRCode from 'qrcode'
 import { useAuthStore } from '../../stores/auth'
 import { useBatchDetail } from '../../composables/useBatchDetail'
 import { saveBatchParticipantsApi, updateBatchApi } from '../../api/batch'
@@ -476,6 +475,7 @@ import {
   getRegulationStatusText as mapRegulationStatusText,
   normalizeDisplayText
 } from '../../utils/display'
+import { generateBrandedQrDataUrl } from '../../utils/brandedQr'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -722,7 +722,7 @@ const showTraceQrPreview = async () => {
   traceQrDialogVisible.value = true
   traceQrImageUrl.value = ''
   try {
-    traceQrImageUrl.value = await QRCode.toDataURL(currentTraceLink.value, { width: 220, margin: 2 })
+    traceQrImageUrl.value = await generateBrandedQrDataUrl(currentTraceLink.value, { width: 220 })
   } catch (e) {
     ElMessage.error('二维码预览生成失败')
   }

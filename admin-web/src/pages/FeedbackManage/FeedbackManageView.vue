@@ -142,6 +142,7 @@ function resetFilters() {
 
 function setActiveTab(tab) {
   activeTab.value = tab
+  filters.value.status = ''
 }
 
 function openDetail(row) {

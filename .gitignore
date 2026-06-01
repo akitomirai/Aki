@@ -5,6 +5,8 @@ backend/target/
 logs/
 output/
 artifacts/
+runtime/
+杂项/运行日志/runtime/
 .playwright-cli/
 .vscode/
 backend/.idea/

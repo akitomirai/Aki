@@ -50,7 +50,7 @@ export function useAdminLayout() {
       sections.push({
         title: '工作台',
         items: [
-          { key: '/dashboard', label: '统计分析', to: '/dashboard' }
+          { key: '/dashboard', label: '首页', to: '/dashboard' }
         ]
       })
     }

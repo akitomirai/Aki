@@ -19,6 +19,10 @@ public record DashboardOverviewVO(
         long queryTotal,
         PublishStatusSummaryVO publishStatusSummary,
         List<TracePublishRecordVO> publishRecords,
-        TraceStatisticsAnalysisVO analysis
+        QrScanAnalysisVO qrScanAnalysis,
+        TraceStatisticsAnalysisVO analysis,
+        List<ProductTraceAnalysisVO> productTraceAnalysis,
+        List<OriginTraceHeatVO> originTraceHeat,
+        QualityRiskAnalysisVO qualityRiskAnalysis
 ) {
 }

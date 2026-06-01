@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import QRCode from 'qrcode'
 import { getTraceDetail, submitTraceFeedback } from '../api/trace'
 
 const route = useRoute()
@@ -9,6 +10,7 @@ const feedbackTypeOptions = ['信息不一致', '质量疑问', '二维码无法
 const detail = ref(null)
 const loading = ref(true)
 const errorMessage = ref('')
+const traceQrPreview = ref('')
 const showFullTimeline = ref(false)
 const reportDialogVisible = ref(false)
 const feedbackDialogVisible = ref(false)
@@ -30,7 +32,17 @@ const latestTimelineItem = computed(() => {
   return timeline.length ? timeline[timeline.length - 1] : null
 })
 
+const traceImageAssets = Object.freeze({
+  orchard: '/images/trace/orange-orchard.jpg',
+  packing: '/images/trace/orange-packing.jpg',
+  lab: '/images/trace/food-lab.jpg',
+  fruit: '/images/trace/orange-fruit.jpg'
+})
+
 const visibleTimeline = computed(() => {
+  if (risk.value?.hasRisk) {
+    return timelineItems.value.slice(0, 2)
+  }
   return showFullTimeline.value ? timelineItems.value : timelineItems.value.slice(0, 4)
 })
 
@@ -79,8 +91,15 @@ const publicPublishedAtText = computed(() => {
   return '-'
 })
 
+const routeTraceToken = computed(() => String(route.params.token || '').trim())
+
 const traceCodeText = computed(() => {
-  return detail.value?.qrToken || String(route.params.token || '').trim() || '-'
+  return detail.value?.qrToken || routeTraceToken.value || '-'
+})
+
+const traceQrContentText = computed(() => buildTracePageUrl(routeTraceToken.value))
+const traceQrDisplayText = computed(() => {
+  return extractTraceCodeFromQrContent(traceQrContentText.value) || traceQrContentText.value || '-'
 })
 
 const feedbackProductName = computed(() => feedbackDisplayValue(summary.value.productName))
@@ -101,6 +120,114 @@ const feedbackReadonlyItems = computed(() => [
     value: feedbackTraceCode.value
   }
 ])
+
+const heroImageUrl = computed(() => resolveTraceImage(summary.value.productImageUrl, 'orchard'))
+
+const heroMetrics = computed(() => [
+  {
+    label: '批次状态',
+    value: displayValue(publicStatusText.value)
+  },
+  {
+    label: '质检结论',
+    value: displayValue(publicQualityText.value)
+  },
+  {
+    label: '追溯节点',
+    value: `${timelineItems.value.length || 0} 个`
+  },
+  {
+    label: 'Hash 校验',
+    value: displayValue(verificationStatusText.value)
+  }
+])
+
+const heroStoryFacts = computed(() => compactFacts([
+  {
+    label: '批次编号',
+    value: summary.value.batchCode
+  },
+  {
+    label: '主体企业',
+    value: summary.value.companyName || company.value.name
+  },
+  {
+    label: '产地',
+    value: localizeVisibleText(summary.value.originPlace)
+  },
+  {
+    label: '生产日期',
+    value: summary.value.productionDate
+  }
+]))
+
+const traceIntroText = computed(() => {
+  const origin = localizeVisibleText(summary.value.originPlace)
+  const companyName = summary.value.companyName || company.value.name
+  if (origin && companyName) {
+    return `${displayValue(summary.value.productName)}来自${origin}，由${companyName}完成批次建档与公开追溯。`
+  }
+  if (origin) {
+    return `${displayValue(summary.value.productName)}来自${origin}，关键流转信息已公开留痕。`
+  }
+  return localizeVisibleText(summary.value.slogan) || '从基地、流通到质检报告，关键节点已公开留痕。'
+})
+
+const traceBriefItems = computed(() => [
+  publicQualityText.value ? `质检${publicQualityText.value}` : '',
+  timelineItems.value.length ? `${timelineItems.value.length} 个节点` : '',
+  verificationStatusText.value ? verificationStatusText.value : ''
+].filter(Boolean))
+
+const storyMetaItems = computed(() => compactFacts([
+  {
+    label: '批次',
+    value: summary.value.batchCode
+  },
+  {
+    label: '企业',
+    value: summary.value.companyName || company.value.name
+  },
+  {
+    label: '产地',
+    value: localizeVisibleText(summary.value.originPlace)
+  },
+  {
+    label: '日期',
+    value: summary.value.productionDate
+  }
+]))
+
+const riskFactItems = computed(() => compactFacts([
+  {
+    label: '产品',
+    value: summary.value.productName
+  },
+  {
+    label: '批次',
+    value: summary.value.batchCode
+  },
+  {
+    label: '企业',
+    value: summary.value.companyName || company.value.name
+  },
+  {
+    label: '质检',
+    value: publicQualityText.value
+  },
+  {
+    label: '更新时间',
+    value: risk.value.updatedAt
+  },
+  {
+    label: '追溯码',
+    value: traceCodeText.value
+  }
+]))
+
+const riskTipText = computed(() => {
+  return localizeVisibleText(risk.value?.tip) || '请优先关注企业说明和风险处置结果，必要时可通过反馈入口补充问题线索。'
+})
 
 const heroFacts = computed(() => compactFacts([
   {
@@ -213,34 +340,30 @@ const errorState = computed(() => {
   const message = String(errorMessage.value || '')
   if (/不存在|未找到|无效|失效|not found|invalid/i.test(message)) {
     return {
-      title: '这个追溯码暂时无法查询',
-      copy: '可能是追溯码输入有误、二维码已失效，或该批次当前没有开放公开查询。',
-      tips: [
-        '请核对二维码是否完整，或重新扫码一次。',
-        '如果页面来自旧截图或旧海报，请以最新二维码为准。',
-        '若仍无法查询，可联系销售方或企业客服核实。'
-      ]
+      eyebrow: '未查到结果',
+      title: '暂时无法查询',
+      copy: '该追溯码未匹配到公开记录。',
+      tips: []
     }
   }
 
   return {
-    title: '追溯信息加载失败',
-    copy: '当前网络或服务状态异常，系统暂时没能返回这批产品的公开信息。',
-    tips: [
-      '请稍后刷新后再次尝试。',
-      '如页面持续异常，建议更换网络环境后重试。',
-      '若这是答辩演示环境，请回到后台确认服务是否正常运行。'
-    ]
+    eyebrow: '页面暂不可用',
+    title: '暂时无法打开',
+    copy: '当前服务未返回公开信息。',
+    tips: []
   }
 })
 
 onMounted(() => {
+  generateTraceQrPreview(routeTraceToken.value)
   loadDetail(route.params.token)
 })
 
 watch(
   () => route.params.token,
   (token) => {
+    generateTraceQrPreview(String(token || '').trim())
     showFullTimeline.value = false
     reportDialogVisible.value = false
     feedbackDialogVisible.value = false
@@ -248,6 +371,95 @@ watch(
     loadDetail(token)
   }
 )
+
+async function generateTraceQrPreview(token) {
+  const url = buildTracePageUrl(token)
+  if (!url) {
+    traceQrPreview.value = ''
+    return
+  }
+
+  const size = 272
+  const canvas = document.createElement('canvas')
+  await QRCode.toCanvas(canvas, url, {
+    width: size,
+    margin: 1,
+    errorCorrectionLevel: 'H',
+    color: {
+      dark: '#1f3f68',
+      light: '#ffffff'
+    }
+  })
+  await drawQrCenterLogo(canvas, size)
+  traceQrPreview.value = canvas.toDataURL('image/png')
+}
+
+function buildTracePageUrl(token) {
+  const value = String(token || '').trim()
+  if (!value || typeof window === 'undefined') {
+    return ''
+  }
+  return `${window.location.origin}/t/${encodeURIComponent(value)}`
+}
+
+function extractTraceCodeFromQrContent(content) {
+  const value = String(content || '').trim()
+  if (!value) {
+    return ''
+  }
+  try {
+    const url = new URL(value)
+    const segments = url.pathname.split('/').filter(Boolean)
+    const traceIndex = segments.findIndex((segment) => segment === 't')
+    const code = traceIndex >= 0 ? segments[traceIndex + 1] : ''
+    return code ? decodeURIComponent(code) : ''
+  } catch (error) {
+    return ''
+  }
+}
+
+async function drawQrCenterLogo(canvas, size) {
+  const context = canvas.getContext('2d')
+  if (!context) {
+    return
+  }
+  try {
+    const logo = await loadImage('/images/brand/system-icon.jpg')
+    const plateSize = Math.round(size * 0.24)
+    const logoSize = Math.round(size * 0.19)
+    const plateX = Math.round((size - plateSize) / 2)
+    const logoX = Math.round((size - logoSize) / 2)
+    context.save()
+    context.shadowColor = 'rgba(31, 63, 104, 0.18)'
+    context.shadowBlur = 10
+    context.fillStyle = '#ffffff'
+    drawRoundRect(context, plateX, plateX, plateSize, plateSize, 14)
+    context.fill()
+    context.restore()
+    context.drawImage(logo, logoX, logoX, logoSize, logoSize)
+  } catch (error) {
+    // The QR code remains usable if the small brand icon fails to load.
+  }
+}
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image()
+    image.onload = () => resolve(image)
+    image.onerror = reject
+    image.src = src
+  })
+}
+
+function drawRoundRect(context, x, y, width, height, radius) {
+  context.beginPath()
+  context.moveTo(x + radius, y)
+  context.arcTo(x + width, y, x + width, y + height, radius)
+  context.arcTo(x + width, y + height, x, y + height, radius)
+  context.arcTo(x, y + height, x, y, radius)
+  context.arcTo(x, y, x + width, y, radius)
+  context.closePath()
+}
 
 async function loadDetail(token) {
   if (!token) {
@@ -297,8 +509,8 @@ function createFeedbackForm(defaultType = '信息不一致') {
   }
 }
 
-function openFeedbackDialog() {
-  feedbackForm.value = createFeedbackForm(errorMessage.value ? '二维码无法识别' : '信息不一致')
+function openFeedbackDialog(defaultType = '') {
+  feedbackForm.value = createFeedbackForm(defaultType || (errorMessage.value ? '二维码无法识别' : '信息不一致'))
   feedbackFormError.value = ''
   feedbackDialogVisible.value = true
 }
@@ -417,12 +629,42 @@ function compactFacts(items) {
 function heroFactTestId(label) {
   return {
     批次编号: 'public-batch-code',
+    批次: 'public-batch-code',
     主体企业: 'public-company',
+    企业: 'public-company',
     产地: 'public-origin',
+    日期: 'public-production-date',
     发布时间: 'public-published-at',
     质检结论: 'public-quality',
     批次状态: 'public-status'
   }[label]
+}
+function resolveTraceImage(url, fallbackKey = 'orchard') {
+  const value = String(url || '').trim()
+  if (value && /\/images\/products\/(?!orange-batch\.svg)/i.test(value)) {
+    return value
+  }
+  if (value && !/data:image\/svg\+xml|\.svg(?:$|\?)|placeholder|default|orange/i.test(value)) {
+    return value
+  }
+  return traceImageAssets[fallbackKey] || traceImageAssets.orchard
+}
+
+function getTimelineImage(item, index) {
+  const text = `${item?.stageCode || ''} ${item?.stageName || ''} ${item?.title || ''}`.toLowerCase()
+  if (/quality|qa|test|check|lab|检测|检验|质检|报告/.test(text)) {
+    return resolveTraceImage(item?.imageUrl, 'lab')
+  }
+  if (/pack|warehouse|storehouse|包装|分拣|仓|入库|出库/.test(text)) {
+    return resolveTraceImage(item?.imageUrl, 'packing')
+  }
+  if (/transport|delivery|market|sell|logistics|运输|配送|流通|销售|上架/.test(text)) {
+    return resolveTraceImage(item?.imageUrl, 'fruit')
+  }
+  if (/plant|grow|farm|orchard|harvest|produce|种植|基地|果园|采收|生产/.test(text)) {
+    return resolveTraceImage(item?.imageUrl, 'orchard')
+  }
+  return resolveTraceImage(item?.imageUrl, ['orchard', 'fruit', 'lab'][index % 3])
 }
 </script>
 
@@ -434,70 +676,88 @@ function heroFactTestId(label) {
       <p>系统正在核对当前批次的状态、质检结论和关键节点，请稍候。</p>
     </section>
 
-    <section v-else-if="errorMessage" class="state-card error-card" data-testid="public-error-state">
-      <p class="state-eyebrow">查询异常</p>
-      <h1 data-testid="public-error-title">{{ errorState.title }}</h1>
-      <p data-testid="public-error-copy">{{ errorState.copy }}</p>
-      <ul class="error-list" data-testid="public-error-tips">
-        <li v-for="tip in errorState.tips" :key="tip">{{ tip }}</li>
-      </ul>
-      <button
-        class="feedback-entry-button feedback-entry-button--state"
-        type="button"
-        data-testid="public-feedback-entry"
-        @click="openFeedbackDialog"
-      >
-        信息反馈
-      </button>
+    <section v-else-if="errorMessage" class="exception-query-layout" data-testid="public-error-state">
+      <article class="exception-query-card">
+        <div class="exception-qr-shell">
+          <img v-if="traceQrPreview" :src="traceQrPreview" alt="当前追溯二维码">
+        </div>
+        <p class="exception-qr-code-text">{{ traceQrDisplayText }}</p>
+      </article>
+
+      <article class="state-card error-card compact-state-card exception-result-card">
+        <p class="state-eyebrow">{{ errorState.eyebrow }}</p>
+        <h1 data-testid="public-error-title">{{ errorState.title }}</h1>
+        <p data-testid="public-error-copy">{{ errorState.copy }}</p>
+        <ul v-if="errorState.tips.length" class="error-list" data-testid="public-error-tips">
+          <li v-for="tip in errorState.tips" :key="tip">{{ tip }}</li>
+        </ul>
+      </article>
     </section>
 
     <template v-else-if="detail">
       <section
         v-if="risk.hasRisk"
-        class="risk-banner"
+        class="exception-query-layout"
         data-testid="public-risk-banner"
-        :class="riskClass(risk)"
       >
-        <div>
+        <article class="exception-query-card">
+          <div class="exception-qr-shell">
+            <img v-if="traceQrPreview" :src="traceQrPreview" alt="当前追溯二维码">
+          </div>
+          <p class="exception-qr-code-text">{{ traceQrDisplayText }}</p>
+        </article>
+
+        <article class="state-card error-card compact-state-card risk-state-card exception-result-card">
           <p class="state-eyebrow">风险提示</p>
-          <h2>{{ risk.statusLabel }}</h2>
-          <p>{{ localizeVisibleText(risk.reason) }}</p>
-        </div>
-        <div class="risk-meta">
-          <span>当前阶段：{{ risk.statusLabel }}</span>
-          <span>最近更新：{{ risk.updatedAt || '暂无记录' }}</span>
-        </div>
-        <small>{{ localizeVisibleText(risk.tip) || '请优先关注企业说明和风险处置结果。' }}</small>
+          <h1>{{ risk.statusLabel || publicStatusText }}</h1>
+          <p>{{ localizeVisibleText(risk.reason) || '该批次当前存在风险提示。' }}</p>
+          <div class="risk-fact-list">
+            <div v-for="item in riskFactItems" :key="item.label" class="risk-fact-row">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
+            </div>
+          </div>
+          <p class="risk-tip-text">{{ riskTipText }}</p>
+          <button
+            class="feedback-entry-button feedback-entry-button--state"
+            type="button"
+            data-testid="public-feedback-entry"
+            @click="openFeedbackDialog('质量疑问')"
+          >
+            信息反馈
+          </button>
+        </article>
       </section>
 
-      <section class="hero-card" data-testid="public-summary">
+      <section v-if="!risk.hasRisk" class="hero-card trace-story-hero" data-testid="public-summary">
         <div class="hero-image-panel">
           <img
             class="product-image"
-            :src="summary.productImageUrl"
+            :src="heroImageUrl"
             :alt="summary.productName || '产品图片'"
           >
+          <div class="hero-image-caption">
+            <span>{{ displayValue(summary.originPlace || company.name) }}</span>
+            <strong>{{ displayValue(publicQualityText) }}</strong>
+          </div>
         </div>
 
         <div class="hero-info-panel">
           <div class="hero-title-row">
             <div class="hero-title-block">
-              <p class="eyebrow">公开追溯信息</p>
               <h1 data-testid="public-product-name">{{ displayValue(summary.productName) }}</h1>
+              <p class="hero-subtitle">
+                {{ traceIntroText }}
+              </p>
             </div>
-            <button
-              class="feedback-entry-button"
-              type="button"
-              data-testid="public-feedback-entry"
-              @click="openFeedbackDialog"
-            >
-              信息反馈
-            </button>
           </div>
 
-          <div class="hero-info-grid">
-            <div v-for="item in heroFacts" :key="item.label" class="info-item">
-              <span>{{ item.label }}</span>
+          <div class="trace-brief-row">
+            <span v-for="item in traceBriefItems" :key="item">{{ item }}</span>
+          </div>
+
+          <div class="story-meta-list">
+            <div v-for="item in storyMetaItems" :key="item.label" class="story-meta-item">
               <strong
                 :data-testid="heroFactTestId(item.label)"
               >
@@ -508,15 +768,15 @@ function heroFactTestId(label) {
         </div>
       </section>
 
-      <section class="card timeline-card" data-testid="public-timeline">
+      <section v-if="!risk.hasRisk" class="card timeline-card" data-testid="public-timeline">
         <div class="section-head">
           <div>
-            <h2>关键追溯节点时间线</h2>
+            <h2>{{ risk.hasRisk ? '已公开追溯节点' : '关键追溯节点时间线' }}</h2>
           </div>
-          <span>{{ timelineItems.length }} 个节点</span>
+          <span v-if="!risk.hasRisk">{{ timelineItems.length }} 个节点</span>
         </div>
 
-        <article class="latest-event-card recent-card">
+        <article v-if="!risk.hasRisk" class="latest-event-card recent-card">
           <span>最近动态</span>
           <strong data-testid="public-latest-record">{{ latestTimelineItem?.title || '暂无追溯记录' }}</strong>
           <p>{{ latestTimelineItem?.time || '暂无时间' }} · {{ localizeVisibleText(latestTimelineItem?.location) || '地点待补充' }}</p>
@@ -541,13 +801,13 @@ function heroFactTestId(label) {
               </div>
               <p class="timeline-meta">{{ localizeVisibleText(item.location) || '地点已留痕' }}</p>
               <p class="timeline-summary">{{ shortSummary(item.summary) }}</p>
-              <img v-if="item.imageUrl" class="timeline-image" :src="item.imageUrl" :alt="item.title">
+              <img class="timeline-image" :src="getTimelineImage(item, index)" :alt="item.title">
             </div>
           </li>
         </ol>
 
         <button
-          v-if="timelineItems.length > 4"
+          v-if="!risk.hasRisk && timelineItems.length > 4"
           class="toggle-button"
           @click="showFullTimeline = !showFullTimeline"
         >
@@ -555,9 +815,13 @@ function heroFactTestId(label) {
         </button>
       </section>
 
-      <section class="quality-report-section">
+      <section v-if="!risk.hasRisk" class="quality-report-section">
         <article class="card quality-report-card" data-testid="public-quality-summary">
-          <div class="quality-report-layout">
+          <div class="quality-report-layout" :class="{ 'quality-report-layout--simple': risk.hasRisk }">
+            <div class="quality-media">
+              <img :src="traceImageAssets.lab" alt="质检场景">
+              <span>检测与报告</span>
+            </div>
             <div class="quality-report-info">
               <div class="section-head">
                 <div>
@@ -572,20 +836,20 @@ function heroFactTestId(label) {
                 </div>
               </div>
 
-              <div v-if="qualityProjectItems.length" class="quality-project-block">
+              <div v-if="!risk.hasRisk && qualityProjectItems.length" class="quality-project-block">
                 <span>检测项目</span>
                 <div class="pill-row quality-pill-row">
                   <span v-for="item in qualityProjectItems" :key="item">{{ item }}</span>
                 </div>
               </div>
 
-              <div class="quality-note-block">
+              <div v-if="!risk.hasRisk" class="quality-note-block">
                 <span>重点信息 / 备注</span>
                 <p class="section-copy">{{ qualitySummaryText }}</p>
               </div>
             </div>
 
-            <aside class="quality-report-action">
+            <aside v-if="!risk.hasRisk" class="quality-report-action">
               <span>质检报告</span>
               <strong>{{ displayValue(quality.reportNo) }}</strong>
               <small>检测时间：{{ displayValue(quality.reportTime) }}</small>
@@ -594,28 +858,6 @@ function heroFactTestId(label) {
               </button>
             </aside>
           </div>
-        </article>
-
-        <article v-if="risk.hasRisk" class="card risk-detail-card">
-          <div class="section-head">
-            <div>
-              <h2>风险提示</h2>
-            </div>
-          </div>
-
-          <div class="fact-grid">
-            <div class="fact-card">
-              <span>当前状态</span>
-              <strong>{{ risk.statusLabel }}</strong>
-            </div>
-            <div class="fact-card">
-              <span>更新时间</span>
-              <strong>{{ risk.updatedAt || '未记录' }}</strong>
-            </div>
-          </div>
-
-          <p class="section-copy">{{ localizeVisibleText(risk.reason) }}</p>
-          <p v-if="risk.tip" class="address-copy">{{ localizeVisibleText(risk.tip) }}</p>
         </article>
       </section>
 
@@ -799,6 +1041,82 @@ function heroFactTestId(label) {
   text-align: center;
 }
 
+.compact-state-card {
+  min-height: 220px;
+  margin-top: 34px;
+  padding: 34px 26px;
+}
+
+.compact-state-card h1 {
+  font-size: 32px;
+  line-height: 1.25;
+}
+
+.compact-state-card p {
+  max-width: 320px;
+  margin: 14px auto 0;
+}
+
+.risk-state-card {
+  min-height: 250px;
+  margin-top: 0;
+  padding: 34px 30px;
+  text-align: left;
+}
+
+.risk-state-card h1 {
+  color: #7d2f28;
+}
+
+.risk-state-card p {
+  max-width: none;
+  margin: 12px 0 0;
+}
+
+.risk-fact-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 18px;
+  margin-top: 22px;
+  border-top: 1px solid rgba(190, 70, 58, 0.12);
+  border-bottom: 1px solid rgba(190, 70, 58, 0.12);
+}
+
+.risk-fact-row {
+  min-width: 0;
+  padding: 12px 0;
+  border-top: 1px solid rgba(190, 70, 58, 0.08);
+}
+
+.risk-fact-row:nth-child(-n + 2) {
+  border-top: 0;
+}
+
+.risk-fact-row span {
+  display: block;
+  color: #8b655f;
+  font-size: 12px;
+}
+
+.risk-fact-row strong {
+  display: block;
+  margin-top: 5px;
+  overflow: hidden;
+  color: var(--trace-text);
+  font-size: 15px;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.risk-tip-text {
+  color: #6f5751;
+}
+
+.risk-state-card .feedback-entry-button {
+  margin-top: 20px;
+}
+
 .state-card h1,
 .card h2,
 .timeline-body h3,
@@ -840,6 +1158,59 @@ function heroFactTestId(label) {
   background: rgba(255, 250, 249, 0.98);
 }
 
+.exception-query-layout {
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  gap: 16px;
+  align-items: stretch;
+  margin-top: 34px;
+}
+
+.exception-query-card {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--trace-border);
+  border-radius: 24px;
+  background: #ffffff;
+  box-shadow: var(--trace-shadow);
+}
+
+.exception-qr-shell {
+  display: grid;
+  place-items: center;
+  min-height: 302px;
+  border: 1px solid rgba(31, 63, 104, 0.12);
+  border-radius: 18px;
+  background: #ffffff;
+}
+
+.exception-qr-shell img {
+  width: min(100%, 272px);
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
+}
+
+.exception-qr-code-text {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(31, 63, 104, 0.12);
+  border-radius: 14px;
+  background: #f8fbff;
+  color: var(--trace-primary-deep);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.45;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.exception-result-card {
+  margin-top: 0;
+  min-height: 0;
+}
+
 .error-list {
   margin: 16px auto 0;
   padding-left: 20px;
@@ -852,6 +1223,46 @@ function heroFactTestId(label) {
 .risk-banner {
   margin-bottom: 16px;
   padding: 20px;
+}
+
+.risk-summary-card {
+  margin-bottom: 14px;
+  padding: 18px 20px;
+  border: 1px solid rgba(190, 70, 58, 0.14);
+  border-radius: 22px;
+  background: rgba(255, 250, 249, 0.96);
+  box-shadow: var(--trace-shadow);
+}
+
+.risk-summary-card h1 {
+  margin: 0;
+  color: #7d2f28;
+  font-size: 28px;
+  line-height: 1.25;
+}
+
+.risk-summary-card p:not(.state-eyebrow) {
+  margin: 10px 0 0;
+  color: #6f5751;
+  line-height: 1.7;
+}
+
+.risk-summary-card.warning {
+  border-color: rgba(188, 127, 44, 0.18);
+  background: #fff8ec;
+}
+
+.risk-summary-card.warning h1 {
+  color: #8a5a12;
+}
+
+.risk-summary-card.pending {
+  border-color: rgba(48, 149, 246, 0.16);
+  background: #f4f9ff;
+}
+
+.risk-summary-card.pending h1 {
+  color: #245f9a;
 }
 
 .risk-banner.warning {
@@ -1437,6 +1848,7 @@ function heroFactTestId(label) {
 }
 
 @media (max-width: 820px) {
+  .exception-query-layout,
   .hero-card,
   .detail-grid,
   .quality-report-layout,
@@ -1450,6 +1862,16 @@ function heroFactTestId(label) {
 
   .feedback-readonly-grid {
     grid-template-columns: 1fr;
+  }
+
+  .exception-query-layout {
+    margin-top: 18px;
+  }
+
+  .exception-query-card {
+    max-width: 380px;
+    width: 100%;
+    justify-self: center;
   }
 }
 
@@ -1476,6 +1898,22 @@ function heroFactTestId(label) {
     width: 100%;
   }
 
+  .exception-query-card {
+    padding: 14px;
+  }
+
+  .exception-qr-shell {
+    min-height: 268px;
+  }
+
+  .exception-qr-shell img {
+    width: min(100%, 240px);
+  }
+
+  .exception-qr-code-text {
+    font-size: 14px;
+  }
+
   .report-dialog-head,
   .report-dialog-actions,
   .feedback-dialog-head,
@@ -1494,6 +1932,356 @@ function heroFactTestId(label) {
 
   .hero-title-block h1 {
     font-size: 26px;
+  }
+}
+.trace-page {
+  max-width: 980px;
+}
+
+.trace-story-hero {
+  overflow: hidden;
+  grid-template-columns: minmax(300px, 0.92fr) minmax(0, 1.08fr);
+  gap: 0;
+  padding: 0;
+  border: 1px solid rgba(55, 128, 84, 0.12);
+  background: #ffffff;
+}
+
+.trace-story-hero .hero-image-panel {
+  position: relative;
+  display: block;
+  min-height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: #f4f8ee;
+}
+
+.trace-story-hero .product-image {
+  width: 100%;
+  height: 100%;
+  min-height: 360px;
+  aspect-ratio: auto;
+  border-radius: 0;
+  object-fit: cover;
+  background: #f4f8ee;
+}
+
+.hero-image-caption {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 18px;
+  background: rgba(23, 50, 35, 0.62);
+  color: #ffffff;
+  backdrop-filter: blur(10px);
+}
+
+.hero-image-caption span,
+.hero-image-caption strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hero-image-caption span {
+  opacity: 0.88;
+  font-size: 12px;
+}
+
+.hero-image-caption strong {
+  font-size: 14px;
+}
+
+.trace-story-hero .hero-info-panel {
+  justify-content: center;
+  padding: 28px;
+}
+
+.trace-story-hero--risk .hero-info-panel {
+  padding: 22px;
+}
+
+.trace-story-hero--risk .hero-title-block {
+  padding-bottom: 12px;
+}
+
+.trace-story-hero--risk .hero-subtitle {
+  display: none;
+}
+
+.trace-story-hero--risk .hero-info-grid {
+  margin-top: 4px;
+}
+
+.trace-story-hero--risk .product-image {
+  min-height: 300px;
+}
+
+.hero-subtitle {
+  max-width: 520px;
+  margin: 10px 0 0;
+  color: #4c684f;
+  line-height: 1.75;
+}
+
+.trace-brief-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0 18px;
+}
+
+.trace-brief-row span {
+  max-width: 100%;
+  padding: 7px 12px;
+  border: 1px solid rgba(66, 138, 88, 0.14);
+  border-radius: 999px;
+  background: #f6faf3;
+  color: #315b3b;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.story-meta-list {
+  display: grid;
+  gap: 10px;
+}
+
+.story-meta-item {
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(66, 138, 88, 0.12);
+}
+
+.story-meta-item:last-child {
+  border-bottom: 0;
+}
+
+.story-meta-item strong {
+  display: block;
+  overflow-wrap: anywhere;
+  color: var(--trace-text);
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+.timeline {
+  display: grid;
+  gap: 16px;
+}
+
+.timeline-item {
+  position: relative;
+  display: block;
+  padding: 0 0 0 22px;
+}
+
+.timeline-item::before {
+  position: absolute;
+  top: 18px;
+  bottom: -18px;
+  left: 6px;
+  width: 2px;
+  border-radius: 999px;
+  background: #d7ead5;
+  content: '';
+}
+
+.timeline-item:last-child::before {
+  display: none;
+}
+
+.timeline-marker {
+  position: absolute;
+  top: 18px;
+  left: 0;
+  z-index: 1;
+  background: #36a15c;
+  box-shadow: 0 0 0 5px rgba(54, 161, 92, 0.16);
+}
+
+.timeline-body {
+  overflow: hidden;
+  border: 1px solid rgba(66, 138, 88, 0.12);
+  border-radius: 22px;
+  background: #ffffff;
+  box-shadow: 0 14px 34px rgba(25, 67, 44, 0.08);
+}
+
+.timeline-top,
+.timeline-meta,
+.timeline-summary {
+  padding-right: 16px;
+  padding-left: 16px;
+}
+
+.timeline-top {
+  padding-top: 16px;
+}
+
+.timeline-summary {
+  margin-bottom: 14px;
+}
+
+.timeline-image {
+  display: block;
+  margin-top: 0;
+  border-radius: 0;
+  aspect-ratio: 16 / 9;
+  max-height: none;
+}
+
+.quality-report-layout {
+  grid-template-columns: minmax(210px, 0.38fr) minmax(0, 1fr) minmax(210px, 0.32fr);
+}
+
+.quality-report-layout--simple {
+  grid-template-columns: minmax(190px, 0.42fr) minmax(0, 1fr);
+}
+
+.quality-report-layout--simple .quality-fact-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.quality-media {
+  position: relative;
+  overflow: hidden;
+  min-height: 230px;
+  border-radius: 22px;
+  background: #edf6ef;
+}
+
+.quality-media img {
+  width: 100%;
+  height: 100%;
+  min-height: 230px;
+  object-fit: cover;
+}
+
+.quality-media span {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(23, 50, 35, 0.66);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+@media (max-width: 820px) {
+  .trace-story-hero,
+  .quality-report-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .trace-story-hero .product-image {
+    min-height: auto;
+    aspect-ratio: 4 / 3;
+  }
+
+  .trace-story-hero .hero-info-panel {
+    padding: 20px;
+  }
+}
+
+@media (max-width: 560px) {
+  .trace-page {
+    padding-inline: 10px;
+  }
+
+  .compact-state-card {
+    min-height: 190px;
+    margin-top: 22px;
+    padding: 28px 22px;
+  }
+
+  .compact-state-card h1 {
+    font-size: 28px;
+  }
+
+  .risk-summary-card {
+    padding: 16px;
+  }
+
+  .risk-summary-card h1 {
+    font-size: 24px;
+  }
+
+  .trace-brief-row {
+    gap: 7px;
+  }
+
+  .trace-brief-row span {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  .hero-image-caption {
+    right: 10px;
+    bottom: 10px;
+    left: 10px;
+    padding: 10px 12px;
+  }
+
+  .trace-story-hero .hero-title-row {
+    gap: 10px;
+  }
+
+  .trace-story-hero .feedback-entry-button {
+    width: auto;
+    align-self: flex-start;
+  }
+
+  .trace-story-hero--risk .product-image {
+    min-height: auto;
+    aspect-ratio: 4 / 3;
+  }
+
+  .trace-story-hero--risk .hero-info-panel {
+    padding: 16px;
+  }
+
+  .trace-story-hero--risk .hero-title-block h1 {
+    font-size: 24px;
+  }
+
+  .trace-story-hero--risk .hero-info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .trace-story-hero--risk .info-item {
+    padding: 12px;
+  }
+
+  .risk-fact-list {
+    grid-template-columns: 1fr;
+  }
+
+  .risk-fact-row:nth-child(2) {
+    border-top: 1px solid rgba(190, 70, 58, 0.08);
+  }
+
+  .timeline-top {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .quality-media {
+    min-height: 190px;
+  }
+
+  .quality-media img {
+    min-height: 190px;
   }
 }
 </style>

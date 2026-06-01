@@ -17,18 +17,35 @@ public class TraceLinkBuilder {
     }
 
     public String buildQrImageUrl(String token) {
-        return join(traceProperties.getBackendBaseUrl(), "/api/public/qr-images/" + token);
+        return join(effectiveBackendBaseUrl(), "/api/public/qr-images/" + token);
     }
 
     public String buildAttachmentUrl(Long fileId) {
-        return join(traceProperties.getBackendBaseUrl(), "/api/public/files/" + fileId);
+        return join(effectiveBackendBaseUrl(), "/api/public/files/" + fileId);
+    }
+
+    private String effectiveBackendBaseUrl() {
+        String backendBaseUrl = normalize(traceProperties.getBackendBaseUrl());
+        String publicBaseUrl = normalize(traceProperties.getPublicBaseUrl());
+        if ((backendBaseUrl.isBlank() || backendBaseUrl.contains("127.0.0.1") || backendBaseUrl.contains("localhost"))
+                && !publicBaseUrl.isBlank()
+                && !publicBaseUrl.contains("127.0.0.1")
+                && !publicBaseUrl.contains("localhost")) {
+            return publicBaseUrl;
+        }
+        return backendBaseUrl;
     }
 
     private String join(String baseUrl, String path) {
+        String normalizedBase = normalize(baseUrl);
+        return normalizedBase + path;
+    }
+
+    private String normalize(String baseUrl) {
         String normalizedBase = baseUrl == null ? "" : baseUrl.trim();
         if (normalizedBase.endsWith("/")) {
             normalizedBase = normalizedBase.substring(0, normalizedBase.length() - 1);
         }
-        return normalizedBase + path;
+        return normalizedBase;
     }
 }

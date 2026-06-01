@@ -93,8 +93,6 @@ export function useBatchManage() {
         const response = await fetch(url)
         const data = await response.json()
 
-        console.log('高德逆地理编码返回：', data)
-
         if (String(data.status) !== '1') {
             throw new Error(data.info || '地址解析失败')
         }
@@ -123,8 +121,6 @@ export function useBatchManage() {
 
             ElMessage.success('已自动获取当前位置')
         } catch (error) {
-            console.error('定位失败：', error)
-
             form.originPlace = ''
             form.latitude = null
             form.longitude = null
