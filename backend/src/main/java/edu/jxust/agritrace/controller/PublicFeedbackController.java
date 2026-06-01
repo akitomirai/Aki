@@ -6,8 +6,10 @@ import edu.jxust.agritrace.common.exception.ForbiddenException;
 import edu.jxust.agritrace.common.exception.UnauthorizedException;
 import edu.jxust.agritrace.module.auth.model.AuthUserSession;
 import edu.jxust.agritrace.module.batch.mapper.OrgCompanyMapper;
+import edu.jxust.agritrace.module.batch.mapper.BaseProductMapper;
 import edu.jxust.agritrace.module.batch.mapper.QrCodeMapper;
 import edu.jxust.agritrace.module.batch.mapper.TraceBatchMapper;
+import edu.jxust.agritrace.module.batch.mapper.po.BaseProductPO;
 import edu.jxust.agritrace.module.batch.mapper.po.OrgCompanyPO;
 import edu.jxust.agritrace.module.batch.mapper.po.QrCodePO;
 import edu.jxust.agritrace.module.batch.mapper.po.TraceBatchPO;
@@ -62,15 +64,18 @@ public class PublicFeedbackController {
     private final List<PublicFeedbackRecord> feedbackRecords = new CopyOnWriteArrayList<>();
     private final TraceBatchMapper traceBatchMapper;
     private final OrgCompanyMapper orgCompanyMapper;
+    private final BaseProductMapper baseProductMapper;
     private final QrCodeMapper qrCodeMapper;
 
     public PublicFeedbackController(
             TraceBatchMapper traceBatchMapper,
             OrgCompanyMapper orgCompanyMapper,
+            BaseProductMapper baseProductMapper,
             QrCodeMapper qrCodeMapper
     ) {
         this.traceBatchMapper = traceBatchMapper;
         this.orgCompanyMapper = orgCompanyMapper;
+        this.baseProductMapper = baseProductMapper;
         this.qrCodeMapper = qrCodeMapper;
         seedDemoFeedback();
     }
@@ -181,9 +186,13 @@ public class PublicFeedbackController {
         if (!HANDLE_STATUSES.contains(status)) {
             throw new IllegalArgumentException("\u8bf7\u9009\u62e9\u53cd\u9988\u5904\u7406\u72b6\u6001\u3002");
         }
+        String handleResult = normalize(request == null ? null : request.handleResult(), "");
+        if ("CLOSED".equals(status) && handleResult.length() < 10) {
+            throw new IllegalArgumentException("\u5173\u95ed\u53cd\u9988\u65f6\u9700\u586b\u5199\u4e0d\u5c11\u4e8e 10 \u4e2a\u5b57\u7684\u5904\u7406\u7ed3\u679c\u3002");
+        }
 
         record.setStatus(status);
-        record.setHandleResult(normalize(request == null ? null : request.handleResult(), ""));
+        record.setHandleResult(handleResult);
         record.setHandledAt(formatDisplayTime(LocalDateTime.now()));
         record.setHandlerName(normalize(currentUser.realName(), currentUser.username()));
         return ApiResponse.ok("\u53cd\u9988\u5904\u7406\u5df2\u4fdd\u5b58", toVO(record));
@@ -217,9 +226,9 @@ public class PublicFeedbackController {
         BatchSnapshot batchSnapshot = resolveBatchSnapshot(request);
         return new PublicFeedbackRecord(
                 feedbackIdSequence.incrementAndGet(),
-                normalize(request.productName(), UNKNOWN_TEXT),
-                normalize(request.batchNo(), UNKNOWN_TEXT),
-                normalize(request.traceCode(), UNKNOWN_TEXT),
+                normalize(batchSnapshot.productName(), normalize(request.productName(), UNKNOWN_TEXT)),
+                normalize(batchSnapshot.batchNo(), normalize(request.batchNo(), UNKNOWN_TEXT)),
+                normalize(batchSnapshot.traceCode(), normalize(request.traceCode(), UNKNOWN_TEXT)),
                 feedbackType,
                 normalize(request.contact(), ""),
                 content,
@@ -264,9 +273,10 @@ public class PublicFeedbackController {
 
     private BatchSnapshot resolveBatchSnapshot(PublicFeedbackRequest request) {
         TraceBatchPO batchPO = null;
+        QrCodePO qrCodePO = null;
         String traceCode = normalizeBlank(request.traceCode());
-        if (traceCode != null) {
-            QrCodePO qrCodePO = qrCodeMapper.selectOne(new LambdaQueryWrapper<QrCodePO>()
+        if (traceCode != null && !UNKNOWN_TEXT.equals(traceCode)) {
+            qrCodePO = qrCodeMapper.selectOne(new LambdaQueryWrapper<QrCodePO>()
                     .eq(QrCodePO::getQrToken, traceCode)
                     .last("limit 1"));
             if (qrCodePO != null && qrCodePO.getBatchId() != null) {
@@ -282,12 +292,16 @@ public class PublicFeedbackController {
             }
         }
         if (batchPO == null) {
-            return new BatchSnapshot(null, "");
+            return new BatchSnapshot(null, "", "", "", traceCode);
         }
         OrgCompanyPO companyPO = batchPO.getCompanyId() == null ? null : orgCompanyMapper.selectById(batchPO.getCompanyId());
+        BaseProductPO productPO = batchPO.getProductId() == null ? null : baseProductMapper.selectById(batchPO.getProductId());
         return new BatchSnapshot(
                 batchPO.getCompanyId(),
-                normalize(companyPO == null ? null : companyPO.getName(), "")
+                normalize(companyPO == null ? null : companyPO.getName(), ""),
+                normalize(productPO == null ? null : productPO.getName(), ""),
+                normalize(batchPO.getBatchCode(), ""),
+                normalize(qrCodePO == null ? traceCode : qrCodePO.getQrToken(), "")
         );
     }
 
@@ -296,7 +310,7 @@ public class PublicFeedbackController {
             return true;
         }
         if (isEnterpriseAdmin(currentUser)) {
-            return record.companyId() == null || Objects.equals(record.companyId(), currentUser.companyId());
+            return record.companyId() != null && Objects.equals(record.companyId(), currentUser.companyId());
         }
         return false;
     }
@@ -360,7 +374,10 @@ public class PublicFeedbackController {
 
     private record BatchSnapshot(
             Long companyId,
-            String companyName
+            String companyName,
+            String productName,
+            String batchNo,
+            String traceCode
     ) {
     }
 

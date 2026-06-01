@@ -170,11 +170,16 @@ async function submitHandle() {
     ElMessage.warning('请选择处理状态')
     return
   }
+  const handleResult = String(handleDialog.value.handleResult || '').trim()
+  if (handleDialog.value.status === 'CLOSED' && handleResult.length < 10) {
+    ElMessage.warning('关闭反馈时请填写不少于 10 个字的处理结果')
+    return
+  }
   saving.value = true
   try {
     await handleFeedbackApi(item.id, {
       status: handleDialog.value.status,
-      handleResult: handleDialog.value.handleResult
+      handleResult
     })
     ElMessage.success('反馈处理已保存')
     handleDialog.value.visible = false
@@ -312,7 +317,7 @@ function formatDateTime(value) {
           <div class="feedback-table-head ledger-table-head">
             <span>产品 / 批次</span>
             <span>反馈类型</span>
-            <span>反馈内容</span>
+            <span>反馈内容 / 责任主体</span>
             <span>状态</span>
             <span>提交时间</span>
             <span>操作</span>
@@ -393,6 +398,10 @@ function formatDateTime(value) {
           <strong>{{ detailDialog.item.contact || '-' }}</strong>
         </div>
         <div>
+          <span>责任主体</span>
+          <strong>{{ detailDialog.item.companyName || '平台待分拣' }}</strong>
+        </div>
+        <div>
           <span>处理状态</span>
           <strong>{{ statusText(detailDialog.item.status) }}</strong>
         </div>
@@ -403,6 +412,14 @@ function formatDateTime(value) {
         <div class="full">
           <span>处理结果</span>
           <strong>{{ detailDialog.item.handleResult || '-' }}</strong>
+        </div>
+        <div>
+          <span>处理人</span>
+          <strong>{{ detailDialog.item.handlerName || '-' }}</strong>
+        </div>
+        <div>
+          <span>处理时间</span>
+          <strong>{{ formatDateTime(detailDialog.item.handledAt) }}</strong>
         </div>
       </div>
       <template #footer>
@@ -430,7 +447,7 @@ function formatDateTime(value) {
             :rows="4"
             maxlength="200"
             show-word-limit
-            placeholder="填写处理结果"
+            :placeholder="handleDialog.status === 'CLOSED' ? '填写处理结果，关闭时不少于 10 个字' : '填写当前处理进展'"
           />
         </el-form-item>
       </el-form>

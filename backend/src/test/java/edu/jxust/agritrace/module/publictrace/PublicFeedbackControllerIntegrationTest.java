@@ -9,6 +9,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -66,6 +68,64 @@ class PublicFeedbackControllerIntegrationTest extends AuthenticatedIntegrationTe
     }
 
     @Test
+    void shouldUseResolvedBatchIdentityWhenPublicPayloadSpoofsProduct() throws Exception {
+        String content = "提交内容带有伪造产品名称，系统应按追溯码关联批次还原责任主体。";
+
+        mockMvc.perform(post("/api/public/feedback")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "productName": "伪造产品",
+                                  "batchNo": "FAKE-BATCH",
+                                  "traceCode": "test-token-2026",
+                                  "feedbackType": "信息不一致",
+                                  "contact": "13800002222",
+                                  "content": "%s",
+                                  "createdAt": "2026-06-01T12:10:00"
+                                }
+                                """.formatted(content)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        authenticateAs(PLATFORM_ADMIN_SESSION);
+        mockMvc.perform(get("/api/feedback"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.content=='%s')].productName".formatted(content), hasItem("Navel Orange")))
+                .andExpect(jsonPath("$.data[?(@.content=='%s')].batchNo".formatted(content), hasItem("BATCH20260311001")));
+    }
+
+    @Test
+    void shouldHideUnresolvedFeedbackFromEnterpriseReaders() throws Exception {
+        String content = "无法识别追溯码的反馈应先由平台管理员分拣，不能直接暴露给所有企业。";
+
+        mockMvc.perform(post("/api/public/feedback")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "productName": "未识别产品",
+                                  "batchNo": "UNKNOWN-BATCH",
+                                  "traceCode": "missing-token-2026",
+                                  "feedbackType": "二维码无法识别",
+                                  "contact": "13800003333",
+                                  "content": "%s",
+                                  "createdAt": "2026-06-01T12:20:00"
+                                }
+                                """.formatted(content)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        authenticateAs(PLATFORM_ADMIN_SESSION);
+        mockMvc.perform(get("/api/feedback"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[*].content", hasItem(content)));
+
+        authenticateAs(ENTERPRISE_ADMIN_SESSION);
+        mockMvc.perform(get("/api/feedback"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[*].content", not(hasItem(content))));
+    }
+
+    @Test
     void shouldLetEnterpriseHandleOwnCompanyFeedbackAndRejectRegulatorWrite() throws Exception {
         authenticateAs(ENTERPRISE_ADMIN_SESSION);
         mockMvc.perform(patch("/api/feedback/1")
@@ -90,6 +150,21 @@ class PublicFeedbackControllerIntegrationTest extends AuthenticatedIntegrationTe
                                 }
                                 """))
                 .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void shouldRequireHandleResultWhenClosingFeedback() throws Exception {
+        authenticateAs(PLATFORM_ADMIN_SESSION);
+        mockMvc.perform(patch("/api/feedback/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "status": "CLOSED",
+                                  "handleResult": ""
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false));
     }
 

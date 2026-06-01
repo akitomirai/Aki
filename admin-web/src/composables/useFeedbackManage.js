@@ -50,11 +50,16 @@ export function useFeedbackManage() {
     if (!handleForm.id) {
       return
     }
+    const handleResult = String(handleForm.handleResult || '').trim()
+    if (handleForm.status === 'CLOSED' && handleResult.length < 10) {
+      ElMessage.warning('关闭反馈时请填写不少于 10 个字的处理结果')
+      return
+    }
     handleLoading.value = true
     try {
       await handleFeedbackApi(handleForm.id, {
         status: handleForm.status,
-        handleResult: handleForm.handleResult
+        handleResult
       })
       ElMessage.success('反馈处理已保存')
       handleVisible.value = false
