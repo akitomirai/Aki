@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import edu.jxust.agritrace.module.auth.mapper.SysUserMapper;
 import edu.jxust.agritrace.module.auth.mapper.po.SysUserPO;
+import edu.jxust.agritrace.module.batch.mapper.OrgCompanyMapper;
+import edu.jxust.agritrace.module.batch.mapper.po.OrgCompanyPO;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -30,6 +32,9 @@ class AuthSecurityIntegrationTest {
 
     @Autowired
     private SysUserMapper sysUserMapper;
+
+    @Autowired
+    private OrgCompanyMapper orgCompanyMapper;
 
     @Test
     void shouldRejectTokenAfterUserIsDisabled() throws Exception {
@@ -72,6 +77,52 @@ class AuthSecurityIntegrationTest {
     }
 
     @Test
+    void shouldRejectEnterpriseLoginWhenCompanyIsDisabled() throws Exception {
+        OrgCompanyPO company = orgCompanyMapper.selectById(1L);
+        String originalStatus = company.getStatus();
+
+        try {
+            company.setStatus("DISABLED");
+            orgCompanyMapper.updateById(company);
+
+            mockMvc.perform(post("/api/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                      "username": "enterprise_admin",
+                                      "password": "123456",
+                                      "loginChannel": "ADMIN"
+                                    }
+                                    """))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.message").value("所属企业已停用或归档，请联系平台管理员"));
+        } finally {
+            company.setStatus(originalStatus);
+            orgCompanyMapper.updateById(company);
+        }
+    }
+
+    @Test
+    void shouldRejectExistingEnterpriseTokenAfterCompanyIsDisabled() throws Exception {
+        String token = loginToken("enterprise_admin", "123456");
+        OrgCompanyPO company = orgCompanyMapper.selectById(1L);
+        String originalStatus = company.getStatus();
+
+        try {
+            company.setStatus("DISABLED");
+            orgCompanyMapper.updateById(company);
+
+            mockMvc.perform(get("/api/companies")
+                            .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.success").value(false));
+        } finally {
+            company.setStatus(originalStatus);
+            orgCompanyMapper.updateById(company);
+        }
+    }
+
+    @Test
     void shouldKeepSelfRegistrationClosed() throws Exception {
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -108,6 +159,36 @@ class AuthSecurityIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].username").value("operator_phone_it"))
                 .andExpect(jsonPath("$.data[0].phone").value("13900001234"));
+    }
+
+    @Test
+    void platformAdminShouldNotOpenEnterpriseAccountForDisabledCompany() throws Exception {
+        String token = loginToken("platform", "123456");
+        OrgCompanyPO company = orgCompanyMapper.selectById(1L);
+        String originalStatus = company.getStatus();
+
+        try {
+            company.setStatus("DISABLED");
+            orgCompanyMapper.updateById(company);
+
+            mockMvc.perform(post("/api/users")
+                            .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                      "username": "operator_disabled_company_it",
+                                      "password": "123456",
+                                      "realName": "Disabled Company Operator",
+                                      "roleCode": "OPERATOR",
+                                      "companyId": 1
+                                    }
+                                    """))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value("所选企业已停用或归档，不能新开或迁入企业账号。"));
+        } finally {
+            company.setStatus(originalStatus);
+            orgCompanyMapper.updateById(company);
+        }
     }
 
     @Test

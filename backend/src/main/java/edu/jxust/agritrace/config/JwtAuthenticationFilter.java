@@ -4,6 +4,8 @@ import edu.jxust.agritrace.module.auth.model.AuthUserSession;
 import edu.jxust.agritrace.module.auth.mapper.SysUserMapper;
 import edu.jxust.agritrace.module.auth.mapper.po.SysUserPO;
 import edu.jxust.agritrace.module.auth.service.JwtTokenService;
+import edu.jxust.agritrace.module.batch.mapper.OrgCompanyMapper;
+import edu.jxust.agritrace.module.batch.mapper.po.OrgCompanyPO;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -24,10 +26,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenService jwtTokenService;
     private final SysUserMapper sysUserMapper;
+    private final OrgCompanyMapper orgCompanyMapper;
 
-    public JwtAuthenticationFilter(JwtTokenService jwtTokenService, SysUserMapper sysUserMapper) {
+    public JwtAuthenticationFilter(
+            JwtTokenService jwtTokenService,
+            SysUserMapper sysUserMapper,
+            OrgCompanyMapper orgCompanyMapper
+    ) {
         this.jwtTokenService = jwtTokenService;
         this.sysUserMapper = sysUserMapper;
+        this.orgCompanyMapper = orgCompanyMapper;
     }
 
     @Override
@@ -70,6 +78,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (user == null || user.getStatus() == null || user.getStatus() != 1 || isBlank(user.getRoleCode())) {
             return null;
         }
+        if (requiresEnabledCompany(user) && !isBoundCompanyEnabled(user.getCompanyId())) {
+            return null;
+        }
         return new AuthUserSession(
                 user.getId(),
                 defaultValue(user.getUsername(), tokenSession.username()),
@@ -81,6 +92,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private String defaultValue(String value, String fallback) {
         return isBlank(value) ? fallback : value.trim();
+    }
+
+    private boolean requiresEnabledCompany(SysUserPO user) {
+        String roleCode = defaultValue(user == null ? null : user.getRoleCode(), "");
+        return "ENTERPRISE_ADMIN".equalsIgnoreCase(roleCode) || "OPERATOR".equalsIgnoreCase(roleCode);
+    }
+
+    private boolean isBoundCompanyEnabled(Long companyId) {
+        if (companyId == null) {
+            return false;
+        }
+        OrgCompanyPO companyPO = orgCompanyMapper.selectById(companyId);
+        return companyPO != null && "ENABLED".equalsIgnoreCase(defaultValue(companyPO.getStatus(), ""));
     }
 
     private boolean isBlank(String value) {

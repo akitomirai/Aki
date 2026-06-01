@@ -61,6 +61,7 @@ public class AuthServiceImpl implements AuthService {
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             throw new UnauthorizedException("用户名或密码错误");
         }
+        ensureBoundCompanyEnabledForLogin(user);
         if (isOperator(user) && !isMobileLogin(request)) {
             throw new UnauthorizedException("现场操作员仅支持移动端登录，请使用移动端入口");
         }
@@ -97,6 +98,24 @@ public class AuthServiceImpl implements AuthService {
 
     private boolean isOperator(SysUserPO user) {
         return "OPERATOR".equalsIgnoreCase(defaultValue(user.getRoleCode(), ""));
+    }
+
+    private boolean requiresEnabledCompany(SysUserPO user) {
+        String roleCode = defaultValue(user == null ? null : user.getRoleCode(), "");
+        return "ENTERPRISE_ADMIN".equalsIgnoreCase(roleCode) || "OPERATOR".equalsIgnoreCase(roleCode);
+    }
+
+    private void ensureBoundCompanyEnabledForLogin(SysUserPO user) {
+        if (!requiresEnabledCompany(user)) {
+            return;
+        }
+        if (user.getCompanyId() == null) {
+            throw new UnauthorizedException("账号未绑定企业，请联系平台管理员");
+        }
+        OrgCompanyPO companyPO = orgCompanyMapper.selectById(user.getCompanyId());
+        if (companyPO == null || !"ENABLED".equalsIgnoreCase(defaultValue(companyPO.getStatus(), ""))) {
+            throw new UnauthorizedException("所属企业已停用或归档，请联系平台管理员");
+        }
     }
 
     private boolean isMobileLogin(LoginRequest request) {

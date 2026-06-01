@@ -13,6 +13,7 @@ import edu.jxust.agritrace.module.auth.mapper.po.SysUserPO;
 import edu.jxust.agritrace.module.auth.model.AuthUserSession;
 import edu.jxust.agritrace.module.auth.service.UserAdminService;
 import edu.jxust.agritrace.module.auth.vo.UserAdminVO;
+import edu.jxust.agritrace.module.batch.entity.MasterDataStatus;
 import edu.jxust.agritrace.module.batch.mapper.OrgCompanyMapper;
 import edu.jxust.agritrace.module.batch.mapper.po.OrgCompanyPO;
 import edu.jxust.agritrace.module.log.dto.OperationLogRecord;
@@ -117,6 +118,7 @@ public class UserAdminServiceImpl implements UserAdminService {
         String roleCode = normalizeRoleCode(request.roleCode(), true);
         ensureRoleAllowedForManager(currentUser, roleCode);
         Long companyId = normalizeCompanyForRole(currentUser, roleCode, request.companyId());
+        ensureCompanyAcceptsNewAccount(companyId);
 
         if (password.length() < 6) {
             throw new IllegalArgumentException("密码至少需要 6 位。");
@@ -163,6 +165,9 @@ public class UserAdminServiceImpl implements UserAdminService {
         String roleCode = normalizeRoleCode(request.roleCode(), true);
         ensureRoleAllowedForManager(currentUser, roleCode);
         Long companyId = normalizeCompanyForRole(currentUser, roleCode, request.companyId());
+        if (!Objects.equals(userPO.getCompanyId(), companyId)) {
+            ensureCompanyAcceptsNewAccount(companyId);
+        }
 
         if (Objects.equals(currentUser.userId(), userPO.getId()) && !Objects.equals(userPO.getUsername(), username)) {
             throw new IllegalArgumentException("不能修改当前登录账号的用户名。");
@@ -322,6 +327,19 @@ public class UserAdminServiceImpl implements UserAdminService {
             denyUserAccess(currentUser, null, null, "你只能管理本企业用户。");
         }
         return effectiveCompanyId;
+    }
+
+    private void ensureCompanyAcceptsNewAccount(Long companyId) {
+        if (companyId == null) {
+            return;
+        }
+        OrgCompanyPO companyPO = orgCompanyMapper.selectById(companyId);
+        if (companyPO == null) {
+            throw new IllegalArgumentException("所选企业不存在。");
+        }
+        if (MasterDataStatus.fromCode(companyPO.getStatus()) != MasterDataStatus.ENABLED) {
+            throw new IllegalArgumentException("所选企业已停用或归档，不能新开或迁入企业账号。");
+        }
     }
 
     private SysUserPO findUserRequired(Long userId) {
