@@ -76,6 +76,8 @@ public class MasterDataServiceImpl implements MasterDataService {
                 wrapper.and(item -> item
                         .like(OrgCompanyPO::getName, keyword)
                         .or()
+                        .like(OrgCompanyPO::getLicenseNo, keyword)
+                        .or()
                         .like(OrgCompanyPO::getContact, keyword)
                         .or()
                         .like(OrgCompanyPO::getPhone, keyword)
@@ -137,11 +139,15 @@ public class MasterDataServiceImpl implements MasterDataService {
             denyCompanyAccess(currentUser, companyPO, "企业管理员不能修改企业状态。");
         }
 
-        ensureCompanyNameUnique(request.name(), companyId);
-        ensureLicenseUnique(request.licenseNo(), companyId);
+        if (isPlatformAdmin(currentUser)) {
+            ensureCompanyNameUnique(request.name(), companyId);
+            ensureLicenseUnique(request.licenseNo(), companyId);
+            companyPO.setName(request.name().trim());
+            companyPO.setLicenseNo(trimToNull(request.licenseNo()));
+        } else {
+            ensureCompanyIdentityUnchanged(currentUser, companyPO, request);
+        }
 
-        companyPO.setName(request.name().trim());
-        companyPO.setLicenseNo(trimToNull(request.licenseNo()));
         companyPO.setContact(request.contactPerson().trim());
         companyPO.setPhone(request.contactPhone().trim());
         companyPO.setAddress(request.address().trim());
@@ -563,6 +569,17 @@ public class MasterDataServiceImpl implements MasterDataService {
         if (existing != null && !Objects.equals(existing.getId(), ignoredId)) {
             throw new IllegalArgumentException("许可证号已存在，请检查后重试。");
         }
+    }
+
+    private void ensureCompanyIdentityUnchanged(AuthUserSession currentUser, OrgCompanyPO companyPO, CompanySaveRequest request) {
+        if (!normalizedEquals(companyPO.getName(), request.name())
+                || !normalizedEquals(companyPO.getLicenseNo(), request.licenseNo())) {
+            denyCompanyAccess(currentUser, companyPO, "企业名称和许可证号由平台维护，企业管理员只能修改联系信息。");
+        }
+    }
+
+    private boolean normalizedEquals(String left, String right) {
+        return Objects.equals(trimToNull(left), trimToNull(right));
     }
 
     private void ensureProductUnique(Long companyId, String productName, String productCode, Long ignoredId) {

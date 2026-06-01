@@ -22,7 +22,7 @@
               v-model.trim="searchForm.keyword"
               clearable
               class="manage-filter-item"
-              placeholder="按企业名称、联系人、电话或地址搜索"
+              placeholder="按企业名称、许可证号、联系人、电话或地址搜索"
               @keyup.enter="handleSearch"
             />
           </label>
@@ -264,6 +264,7 @@
             show-word-limit
             placeholder="请输入企业名称"
             data-testid="company-form-name"
+            :disabled="!canEditCompanyIdentity"
           />
         </el-form-item>
 
@@ -274,6 +275,7 @@
             show-word-limit
             placeholder="便于备案和回查"
             data-testid="company-form-license"
+            :disabled="!canEditCompanyIdentity"
           />
         </el-form-item>
 
@@ -355,6 +357,7 @@ const isPlatformAdmin = computed(() => roleCode.value === 'PLATFORM_ADMIN')
 const isEnterpriseAdmin = computed(() => roleCode.value === 'ENTERPRISE_ADMIN')
 const canCreateCompany = computed(() => isPlatformAdmin.value)
 const canManageCompanyStatus = computed(() => isPlatformAdmin.value)
+const canEditCompanyIdentity = computed(() => isPlatformAdmin.value)
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -396,7 +399,7 @@ const statusOptions = [
 const pageTitle = computed(() => (isEnterpriseAdmin.value ? '本企业资料' : '企业管理'))
 const pageDesc = computed(() => {
   if (isEnterpriseAdmin.value) {
-    return '这里只显示你所在企业的基础资料，你可以维护名称、联系人、电话和地址。'
+    return '这里只显示你所在企业的基础资料，你可以维护联系人、电话和地址。'
   }
   return '统一维护企业基础档案，支持后续产品归属、批次建档和追溯信息关联。'
 })

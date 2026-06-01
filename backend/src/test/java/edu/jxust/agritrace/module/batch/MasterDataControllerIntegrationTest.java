@@ -76,6 +76,11 @@ class MasterDataControllerIntegrationTest extends AuthenticatedIntegrationTestSu
                 .andExpect(jsonPath("$.data.name").value("Round6 Company Updated"))
                 .andExpect(jsonPath("$.data.contactPerson").value("Alice Updated"));
 
+        mockMvc.perform(get("/api/companies")
+                        .param("keyword", "LIC-ROUND6-COMPANY"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].id").value(companyId));
+
         mockMvc.perform(post("/api/companies/{companyId}/status", companyId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -368,7 +373,7 @@ class MasterDataControllerIntegrationTest extends AuthenticatedIntegrationTestSu
                         .content("""
                                 {
                                   "name": "Demo Orchard Company",
-                                  "licenseNo": "LIC-DEMO-ORCHARD",
+                                  "licenseNo": "LIC-DEMO-001",
                                   "contactPerson": "Enterprise Scope Contact",
                                   "contactPhone": "13912345678",
                                   "address": "Ganzhou Enterprise Scope Road",
@@ -380,6 +385,31 @@ class MasterDataControllerIntegrationTest extends AuthenticatedIntegrationTestSu
                 .andExpect(jsonPath("$.data.contactPerson").value("Enterprise Scope Contact"))
                 .andExpect(jsonPath("$.data.contactPhone").value("13912345678"))
                 .andExpect(jsonPath("$.data.address").value("Ganzhou Enterprise Scope Road"));
+    }
+
+    @Test
+    void shouldRejectEnterpriseAdminChangingCompanyIdentityFields() throws Exception {
+        long beforeDenied = countDeniedLogs("COMPANY_ACCESS_DENIED", ENTERPRISE_ADMIN_SESSION.userId(), "企业名称和许可证号由平台维护，企业管理员只能修改联系信息。");
+
+        authenticateAs(ENTERPRISE_ADMIN_SESSION);
+
+        mockMvc.perform(patch("/api/companies/{companyId}", 1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Enterprise Renamed Company",
+                                  "licenseNo": "LIC-ENTERPRISE-RENAMED",
+                                  "contactPerson": "Enterprise Scope Contact",
+                                  "contactPhone": "13912345678",
+                                  "address": "Ganzhou Enterprise Scope Road",
+                                  "status": "ENABLED"
+                                }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("企业名称和许可证号由平台维护，企业管理员只能修改联系信息。"));
+
+        assertThat(countDeniedLogs("COMPANY_ACCESS_DENIED", ENTERPRISE_ADMIN_SESSION.userId(), "企业名称和许可证号由平台维护，企业管理员只能修改联系信息。"))
+                .isEqualTo(beforeDenied + 1);
     }
 
     @Test
