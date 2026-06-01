@@ -64,6 +64,7 @@ const todoBatches = computed(() => {
       const draft = draftMap.value[String(item.id)] ?? null
       return {
         ...item,
+        productName: productLabel(item.productName, item.productCode, '待补现场记录'),
         draft,
         hasDraft: Boolean(draft),
         recentDisplayTime: draft?.updatedAt || item.lastUpdatedAt || item.latestTraceTime || item.marketDate || ''
@@ -89,7 +90,11 @@ const draftSummaries = computed(() => {
     return {
       ...draft,
       batchCode: draft.batchCode || batch.batchCode || `批次 ${draft.batchId}`,
-      productName: draft.productName || batch.productName || '待补现场记录',
+      productName: productLabel(
+        draft.productName || batch.productName,
+        draft.productCode || batch.productCode,
+        '待补现场记录'
+      ),
       currentNode: draft.currentNode || batch.currentNode || formatStageLabel(draft.stage || 'PRODUCE'),
       stageLabel: formatStageLabel(draft.stage || 'PRODUCE'),
       imageCount: draft.imageCount ?? uploadedFiles.length
@@ -104,7 +109,11 @@ const selectedBatch = computed(() => {
 })
 
 const currentBatchCode = computed(() => selectedBatch.value?.batchCode || batchDetail.value?.batch?.batchCode || '')
-const currentProductName = computed(() => selectedBatch.value?.productName || batchDetail.value?.product?.name || '现场作业')
+const currentProductName = computed(() => productLabel(
+  selectedBatch.value?.productName || batchDetail.value?.product?.name,
+  selectedBatch.value?.productCode || batchDetail.value?.product?.productCode,
+  '现场作业'
+))
 const currentCompanyName = computed(() => selectedBatch.value?.companyName || batchDetail.value?.company?.name || '')
 const currentStatusLabel = computed(() => selectedBatch.value?.statusLabel || batchDetail.value?.status?.label || '待处理')
 const currentTaskStatusLabel = computed(() => resolveTaskStatusLabel({
@@ -380,6 +389,7 @@ function buildDraftBatchSnapshot(batchId = selectedBatchId.value) {
     id: batch.id ?? Number(batchId),
     batchCode: batch.batchCode || currentBatchCode.value,
     productName: batch.productName || currentProductName.value,
+    productCode: batch.productCode || batchDetail.value?.product?.productCode || '',
     currentNode: batch.currentNode || currentNode.value
   }
 }
@@ -393,6 +403,7 @@ function normalizeLocalDraft(draft) {
     batchId: String(draft.batchId),
     batchCode: draft.data?.batch?.batchCode || '',
     productName: draft.data?.batch?.productName || '',
+    productCode: draft.data?.batch?.productCode || '',
     currentNode: draft.data?.batch?.currentNode || '',
     stage: form.stage || 'PRODUCE',
     title: form.title || '',
@@ -488,6 +499,15 @@ function compareTodoBatch(left, right) {
   if (updateGap) return updateGap
 
   return Number(right.id) - Number(left.id)
+}
+
+function productLabel(name, code, fallback = '未命名产品') {
+  const safeName = String(name || '').trim() || fallback
+  const safeCode = String(code || '').trim()
+  if (safeCode && safeName.includes(`（${safeCode}）`)) {
+    return safeName
+  }
+  return safeCode ? `${safeName}（${safeCode}）` : safeName
 }
 
 function getTaskLabel(batch) {

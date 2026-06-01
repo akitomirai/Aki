@@ -35,7 +35,7 @@
               v-model.trim="searchForm.keyword"
               clearable
               class="manage-filter-item"
-              placeholder="按产品名称、分类、产地、规格搜索"
+              placeholder="按产品名称、编码、分类、产地搜索"
               @keyup.enter="handleSearch"
             />
           </label>
@@ -150,6 +150,7 @@
           >
             <div class="row-main">
               <strong>{{ textOf(row.productName, '未命名产品') }}</strong>
+              <span>{{ textOf(row.productCode, '未填写产品编码') }}</span>
             </div>
 
             <div class="row-meta">
@@ -248,6 +249,16 @@
             show-word-limit
             placeholder="请输入产品名称"
             data-testid="products-form-name"
+          />
+        </el-form-item>
+
+        <el-form-item label="产品编码（选填）">
+          <el-input
+            v-model.trim="form.productCode"
+            maxlength="64"
+            show-word-limit
+            placeholder="用于区分同名或同类产品"
+            data-testid="products-form-code"
           />
         </el-form-item>
 

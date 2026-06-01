@@ -28,6 +28,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -35,6 +37,8 @@ import java.util.Objects;
 @Service
 @Transactional(readOnly = true)
 public class MasterDataServiceImpl implements MasterDataService {
+
+    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     private final OrgCompanyMapper orgCompanyMapper;
     private final BaseProductMapper baseProductMapper;
@@ -369,6 +373,7 @@ public class MasterDataServiceImpl implements MasterDataService {
                         product.getId(),
                         product.getCompanyId(),
                         product.getName(),
+                        product.getProductCode(),
                         product.getCategory(),
                         product.getOriginPlace(),
                         defaultValue(product.getSpec(), null),
@@ -414,9 +419,14 @@ public class MasterDataServiceImpl implements MasterDataService {
                 productPO.getUnit(),
                 status.name(),
                 status.label(),
+                formatDateTime(productPO.getCreatedAt()),
                 batchCount,
                 batchCount == 0
         );
+    }
+
+    private String formatDateTime(LocalDateTime value) {
+        return value == null ? "" : DATE_TIME_FORMATTER.format(value);
     }
 
     private AuthUserSession requireCurrentUser() {
@@ -556,23 +566,31 @@ public class MasterDataServiceImpl implements MasterDataService {
     }
 
     private void ensureProductUnique(Long companyId, String productName, String productCode, Long ignoredId) {
-        BaseProductPO sameName = baseProductMapper.selectOne(new LambdaQueryWrapper<BaseProductPO>()
-                .eq(BaseProductPO::getCompanyId, companyId)
-                .eq(BaseProductPO::getName, productName.trim())
-                .orderByAsc(BaseProductPO::getId)
-                .last("limit 1"));
-        if (sameName != null && !Objects.equals(sameName.getId(), ignoredId)) {
-            throw new IllegalArgumentException("本企业下已存在同名产品。");
-        }
-        if (notBlank(productCode)) {
+        String normalizedName = productName.trim();
+        String normalizedCode = trimToNull(productCode);
+
+        if (normalizedCode != null) {
             BaseProductPO sameCode = baseProductMapper.selectOne(new LambdaQueryWrapper<BaseProductPO>()
                     .eq(BaseProductPO::getCompanyId, companyId)
-                    .eq(BaseProductPO::getProductCode, productCode.trim())
+                    .eq(BaseProductPO::getProductCode, normalizedCode)
                     .orderByAsc(BaseProductPO::getId)
                     .last("limit 1"));
             if (sameCode != null && !Objects.equals(sameCode.getId(), ignoredId)) {
                 throw new IllegalArgumentException("本企业下已存在相同产品编码。");
             }
+            return;
+        }
+
+        BaseProductPO sameNameWithoutCode = baseProductMapper.selectList(new LambdaQueryWrapper<BaseProductPO>()
+                        .eq(BaseProductPO::getCompanyId, companyId)
+                        .eq(BaseProductPO::getName, normalizedName)
+                        .orderByAsc(BaseProductPO::getId))
+                .stream()
+                .filter(product -> !Objects.equals(product.getId(), ignoredId))
+                .findFirst()
+                .orElse(null);
+        if (sameNameWithoutCode != null) {
+            throw new IllegalArgumentException("本企业下已存在同名产品，请填写产品编码区分。");
         }
     }
 

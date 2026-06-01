@@ -7,6 +7,7 @@ public record FieldDraftVO(
         Long batchId,
         String batchCode,
         String productName,
+        String productCode,
         String companyName,
         String currentNode,
         String stage,

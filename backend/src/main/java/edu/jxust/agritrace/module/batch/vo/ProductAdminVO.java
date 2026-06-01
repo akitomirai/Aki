@@ -13,6 +13,7 @@ public record ProductAdminVO(
         String unit,
         String status,
         String statusLabel,
+        String createdAt,
         long batchCount,
         boolean canDelete
 ) {

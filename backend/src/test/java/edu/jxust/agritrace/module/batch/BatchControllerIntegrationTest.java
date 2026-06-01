@@ -247,13 +247,20 @@ class BatchControllerIntegrationTest extends AuthenticatedIntegrationTestSupport
         mockMvc.perform(get("/api/batches"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].batchCode").isNotEmpty())
+                .andExpect(jsonPath("$.data[0].productCode").isNotEmpty())
                 .andExpect(jsonPath("$.data[0].companyName").isNotEmpty())
                 .andExpect(jsonPath("$.data[0].qualityStatus").isNotEmpty())
                 .andExpect(jsonPath("$.data[0].taskStatusLabel").isNotEmpty());
 
+        mockMvc.perform(get("/api/batches")
+                        .param("productName", "ORANGE-001"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].productCode").value("ORANGE-001"));
+
         mockMvc.perform(get("/api/batches/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.batch.batchCode").value("BATCH20260311001"))
+                .andExpect(jsonPath("$.data.product.productCode").value("ORANGE-001"))
                 .andExpect(jsonPath("$.data.company.name").isNotEmpty())
                 .andExpect(jsonPath("$.data.status.label").isNotEmpty())
                 .andExpect(jsonPath("$.data.quality.label").isNotEmpty())

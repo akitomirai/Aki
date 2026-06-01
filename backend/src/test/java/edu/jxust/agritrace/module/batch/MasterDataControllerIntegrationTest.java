@@ -17,6 +17,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -136,10 +137,17 @@ class MasterDataControllerIntegrationTest extends AuthenticatedIntegrationTestSu
                                 """.formatted(companyId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.companyId").value(companyId))
+                .andExpect(jsonPath("$.data.productCode").value("RICE-ROUND6"))
+                .andExpect(jsonPath("$.data.createdAt").isNotEmpty())
                 .andReturn();
 
         long productId = objectMapper.readTree(createProductResult.getResponse().getContentAsString())
                 .path("data").path("id").asLong();
+
+        mockMvc.perform(get("/api/batches/lookup/products")
+                        .param("companyId", String.valueOf(companyId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[*].productCode", hasItem("RICE-ROUND6")));
 
         mockMvc.perform(patch("/api/products/{productId}", productId)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -183,6 +191,84 @@ class MasterDataControllerIntegrationTest extends AuthenticatedIntegrationTestSu
     }
 
     @Test
+    void shouldUseProductCodeToDistinguishSameNameProducts() throws Exception {
+        long companyId = createCompanyAsPlatform("Round6 Same Name Product Company", "LIC-ROUND6-SAME-NAME-PRODUCT");
+
+        mockMvc.perform(post("/api/products")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "companyId": %d,
+                                  "productName": "Round6 Same Name Rice",
+                                  "productCode": "RICE-SAME-A",
+                                  "category": "Grain",
+                                  "originPlace": "Yichun",
+                                  "coverImage": "/images/products/rice-batch.svg",
+                                  "specification": "25kg/bag",
+                                  "unit": "bag",
+                                  "status": "ENABLED"
+                                }
+                                """.formatted(companyId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.productName").value("Round6 Same Name Rice"))
+                .andExpect(jsonPath("$.data.productCode").value("RICE-SAME-A"));
+
+        mockMvc.perform(post("/api/products")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "companyId": %d,
+                                  "productName": "Round6 Same Name Rice",
+                                  "productCode": "RICE-SAME-B",
+                                  "category": "Grain",
+                                  "originPlace": "Yichun",
+                                  "coverImage": "/images/products/rice-batch.svg",
+                                  "specification": "10kg/bag",
+                                  "unit": "bag",
+                                  "status": "ENABLED"
+                                }
+                                """.formatted(companyId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.productName").value("Round6 Same Name Rice"))
+                .andExpect(jsonPath("$.data.productCode").value("RICE-SAME-B"));
+
+        mockMvc.perform(post("/api/products")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "companyId": %d,
+                                  "productName": "Round6 Other Rice",
+                                  "productCode": "RICE-SAME-B",
+                                  "category": "Grain",
+                                  "originPlace": "Yichun",
+                                  "coverImage": "/images/products/rice-batch.svg",
+                                  "specification": "10kg/bag",
+                                  "unit": "bag",
+                                  "status": "ENABLED"
+                                }
+                                """.formatted(companyId)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("本企业下已存在相同产品编码。"));
+
+        mockMvc.perform(post("/api/products")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "companyId": %d,
+                                  "productName": "Round6 Same Name Rice",
+                                  "category": "Grain",
+                                  "originPlace": "Yichun",
+                                  "coverImage": "/images/products/rice-batch.svg",
+                                  "specification": "10kg/bag",
+                                  "unit": "bag",
+                                  "status": "ENABLED"
+                                }
+                                """.formatted(companyId)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("本企业下已存在同名产品，请填写产品编码区分。"));
+    }
+
+    @Test
     void shouldRejectDeletingReferencedProduct() throws Exception {
         mockMvc.perform(delete("/api/products/{productId}", 1))
                 .andExpect(status().isBadRequest())
@@ -223,6 +309,45 @@ class MasterDataControllerIntegrationTest extends AuthenticatedIntegrationTestSu
                                 """.formatted(companyId)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message", containsString("不可用")));
+    }
+
+    @Test
+    void shouldRejectBatchCreationWhenProductIsNotAvailable() throws Exception {
+        long companyId = createCompanyAsPlatform("Scope Product Status Company", "LIC-SCOPE-PRODUCT-STATUS");
+
+        long productId = objectMapper.readTree(mockMvc.perform(post("/api/products")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "companyId": %d,
+                                  "productName": "Scope Disabled Product",
+                                  "productCode": "SCOPE-DISABLED-PRODUCT",
+                                  "category": "Fruit",
+                                  "originPlace": "Scope Origin",
+                                  "coverImage": "/images/products/orange-batch.svg",
+                                  "specification": "10kg/box",
+                                  "unit": "box",
+                                  "status": "DISABLED"
+                                }
+                                """.formatted(companyId)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString()).path("data").path("id").asLong();
+
+        mockMvc.perform(post("/api/batches")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "batchCode": "BATCH-DISABLED-PRODUCT-IT",
+                                  "productId": %d,
+                                  "companyId": %d,
+                                  "originPlace": "Scope Origin",
+                                  "productionDate": "2026-04-20",
+                                  "publicRemark": "Should not create",
+                                  "internalRemark": "Product is disabled"
+                                }
+                                """.formatted(productId, companyId)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("selected product is not available"));
     }
 
     @Test

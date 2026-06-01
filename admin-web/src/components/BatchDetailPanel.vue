@@ -96,7 +96,12 @@ const latestRecord = computed(() => recentRecords.value[0] ?? null)
 const latestQualityReport = computed(() => detail.value?.quality?.latestReport ?? null)
 const latestRiskAction = computed(() => detail.value?.riskHandling?.history?.[0] ?? null)
 
-const batchName = computed(() => batch.value.productName || detail.value?.product?.name || '未命名批次')
+const productCode = computed(() => batch.value.productCode || detail.value?.product?.productCode || '')
+const batchName = computed(() => {
+  const name = batch.value.productName || detail.value?.product?.name || '未命名批次'
+  if (productCode.value && String(name).includes(`（${productCode.value}）`)) return name
+  return productCode.value ? `${name}（${productCode.value}）` : name
+})
 const batchCode = computed(() => batch.value.batchCode || '未生成批次号')
 const companyName = computed(() => company.value.name || batch.value.companyName || '未关联企业')
 const batchStatusText = computed(() => detail.value?.status?.label || '状态待确认')

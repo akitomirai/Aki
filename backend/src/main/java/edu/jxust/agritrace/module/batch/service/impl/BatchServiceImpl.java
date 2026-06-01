@@ -971,6 +971,7 @@ public class BatchServiceImpl implements BatchService {
                 productPO.getId(),
                 productPO.getCompanyId(),
                 productPO.getName(),
+                productPO.getProductCode(),
                 productPO.getCategory(),
                 defaultValue(productPO.getSpec(), "待补充"),
                 defaultValue(productPO.getUnit(), "待补充"),
@@ -1103,6 +1104,7 @@ public class BatchServiceImpl implements BatchService {
                 batch.getId(),
                 batch.getBatchCode(),
                 batch.getProduct().name(),
+                batch.getProduct().productCode(),
                 batch.getProduct().imageUrl(),
                 batch.getCompany().name(),
                 batch.getStatus().name(),
@@ -1188,6 +1190,7 @@ public class BatchServiceImpl implements BatchService {
                         batch.getProduct().id(),
                         batch.getProduct().companyId(),
                         batch.getProduct().name(),
+                        batch.getProduct().productCode(),
                         batch.getProduct().category(),
                         batch.getProduct().specification(),
                         batch.getProduct().unit(),
@@ -1657,6 +1660,7 @@ public class BatchServiceImpl implements BatchService {
                 batchPO.getId(),
                 batchPO.getBatchCode(),
                 batch.getProduct().name(),
+                batch.getProduct().productCode(),
                 batch.getCompany().name(),
                 batch.getCurrentNode(),
                 defaultValue(draftPO.getStage(), TraceStage.PRODUCE.name()),
@@ -2017,7 +2021,10 @@ public class BatchServiceImpl implements BatchService {
         if (request == null) {
             return true;
         }
-        return containsIgnoreCase(batch.getProduct().name(), request.getProductName())
+        boolean matchesProduct = !notBlank(request.getProductName())
+                || containsIgnoreCase(batch.getProduct().name(), request.getProductName())
+                || containsIgnoreCase(batch.getProduct().productCode(), request.getProductName());
+        return matchesProduct
                 && containsIgnoreCase(batch.getCompany().name(), request.getCompanyName());
     }
 

@@ -6,6 +6,7 @@ public record BatchListItemVO(
         Long id,
         String batchCode,
         String productName,
+        String productCode,
         String productImageUrl,
         String companyName,
         String status,

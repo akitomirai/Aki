@@ -856,7 +856,7 @@ function recommendedActionClass(card) {
 
 function exportCurrentLedger() {
   const rows = visibleBatchCards.value.map(({ item }) => ({
-    productName: item.productName || '未命名批次',
+    productName: batchProductLabel(item),
     batchCode: item.batchCode || '',
     companyName: item.companyName || '',
     statusLabel: item.statusLabel || '草稿',
@@ -875,7 +875,7 @@ function exportCurrentLedger() {
   downloadCsvFile({
     filename: `批次台账-${exportTimestamp()}.csv`,
     columns: [
-      { key: 'productName', label: '批次名称' },
+      { key: 'productName', label: '产品' },
       { key: 'batchCode', label: '批次编号' },
       { key: 'companyName', label: '企业' },
       { key: 'statusLabel', label: '批次状态' },
@@ -975,7 +975,7 @@ async function openCopyDialog(item, options = {}) {
       batchId: item.id,
       batchName: detail.batch.batchCode,
       sourceBatchCode: detail.batch.batchCode,
-      sourceProductName: detail.product.name
+      sourceProductName: productOptionLabel(detail.product)
     }
     if (fromRoute) {
       clearCopyQuery()
@@ -1240,6 +1240,20 @@ function handleBatchProductChange() {
     batchForm.value.originPlace = productOrigin
   }
   lastProductOriginPrefill.value = productOrigin
+}
+
+function productOptionLabel(item) {
+  const name = String(item?.name || '').trim() || '未命名产品'
+  const code = String(item?.productCode || '').trim()
+  if (code && name.includes(`（${code}）`)) return name
+  return code ? `${name}（${code}）` : name
+}
+
+function batchProductLabel(item) {
+  const name = String(item?.productName || item?.name || '').trim() || '未命名产品'
+  const code = String(item?.productCode || '').trim()
+  if (code && name.includes(`（${code}）`)) return name
+  return code ? `${name}（${code}）` : name
 }
 
 async function handleTraceFilesChange(event) {
@@ -1662,8 +1676,8 @@ function statusClass(status) {
           </label>
 
           <label class="manage-filter-field batch-filter-field batch-filter-field--product">
-            <span class="manage-filter-field__label">产品名称</span>
-            <input v-model.trim="filters.productName" type="text" placeholder="输入产品名称">
+            <span class="manage-filter-field__label">产品</span>
+            <input v-model.trim="filters.productName" type="text" placeholder="输入产品名称或编码">
           </label>
 
           <label class="manage-filter-field batch-filter-field batch-filter-field--status">
@@ -1774,7 +1788,7 @@ function statusClass(status) {
         >
           <div class="row-main">
             <strong>{{ card.item.batchCode }}</strong>
-            <span>{{ card.item.productName }}</span>
+            <span>{{ batchProductLabel(card.item) }}</span>
           </div>
 
           <div class="row-meta row-meta--flow">
@@ -1889,7 +1903,7 @@ function statusClass(status) {
             <span>产品（必填）</span>
             <select v-model="batchForm.productId" :disabled="!batchForm.companyId" @change="handleBatchProductChange">
               <option :value="null">{{ batchForm.companyId ? '请选择产品' : '请先选择企业' }}</option>
-              <option v-for="item in formProductOptions" :key="item.id" :value="item.id">{{ item.name }}</option>
+              <option v-for="item in formProductOptions" :key="item.id" :value="item.id">{{ productOptionLabel(item) }}</option>
             </select>
           </label>
 

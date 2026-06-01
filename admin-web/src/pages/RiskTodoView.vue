@@ -572,7 +572,7 @@ function matchesKeyword(item) {
   if (!keyword) {
     return true
   }
-  return [item.batchCode, item.productName]
+  return [item.batchCode, item.productName, item.productCode]
     .filter(Boolean)
     .some((value) => String(value).toLowerCase().includes(keyword))
 }
