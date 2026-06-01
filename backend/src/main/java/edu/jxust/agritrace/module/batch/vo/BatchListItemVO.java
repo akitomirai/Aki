@@ -20,6 +20,7 @@ public record BatchListItemVO(
         String qrToken,
         String qualityStatusCode,
         String qualityStatus,
+        boolean publicTraceReady,
         boolean publishReady,
         String riskStatus,
         String riskStatusLabel,

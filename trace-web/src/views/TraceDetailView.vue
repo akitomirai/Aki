@@ -338,6 +338,14 @@ const qualityReportFileUrl = computed(() => {
 
 const errorState = computed(() => {
   const message = String(errorMessage.value || '')
+  if (/尚未发布|等待企业完成发布|未发布/i.test(message)) {
+    return {
+      eyebrow: '暂未发布',
+      title: '追溯码暂未开放',
+      copy: '企业已生成二维码，但还没有完成公开发布审核。',
+      tips: []
+    }
+  }
   if (/不存在|未找到|无效|失效|not found|invalid/i.test(message)) {
     return {
       eyebrow: '未查到结果',

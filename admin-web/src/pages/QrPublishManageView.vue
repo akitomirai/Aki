@@ -6,7 +6,7 @@ import AdminListTemplate from '../components/AdminListTemplate.vue'
 import BatchWorkbenchDrawerPanel from '../components/BatchWorkbenchDrawerPanel.vue'
 import { useAuthStore } from '../stores/auth'
 import { getFriendlyErrorMessage } from '../utils/batchExperience'
-import { resolvePublishBlockState } from '../utils/batchStatusFlow'
+import { hasPublicTraceRecord, resolvePublishBlockState } from '../utils/batchStatusFlow'
 import { openPrintPreviewWindow, renderQrPrintPreview } from '../utils/exportTools'
 import { resolveQrStatusText } from '../utils/statusPresentation'
 import { generateBrandedQrDataUrl } from '../utils/brandedQr'
@@ -309,6 +309,12 @@ function publishSummary(item) {
 function publishChecks(item) {
   return [
     {
+      key: 'public-trace',
+      label: '已补公开追溯',
+      done: hasPublicTraceRecord(item),
+      detail: hasPublicTraceRecord(item) ? '已有消费者可见追溯记录' : '还没有消费者可见追溯记录'
+    },
+    {
       key: 'quality-uploaded',
       label: '已上传质检',
       done: qualityUploaded(item),
@@ -410,6 +416,13 @@ function compactPublishChecks(item) {
       key: 'risk',
       label: String(item.status || '').toUpperCase() === 'RECALLED' ? '已召回' : '风险未解除',
       tone: String(item.status || '').toUpperCase() === 'RECALLED' ? 'danger' : 'warning'
+    }]
+  }
+  if (!hasPublicTraceRecord(item)) {
+    return [{
+      key: 'trace',
+      label: '缺追溯',
+      tone: 'pending'
     }]
   }
   if (!qualityPassed(item)) {
@@ -541,7 +554,7 @@ function primaryQrActionDisabled(item) {
 }
 
 function showPublicAction(item) {
-  return hasQr(item)
+  return hasQr(item) && actionOf(item, 'VIEW_PUBLIC').enabled
 }
 
 function showPreviewAction(item) {
@@ -831,6 +844,10 @@ async function downloadQr(item) {
 }
 
 async function openPublicPage(item) {
+  if (!showPublicAction(item)) {
+    showMessage('批次发布后公开页才会对外开放。', 'info')
+    return
+  }
   try {
     const qr = await resolveQrPreview(item)
     window.open(qr.publicUrl, '_blank', 'noopener')

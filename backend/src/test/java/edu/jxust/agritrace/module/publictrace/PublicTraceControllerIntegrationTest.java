@@ -4,8 +4,10 @@ import edu.jxust.agritrace.module.batch.dto.BatchCreateRequest;
 import edu.jxust.agritrace.module.batch.dto.BatchRiskActionCreateRequest;
 import edu.jxust.agritrace.module.batch.dto.BatchStatusActionRequest;
 import edu.jxust.agritrace.module.batch.dto.QualityReportCreateRequest;
+import edu.jxust.agritrace.module.batch.dto.TraceRecordCreateRequest;
 import edu.jxust.agritrace.module.batch.entity.BatchStatus;
 import edu.jxust.agritrace.module.batch.entity.RiskActionType;
+import edu.jxust.agritrace.module.batch.entity.TraceStage;
 import edu.jxust.agritrace.module.batch.service.BatchService;
 import edu.jxust.agritrace.support.AuthenticatedIntegrationTestSupport;
 import org.junit.jupiter.api.Test;
@@ -59,6 +61,41 @@ class PublicTraceControllerIntegrationTest extends AuthenticatedIntegrationTestS
     }
 
     @Test
+    void shouldRejectDraftQrBeforePublishAndNotRecordScan() throws Exception {
+        Long batchId = batchService.createBatch(new BatchCreateRequest(
+                "BATCH-PUBLIC-DRAFT-BLOCKED-ROUND8",
+                1L,
+                1L,
+                "Jiangxi Ganzhou Xinfeng Orchard",
+                "2026-03-24",
+                "public draft gate test",
+                "test"
+        )).batch().id();
+
+        addPublicTraceRecord(batchId, "发布前公开记录");
+        batchService.addQualityReport(batchId, new QualityReportCreateRequest(
+                "QA-PUBLIC-DRAFT-BLOCKED-ROUND8",
+                "Jiangxi Quality Center",
+                "PASS",
+                "2026-03-24T15:30",
+                List.of("pass"),
+                List.of()
+        ));
+
+        String token = batchService.generateQr(batchId).qr().token();
+        long beforePv = batchService.getBatchWorkbench(batchId).qr().pv();
+
+        mockMvc.perform(get("/api/public/traces/{token}", token)
+                        .header("User-Agent", "JUnit-Mobile")
+                        .header("Referer", "http://127.0.0.1:5173"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("追溯码尚未发布，请等待企业完成发布后再查询。"));
+
+        long afterPv = batchService.getBatchWorkbench(batchId).qr().pv();
+        org.junit.jupiter.api.Assertions.assertEquals(beforePv, afterPv);
+    }
+
+    @Test
     void shouldReturnFrozenProcessingRiskStructureForPublicTrace() throws Exception {
         Long batchId = batchService.createBatch(new BatchCreateRequest(
                 "BATCH-PUBLIC-PROCESSING-ROUND6",
@@ -70,6 +107,7 @@ class PublicTraceControllerIntegrationTest extends AuthenticatedIntegrationTestS
                 "test"
         )).batch().id();
 
+        addPublicTraceRecord(batchId, "风险处理前公开记录");
         batchService.addQualityReport(batchId, new QualityReportCreateRequest(
                 "QA-PUBLIC-PROCESSING-ROUND6",
                 "Jiangxi Quality Center",
@@ -118,6 +156,7 @@ class PublicTraceControllerIntegrationTest extends AuthenticatedIntegrationTestS
                 "test"
         )).batch().id();
 
+        addPublicTraceRecord(batchId, "整改闭环前公开记录");
         batchService.addQualityReport(batchId, new QualityReportCreateRequest(
                 "QA-PUBLIC-RECTIFIED-ROUND6",
                 "Jiangxi Quality Center",
@@ -158,5 +197,19 @@ class PublicTraceControllerIntegrationTest extends AuthenticatedIntegrationTestS
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.risk.status").value("NORMAL"))
                 .andExpect(jsonPath("$.data.summary.statusLabel").value("已发布"));
+    }
+
+    private void addPublicTraceRecord(Long batchId, String title) {
+        batchService.addTraceRecord(batchId, new TraceRecordCreateRequest(
+                TraceStage.PRODUCE,
+                title,
+                "2026-03-24T09:10",
+                "trace tester",
+                "Xinfeng Orchard",
+                "完成一条对消费者可见的关键追溯记录。",
+                null,
+                List.of(),
+                true
+        ));
     }
 }

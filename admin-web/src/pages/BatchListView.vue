@@ -38,6 +38,7 @@ import { buildTraceLink } from '../utils/display'
 import { downloadCsvFile } from '../utils/exportTools'
 import { resolveQrStatusText, resolveTaskStatusText, resolveTodayStatusText } from '../utils/statusPresentation'
 import { canManageAdminBatch, isRegulator } from '../utils/access'
+import { hasPublicTraceRecord } from '../utils/batchStatusFlow'
 
 const route = useRoute()
 const router = useRouter()
@@ -1334,7 +1335,7 @@ function buildBatchInsight(item) {
   const hasQr = item.qrStatus && item.qrStatus !== 'NOT_GENERATED'
   const hasQuality = !/待上传|pending/i.test(qualityText)
   const qualityFailed = /不合格|fail/i.test(qualityText)
-  const needsTrace = /待补录/.test(item.currentNode || '')
+  const needsTrace = !hasPublicTraceRecord(item)
   const isRisk = ['FROZEN', 'RECALLED'].includes(item.status)
   const readyToPublish = item.status === 'DRAFT' && hasQuality && !qualityFailed && hasQr && !needsTrace
 

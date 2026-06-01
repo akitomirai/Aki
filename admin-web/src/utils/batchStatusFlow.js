@@ -50,6 +50,13 @@ export function canBatchStatusTransition(currentStatus, targetStatus) {
   return allowedBatchStatusTargets(normalizedCurrent).includes(normalizedTarget)
 }
 
+export function hasPublicTraceRecord(item = {}) {
+  if (typeof item.publicTraceReady === 'boolean') {
+    return item.publicTraceReady
+  }
+  return Boolean(item.latestTraceTime)
+}
+
 export function resolveDefaultRecommendedAction(status) {
   return defaultRecommendedActionByStatus[normalizeBatchStatus(status)] ?? {
     code: 'VIEW_WORKBENCH',
@@ -78,6 +85,14 @@ export function resolvePublishBlockState(item = {}) {
       reason: status === 'RECALLED'
         ? '已召回批次不可再变更状态'
         : '当前状态不支持发布或恢复发布'
+    }
+  }
+
+  if (!hasPublicTraceRecord(item)) {
+    return {
+      allowed: false,
+      code: 'MISSING_PUBLIC_TRACE',
+      reason: '发布前请至少补录一条对消费者可见的追溯记录'
     }
   }
 

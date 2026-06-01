@@ -52,6 +52,7 @@ class BatchServicePersistenceIntegrationTest extends AuthenticatedIntegrationTes
                 "test"
         )).batch().id();
 
+        addPublicTraceRecord(batchId, "状态流转前采收记录");
         batchService.addQualityReport(batchId, new QualityReportCreateRequest(
                 "QA-STATE-ROUND6",
                 "Jiangxi Quality Center",
@@ -152,6 +153,38 @@ class BatchServicePersistenceIntegrationTest extends AuthenticatedIntegrationTes
         assertEquals(first.qr().token(), second.qr().token());
         assertEquals(first.qr().imageUrl(), second.qr().imageUrl());
         assertNotNull(second.qr().publicUrl());
+    }
+
+    @Test
+    void shouldRejectPublishingWithoutConsumerVisibleTraceRecord() {
+        Long batchId = batchService.createBatch(new BatchCreateRequest(
+                "BATCH-NO-PUBLIC-TRACE-ROUND8",
+                1L,
+                1L,
+                "Jiangxi Ganzhou Xinfeng Orchard",
+                "2026-03-24",
+                "publish gate test",
+                "test"
+        )).batch().id();
+
+        batchService.addQualityReport(batchId, new QualityReportCreateRequest(
+                "QA-NO-PUBLIC-TRACE-ROUND8",
+                "Jiangxi Quality Center",
+                "PASS",
+                "2026-03-24T10:30",
+                List.of("pass"),
+                List.of()
+        ));
+        batchService.generateQr(batchId);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
+                batchService.changeStatus(batchId, new BatchStatusActionRequest(
+                        BatchStatus.PUBLISHED,
+                        "ready",
+                        "tester"
+                )));
+
+        assertTrue(exception.getMessage().contains("消费者可见"));
     }
 
     @Test
@@ -291,6 +324,7 @@ class BatchServicePersistenceIntegrationTest extends AuthenticatedIntegrationTes
                 "test"
         )).batch().id();
 
+        addPublicTraceRecord(batchId, "扫码统计前公开追溯记录");
         batchService.addQualityReport(batchId, new QualityReportCreateRequest(
                 "QA-SCAN-ROUND6",
                 "Jiangxi Quality Center",
@@ -302,6 +336,7 @@ class BatchServicePersistenceIntegrationTest extends AuthenticatedIntegrationTes
 
         var generated = batchService.generateQr(batchId);
         String token = generated.qr().token();
+        batchService.changeStatus(batchId, new BatchStatusActionRequest(BatchStatus.PUBLISHED, "ready", "tester"));
 
         batchService.recordPublicTraceAccess(token, new PublicTraceAccessContext("127.0.0.1", "JUnit Mobile", "http://127.0.0.1:5173"));
         batchService.recordPublicTraceAccess(token, new PublicTraceAccessContext("127.0.0.1", "JUnit Mobile", "http://127.0.0.1:5173"));
@@ -354,5 +389,19 @@ class BatchServicePersistenceIntegrationTest extends AuthenticatedIntegrationTes
 
         assertEquals(companyId, created.company().id());
         assertEquals(productId, created.product().id());
+    }
+
+    private void addPublicTraceRecord(Long batchId, String title) {
+        batchService.addTraceRecord(batchId, new TraceRecordCreateRequest(
+                TraceStage.PRODUCE,
+                title,
+                "2026-03-24T09:10",
+                "trace tester",
+                "Xinfeng Orchard",
+                "完成一条对消费者可见的关键追溯记录。",
+                null,
+                List.of(),
+                true
+        ));
     }
 }

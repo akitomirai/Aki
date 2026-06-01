@@ -779,18 +779,22 @@ public class BatchServiceImpl implements BatchService {
     @Override
     public BatchEntity getBatchEntityByToken(String token) {
         QrCodePO qrCodePO = findQrByToken(token);
-        return loadBatchEntity(findBatchPO(qrCodePO.getBatchId()));
+        TraceBatchPO batchPO = findBatchPO(qrCodePO.getBatchId());
+        ensurePublicTraceAvailable(qrCodePO, batchPO);
+        return loadBatchEntity(batchPO);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void recordPublicTraceAccess(String token, PublicTraceAccessContext accessContext) {
         QrCodePO qrCodePO = findQrByToken(token);
+        TraceBatchPO batchPO = findBatchPO(qrCodePO.getBatchId());
+        ensurePublicTraceAvailable(qrCodePO, batchPO);
         LocalDateTime accessTime = LocalDateTime.now();
 
         QrQueryLogPO queryLogPO = new QrQueryLogPO();
         queryLogPO.setQrId(qrCodePO.getId());
-        queryLogPO.setBatchId(qrCodePO.getBatchId());
+        queryLogPO.setBatchId(batchPO.getId());
         queryLogPO.setQueryTime(accessTime);
         queryLogPO.setIp(trimToNull(accessContext == null ? null : accessContext.ip()));
         queryLogPO.setUa(trimToNull(accessContext == null ? null : accessContext.userAgent()));
@@ -839,6 +843,13 @@ public class BatchServiceImpl implements BatchService {
             throw new IllegalArgumentException("未找到对应追溯码");
         }
         return qrCodePO;
+    }
+
+    private void ensurePublicTraceAvailable(QrCodePO qrCodePO, TraceBatchPO batchPO) {
+        BatchStatus status = readBatchStatus(batchPO.getStatus());
+        if (status == BatchStatus.DRAFT || "READY".equalsIgnoreCase(defaultValue(qrCodePO.getStatus(), ""))) {
+            throw new IllegalArgumentException("追溯码尚未发布，请等待企业完成发布后再查询。");
+        }
     }
 
     private TraceEventPO findLatestTraceEvent(Long batchId) {
@@ -1078,6 +1089,7 @@ public class BatchServiceImpl implements BatchService {
     private BatchListItemVO toListItem(BatchEntity batch) {
         QualityReportEntity latestQuality = latestQuality(batch);
         TraceRecordEntity latestTrace = latestTrace(batch);
+        boolean publicTraceReady = hasPublicTraceRecord(batch);
         AuthUserSession currentUser = currentUser();
         String effectiveTaskStatus = resolveEffectiveTaskStatus(batch);
         LocalDateTime effectiveTaskCompletedAt = resolveEffectiveTaskCompletedAt(batch);
@@ -1092,7 +1104,7 @@ public class BatchServiceImpl implements BatchService {
         List<BatchActionVO> actions = buildActions(batch);
         BatchStatusFlowAdvisor.RecommendedAction recommendedAction = batchStatusFlowAdvisor.recommendAction(
                 batch,
-                latestTrace != null,
+                publicTraceReady,
                 latestQuality != null && !"FAIL".equalsIgnoreCase(latestQuality.result()),
                 batch.getQrCode() != null,
                 canResume
@@ -1118,6 +1130,7 @@ public class BatchServiceImpl implements BatchService {
                 batch.getQrCode() == null ? null : batch.getQrCode().token(),
                 qualityStatusCode,
                 qualityStatusLabel,
+                publicTraceReady,
                 publishReady,
                 riskSnapshot.status(),
                 riskSnapshot.statusLabel(),
@@ -1737,6 +1750,7 @@ public class BatchServiceImpl implements BatchService {
         AuthUserSession currentUser = currentUser();
         QualityReportEntity latestQuality = latestQuality(batch);
         boolean hasQualifiedReport = latestQuality != null && !"FAIL".equalsIgnoreCase(latestQuality.result());
+        boolean hasPublicTraceRecord = hasPublicTraceRecord(batch);
         boolean hasQr = batch.getQrCode() != null;
         boolean canManageBatch = canManageCompanyBatch(currentUser, batch);
         boolean canEdit = canEditBatch(currentUser, batch);
@@ -1746,10 +1760,12 @@ public class BatchServiceImpl implements BatchService {
         boolean canRisk = canManageBatch;
         boolean canPublish = canManageBatch
                 && batch.getStatus() == BatchStatus.DRAFT
+                && hasPublicTraceRecord
                 && hasQualifiedReport
                 && hasQr;
         boolean canResume = canManageBatch
                 && batch.getStatus() == BatchStatus.FROZEN
+                && hasPublicTraceRecord
                 && hasQualifiedReport
                 && hasQr
                 && batchRiskResolver.canResume(batch);
@@ -1765,7 +1781,7 @@ public class BatchServiceImpl implements BatchService {
                 new BatchActionVO("ADD_TRACE", "新增追溯记录", canTrace && batch.getStatus() != BatchStatus.RECALLED, canTrace ? "使用快速录入补齐关键节点。" : "当前账号不能补录追溯。", "primary"),
                 new BatchActionVO("UPLOAD_QUALITY", "上传质检", canQuality && batch.getStatus() != BatchStatus.RECALLED, canQuality ? "发布前优先补齐质检摘要。" : "当前账号不能上传质检。", "success"),
                 new BatchActionVO("GENERATE_QR", hasQr ? "查看二维码" : "生成二维码", canGenerateQr, hasQr ? "二维码已存在，可继续核对公开页。" : (canQr ? "同一批次默认只生成一次二维码。" : "当前账号不能生成二维码。"), "primary"),
-                new BatchActionVO("VIEW_PUBLIC", "公开页预览", hasQr, hasQr ? "可直接打开公开追溯页。" : "需先生成二维码。", "neutral"),
+                new BatchActionVO("VIEW_PUBLIC", "公开页预览", isPublicTraceAvailable(batch), isPublicTraceAvailable(batch) ? "可直接打开公开追溯页。" : (hasQr ? "批次发布后公开页才会对外开放。" : "需先生成二维码。"), "neutral"),
                 new BatchActionVO("PUBLISH", "发布批次", canPublish, canPublish ? "已满足发布条件。" : publishBlockedReason, "success"),
                 new BatchActionVO("RESUME", "恢复发布", canResume, canResume ? "整改已完成，满足恢复发布条件。" : publishBlockedReason, "success"),
                 new BatchActionVO("FREEZE", "冻结批次", canFreeze, canRisk ? "发现异常时应快速冻结，并写明原因。" : "当前账号不能处理风险状态。", "warning"),
@@ -1791,6 +1807,9 @@ public class BatchServiceImpl implements BatchService {
         }
 
         QualityReportEntity latestQuality = latestQuality(batch);
+        if (!hasPublicTraceRecord(batch)) {
+            return "发布前请至少补录一条对消费者可见的追溯记录";
+        }
         if (latestQuality == null) {
             return "发布前请先上传质检摘要";
         }
@@ -1818,6 +1837,18 @@ public class BatchServiceImpl implements BatchService {
                 .filter(record -> record.eventTime() != null)
                 .max(Comparator.comparing(TraceRecordEntity::eventTime))
                 .orElse(null);
+    }
+
+    private boolean hasPublicTraceRecord(BatchEntity batch) {
+        return batch != null
+                && batch.getTraceRecords().stream()
+                .anyMatch(TraceRecordEntity::visibleToConsumer);
+    }
+
+    private boolean isPublicTraceAvailable(BatchEntity batch) {
+        return batch != null
+                && batch.getQrCode() != null
+                && batch.getStatus() != BatchStatus.DRAFT;
     }
 
     private LocalDateTime latestActivityAt(BatchEntity batch) {

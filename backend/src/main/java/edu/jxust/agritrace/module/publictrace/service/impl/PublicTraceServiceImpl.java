@@ -39,8 +39,8 @@ public class PublicTraceServiceImpl implements PublicTraceService {
 
     @Override
     public PublicTraceDetailVO getTraceDetailByToken(String token, PublicTraceAccessContext accessContext) {
-        batchService.recordPublicTraceAccess(token, accessContext);
         BatchEntity batch = batchService.getBatchEntityByToken(token);
+        batchService.recordPublicTraceAccess(token, accessContext);
         QualityReportEntity latestQuality = batch.getQualityReports().stream()
                 .max(Comparator.comparing(QualityReportEntity::reportTime))
                 .orElse(null);
